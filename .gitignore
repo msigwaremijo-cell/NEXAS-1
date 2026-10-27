@@ -17,6 +17,9 @@
 composer.phar
 auth.json
 
+# --- Local Composer cache (redirected into the project) ---
+/.composer-cache/
+
 # --- Node / build output ---
 /node_modules/
 /public/build/
