@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# Nexas — ignore rules
+# Protects credentials and generated files from ever being committed.
+# ---------------------------------------------------------------------------
+
+# --- Secrets & environment (never commit these) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- PHP / Composer ---
+/vendor/
+composer.phar
+auth.json
+
+# --- Node / build output ---
+/node_modules/
+/public/build/
+/public/hot
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Laravel runtime, caches & logs ---
+/storage/*.key
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+/bootstrap/cache/*
+!storage/framework/cache/data/.gitignore
+!storage/framework/sessions/.gitignore
+!storage/framework/views/.gitignore
+!storage/logs/.gitignore
+!bootstrap/cache/.gitignore
+
+# --- Database dumps & backups (may contain real financial data) ---
+*.sql
+*.sql.gz
+*.dump
+/backup/
+
+# --- Local editor / OS noise ---
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+
+# --- Local scratch files ---
+*.local
+*.bak
+*.tmp
