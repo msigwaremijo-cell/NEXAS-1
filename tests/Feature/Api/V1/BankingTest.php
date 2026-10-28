@@ -112,6 +112,7 @@ it('refuses the cash and bank surface without a token', function (string $method
     ['GET', '/api/v1/bank-accounts'],
     ['POST', '/api/v1/bank-accounts'],
     ['GET', '/api/v1/bank-accounts/'.'01JQZ0000000000000000000AB'],
+    ['POST', '/api/v1/bank-transfers'],
 ]);
 
 it('lets a cashier see the accounts without being able to open one', function () {
@@ -387,4 +388,271 @@ it('pages the accounts in name order and filters them by type', function () {
         ->assertOk()
         ->assertJsonPath('meta.total', 1)
         ->assertJsonPath('data.0.name', 'NMB Current Account');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Transfers
+|--------------------------------------------------------------------------
+|
+| A transfer is one journal with two sides, no party and nothing to allocate.
+| Every test here installs its own pair of accounts rather than sharing a
+| fixture, because the point of each one is which of the two sides is refused.
+|
+*/
+
+it('posts a transfer between two of the company accounts as one balanced journal', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    // The second account needs a ledger account of its own, or both sides of
+    // the journal would land on 1010 and cancel each other out.
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+    $fromId = $this->makeBankAccountRecord('CRDB Current Account');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+        'reference' => 'TRF-0001',
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.journal_type', 'transfer')
+        ->assertJsonPath('data.status', 'posted')
+        ->assertJsonPath('data.posting_date', '2026-03-18')
+        ->assertJsonPath('data.reference', 'TRF-0001')
+        ->assertJsonPath('data.from_bank_account_id', $fromId)
+        ->assertJsonPath('data.to_bank_account_id', $toId)
+        ->assertJsonPath('data.total_debit', '250.0000')
+        ->assertJsonPath('data.total_credit', '250.0000')
+        // Dr the account the money arrived in, Cr the account it left.
+        ->assertJsonPath('data.lines.0.account_id', $savingsLedgerId)
+        ->assertJsonPath('data.lines.0.debit', '250.0000')
+        ->assertJsonPath('data.lines.0.credit', '0.0000')
+        ->assertJsonPath('data.lines.1.account_id', $this->bankLedgerAccountId)
+        ->assertJsonPath('data.lines.1.debit', '0.0000')
+        ->assertJsonPath('data.lines.1.credit', '250.0000');
+
+    $journal = DB::table('journals')->where('company_id', $this->companyId)->sole();
+
+    expect($journal->journal_type)->toBe('transfer')
+        ->and($journal->status)->toBe('posted')
+        ->and($journal->source_type)->toBe('App\\Models\\BankAccount')
+        ->and($journal->source_id)->toBe($fromId)
+        ->and(DB::table('journal_lines')->where('journal_id', $journal->id)->count())->toBe(2);
+
+    // The money left one account and arrived in the other, and the two moves
+    // are the same amount, so nothing was created or destroyed on the way.
+    $this->getJson('/api/v1/reports/general-ledger?account_id='.$this->bankLedgerAccountId)
+        ->assertOk()
+        ->assertJsonPath('meta.period_debit', '0.0000')
+        ->assertJsonPath('meta.period_credit', '250.0000')
+        ->assertJsonPath('meta.closing_balance', '-250.0000');
+
+    $this->getJson('/api/v1/reports/general-ledger?account_id='.$savingsLedgerId)
+        ->assertOk()
+        ->assertJsonPath('meta.period_debit', '250.0000')
+        ->assertJsonPath('meta.period_credit', '0.0000')
+        ->assertJsonPath('meta.closing_balance', '250.0000');
+
+    $this->getJson('/api/v1/reports/trial-balance')
+        ->assertOk()
+        ->assertJsonPath('meta.balanced', true)
+        ->assertJsonPath('meta.total_debit', '250.0000')
+        ->assertJsonPath('meta.total_credit', '250.0000');
+});
+
+it('replays a retried transfer instead of moving the money twice', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+    $fromId = $this->makeBankAccountRecord('CRDB Current Account');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $body = [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ];
+
+    $first = $this->withHeader('Idempotency-Key', 'transfer-1')
+        ->postJson('/api/v1/bank-transfers', $body)
+        ->assertCreated();
+
+    $second = $this->withHeader('Idempotency-Key', 'transfer-1')
+        ->postJson('/api/v1/bank-transfers', $body)
+        ->assertCreated();
+
+    expect($second->json('data.journal_no'))->toBe($first->json('data.journal_no'));
+
+    // One journal and one pair of lines: the client retried, the money did not.
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(1)
+        ->and(DB::table('journal_lines')->where('company_id', $this->companyId)->count())->toBe(2);
+
+    $this->getJson('/api/v1/reports/general-ledger?account_id='.$savingsLedgerId)
+        ->assertOk()
+        ->assertJsonPath('meta.closing_balance', '250.0000');
+});
+
+it('refuses a transfer out of an account that has been closed', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+
+    // The account was open and has since been closed. Its history stays where
+    // it is, but money must not move through it any more.
+    $fromId = $this->makeBankAccountRecord('CRDB Current Account', 'closed');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ])
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'TransferStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'Closed')
+            && str_contains($message, 'source'));
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(0);
+});
+
+it('refuses a transfer into an account that has been closed', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+
+    $fromId = $this->makeBankAccountRecord('CRDB Current Account');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'closed', $savingsLedgerId);
+
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ])
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'TransferStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'Closed')
+            && str_contains($message, 'destination'));
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(0);
+});
+
+it('refuses a transfer from an account to itself', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $accountId = $this->makeBankAccountRecord('CRDB Current Account');
+
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $accountId,
+        'to_bank_account_id' => $accountId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ])
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'TransferStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'itself'));
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(0);
+});
+
+it('refuses an amount of zero rather than posting a journal that moves nothing', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+    $fromId = $this->makeBankAccountRecord('CRDB Current Account');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '0.0000',
+    ])
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'TransferStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'greater than zero'));
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(0);
+});
+
+it('refuses a transfer naming an account from another company', function () {
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $foreignCompanyId = nxBankingForeignCompanyId();
+
+    $foreignLedgerId = DB::table('accounts')->insertGetId([
+        'ulid' => (string) Str::ulid(),
+        'company_id' => $foreignCompanyId,
+        'code' => '1010',
+        'name' => 'Bank Current Account',
+        'account_type' => 'asset',
+        'normal_balance' => 'debit',
+        'depth' => 0,
+        'is_postable' => true,
+        'is_cash' => true,
+        'status' => 'active',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $foreignBankAccountId = DB::table('bank_accounts')->insertGetId([
+        'ulid' => (string) Str::ulid(),
+        'company_id' => $foreignCompanyId,
+        'account_id' => $foreignLedgerId,
+        'name' => 'Other Company Current Account',
+        'currency_code' => 'TZS',
+        'account_type' => 'bank',
+        'opening_balance' => '0',
+        'status' => 'active',
+        'row_version' => 0,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // Transferring out of another tenant's account would move money that is not
+    // this company's, so the id is rejected before the action is reached.
+    $this->postJson('/api/v1/bank-transfers', [
+        'from_bank_account_id' => $foreignBankAccountId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('from_bank_account_id');
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(0);
+});
+
+it('lets a cashier bank the takings but not an auditor', function () {
+    $savingsLedgerId = $this->makeAccount('1020', 'Bank Savings Account', 'asset', 'debit', true);
+    $fromId = $this->makeBankAccountRecord('Petty Cash Box');
+    $toId = $this->makeBankAccountRecord('CRDB Savings Account', 'active', $savingsLedgerId);
+
+    $body = [
+        'from_bank_account_id' => $fromId,
+        'to_bank_account_id' => $toId,
+        'transfer_date' => '2026-03-18',
+        'amount' => '250.0000',
+    ];
+
+    // An audit that can move money between its own accounts is not an audit.
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    $this->postJson('/api/v1/bank-transfers', $body)->assertForbidden();
+
+    // Banking the day's takings from the till is the same operation, and it is
+    // the cashier's job.
+    Sanctum::actingAs(nxBankingMember($this->companyId, AccessMatrix::ROLE_CASHIER));
+
+    $this->postJson('/api/v1/bank-transfers', $body)->assertCreated();
+
+    expect(DB::table('journals')->where('company_id', $this->companyId)->count())->toBe(1);
 });

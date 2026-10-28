@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BankAccountController;
+use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -79,5 +80,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/bank-accounts', [BankAccountController::class, 'index'])->name('api.v1.bank-accounts.index');
         Route::post('/bank-accounts', [BankAccountController::class, 'store'])->name('api.v1.bank-accounts.store');
         Route::get('/bank-accounts/{bankAccount}', [BankAccountController::class, 'show'])->name('api.v1.bank-accounts.show');
+
+        // The cashbook's own movement: money that never left the company, so
+        // there is no party to settle and no allocation to follow.
+        Route::post('/bank-transfers', [BankTransferController::class, 'store'])->name('api.v1.bank-transfers.store');
     });
 });

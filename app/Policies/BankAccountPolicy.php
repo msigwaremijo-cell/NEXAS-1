@@ -35,4 +35,19 @@ class BankAccountPolicy
     {
         return $user->can(AccessMatrix::PERMISSION_BANK_MANAGE);
     }
+
+    /**
+     * Moving money between two of the company's own accounts.
+     *
+     * This is the observationally more dangerous half of the cashbook: both
+     * sides of a transfer are accounts the company already controls, so the
+     * money does not leave the books, but the two accounts it lands between
+     * decide where the cash looks like it is. It carries the same right as
+     * taking money over the counter, because banking the day's takings from the
+     * till into the bank is exactly this operation and it is the cashier's job.
+     */
+    public function transfer(User $user): bool
+    {
+        return $user->can(AccessMatrix::PERMISSION_PAYMENT_RECORD);
+    }
 }

@@ -9,6 +9,7 @@ use App\Domain\Accounting\Exceptions\InvalidJournalException;
 use App\Domain\Accounting\Exceptions\JournalStateException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Domain\Banking\Exceptions\PaymentStateException;
+use App\Domain\Banking\Exceptions\TransferStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
 use App\Domain\Purchases\Exceptions\PurchasesException;
 use App\Domain\Sales\Exceptions\InvoiceStateException;
@@ -60,7 +61,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof IdempotencyConflictException,
                 $exception instanceof InvoiceStateException,
                 $exception instanceof BillStateException,
-                $exception instanceof PaymentStateException => 409,
+                $exception instanceof PaymentStateException,
+                $exception instanceof TransferStateException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.

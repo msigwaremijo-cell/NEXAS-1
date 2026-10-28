@@ -117,7 +117,10 @@ trait BuildsAccountingFixtures
     }
 
     /**
-     * A cash or bank account of the company, backed by the 1010 ledger account.
+     * A cash or bank account of the company, backed by the 1010 ledger account
+     * unless another is named. A transfer between two accounts needs both to be
+     * backed by different ledger accounts, or the two sides of its journal
+     * would land on the same account and cancel out.
      *
      * Deliberately not part of makeTradingFixtures(): the banking tests count
      * and page the company's bank accounts, so a row installed for every
@@ -127,11 +130,12 @@ trait BuildsAccountingFixtures
     protected function makeBankAccountRecord(
         string $name = 'Main Bank Account',
         string $status = 'active',
+        ?int $ledgerAccountId = null,
     ): int {
         return $this->bankAccountRecordId = DB::table('bank_accounts')->insertGetId([
             'ulid' => (string) Str::ulid(),
             'company_id' => $this->companyId,
-            'account_id' => $this->bankLedgerAccountId,
+            'account_id' => $ledgerAccountId ?? $this->bankLedgerAccountId,
             'name' => $name,
             'bank_name' => 'CRDB Bank',
             'account_number' => '0150-1234567-00',
