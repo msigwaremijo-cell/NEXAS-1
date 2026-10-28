@@ -8,6 +8,7 @@ use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Exceptions\InvalidJournalException;
 use App\Domain\Accounting\Exceptions\JournalStateException;
 use App\Domain\Banking\Exceptions\BankingException;
+use App\Domain\Banking\Exceptions\DuplicateStatementException;
 use App\Domain\Banking\Exceptions\PaymentStateException;
 use App\Domain\Banking\Exceptions\TransferStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
@@ -62,7 +63,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof InvoiceStateException,
                 $exception instanceof BillStateException,
                 $exception instanceof PaymentStateException,
-                $exception instanceof TransferStateException => 409,
+                $exception instanceof TransferStateException,
+                // A statement file that repeats movements the account already
+                // holds is not a malformed file and not a bad mapping, so
+                // resending it unchanged will produce the same answer every
+                // time. It has to be named before BankingException below, since
+                // a duplicate statement is also a banking refusal.
+                $exception instanceof DuplicateStatementException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.

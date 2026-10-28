@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BankAccountController;
+use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -84,5 +85,17 @@ Route::prefix('v1')->group(function (): void {
         // The cashbook's own movement: money that never left the company, so
         // there is no party to settle and no allocation to follow.
         Route::post('/bank-transfers', [BankTransferController::class, 'store'])->name('api.v1.bank-transfers.store');
+
+        // Statement import in three steps, because the middle one cannot be
+        // guessed: a file's columns are named by whichever tool the bank uses,
+        // and the upload hands back what is really in the file so the caller
+        // can say what each column is. The lines it produces are the bank's
+        // claims, not postings: nothing here reaches the ledger.
+        Route::get('/bank-accounts/{bankAccount}/statement-lines', [BankStatementController::class, 'index'])
+            ->name('api.v1.bank-accounts.statement-lines.index');
+        Route::post('/bank-accounts/{bankAccount}/statement-uploads', [BankStatementController::class, 'storeUpload'])
+            ->name('api.v1.bank-accounts.statement-uploads.store');
+        Route::post('/bank-accounts/{bankAccount}/statement-imports', [BankStatementController::class, 'import'])
+            ->name('api.v1.bank-accounts.statement-imports.store');
     });
 });

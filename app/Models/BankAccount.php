@@ -92,6 +92,16 @@ class BankAccount extends Model
     }
 
     /**
+     * The movements a statement file claimed for this account. They are the
+     * bank's word, not the company's: nothing is in the books until one of them
+     * is matched to a journal line.
+     */
+    public function statementLines(): HasMany
+    {
+        return $this->hasMany(BankStatementLine::class);
+    }
+
+    /**
      * Only an active account may take new money. The scope is spelled out here
      * so the cashbook, the importer and the reconciliation engine do not each
      * invent their own idea of which accounts are usable.

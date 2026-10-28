@@ -50,4 +50,22 @@ class BankAccountPolicy
     {
         return $user->can(AccessMatrix::PERMISSION_PAYMENT_RECORD);
     }
+
+    /**
+     * Uploading and importing a statement file into one account.
+     *
+     * This is not the same right as reading the accounts: a statement file is
+     * an unverified claim about every movement through the account, and
+     * importing one decides what the reconciliation will have to explain. It
+     * carries the same right as opening an account, which leaves it with the
+     * Owner and the Accountant, and keeps a cashier to reading.
+     *
+     * Importing changes no balance: nothing reaches the ledger until a line is
+     * matched. It is still a write to the books' raw material, so it is gated.
+     */
+    public function import(User $user, BankAccount $bankAccount): bool
+    {
+        return $user->belongsToCompany((int) $bankAccount->company_id)
+            && $user->can(AccessMatrix::PERMISSION_BANK_MANAGE);
+    }
 }

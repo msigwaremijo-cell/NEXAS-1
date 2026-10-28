@@ -47,6 +47,22 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Bank statement files a human downloaded from their bank and uploaded
+         | here. Kept off the public disk on purpose: a statement carries every
+         | movement through the company's money, so it is not something to be
+         | readable by whoever guesses a URL. The root sits under
+         | storage/app/private, which storage/app/.gitignore excludes, so an
+         | uploaded statement is never committed either.
+         */
+        'statements' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/bank-statements'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
