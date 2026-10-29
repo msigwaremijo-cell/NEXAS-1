@@ -114,6 +114,29 @@ it('blocks posting when the fiscal year itself is closed', function () {
 });
 
 /**
+ * Foundation: the cash flow category is a closed list the schema enforces.
+ *
+ * Four words the cash flow statement can classify, plus null for "nobody has
+ * said yet". Anything else is refused by MySQL rather than stored and then
+ * quietly skipped by the report.
+ */
+it('refuses a cash flow category outside the set at the database level', function () {
+    expect(fn () => DB::table('accounts')
+        ->where('id', $this->cashAccountId)
+        ->update(['cash_flow_category' => 'operating']))->not->toThrow(QueryException::class);
+
+    // Nullable, because "not classified yet" is a real and reportable state.
+    expect(fn () => DB::table('accounts')
+        ->where('id', $this->cashAccountId)
+        ->update(['cash_flow_category' => null]))->not->toThrow(QueryException::class);
+
+    expect(fn () => DB::table('accounts')
+        ->where('id', $this->cashAccountId)
+        ->update(['cash_flow_category' => 'banana']))
+        ->toThrow(QueryException::class, 'chk_accounts_cash_flow_category');
+});
+
+/**
  * Foundation test 4: the trial balance totals agree.
  */
 it('keeps the trial balance in agreement after a batch of postings', function () {

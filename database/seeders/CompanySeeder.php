@@ -30,7 +30,11 @@ class CompanySeeder extends Seeder
                 'timezone' => 'Africa/Dar_es_Salaam',
                 'status' => 'active',
                 'settings' => [
-                    'inventory_costing' => 'weighted_average',
+                    // FIFO is the only method this build values stock with, and
+                    // a company seeded with anything else could not move stock
+                    // at all. The method is locked once a movement exists, so
+                    // the choice has to be right before the shelves are used.
+                    'inventory_costing' => 'fifo',
                     'allow_negative_stock' => false,
                 ],
             ]

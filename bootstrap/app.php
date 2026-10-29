@@ -10,7 +10,10 @@ use App\Domain\Accounting\Exceptions\JournalStateException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Domain\Banking\Exceptions\DuplicateStatementException;
 use App\Domain\Banking\Exceptions\PaymentStateException;
+use App\Domain\Banking\Exceptions\ReconciliationStateException;
 use App\Domain\Banking\Exceptions\TransferStateException;
+use App\Domain\Inventory\Exceptions\InventoryException;
+use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
 use App\Domain\Purchases\Exceptions\PurchasesException;
 use App\Domain\Sales\Exceptions\InvoiceStateException;
@@ -64,12 +67,26 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof BillStateException,
                 $exception instanceof PaymentStateException,
                 $exception instanceof TransferStateException,
+                // A reconciliation asked for against the state the books are
+                // in rather than against the request itself: a line a completed
+                // reconciliation has closed, a statement that does not add up,
+                // a sign-off with a line still undecided. Named before
+                // BankingException below, since each is also a banking refusal.
+                $exception instanceof ReconciliationStateException,
                 // A statement file that repeats movements the account already
                 // holds is not a malformed file and not a bad mapping, so
                 // resending it unchanged will produce the same answer every
                 // time. It has to be named before BankingException below, since
                 // a duplicate statement is also a banking refusal.
-                $exception instanceof DuplicateStatementException => 409,
+                $exception instanceof DuplicateStatementException,
+
+                // A movement asked for against the stock the books currently
+                // hold rather than against the request itself: more than is on
+                // hand while the policy forbids negatives, a movement already
+                // reversed, a costing method locked by movements already
+                // posted. Named before InventoryException below, since each is
+                // also an inventory refusal.
+                $exception instanceof StockStateException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.
@@ -77,7 +94,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof DocumentLineException,
                 $exception instanceof SalesException,
                 $exception instanceof PurchasesException,
-                $exception instanceof BankingException => 422,
+                $exception instanceof BankingException,
+                $exception instanceof InventoryException => 422,
 
                 default => 400,
             };

@@ -82,6 +82,36 @@ it('derives each account normal balance from its type except the documented cont
         ->toBe(['1210' => 'credit', '1590' => 'credit', '3300' => 'debit', '4120' => 'debit', '5120' => 'credit']);
 });
 
+it('classifies the standard chart for the cash flow statement', function () {
+    $category = DB::table('accounts')->pluck('cash_flow_category', 'code');
+
+    // The company's own money. A movement between two of these is not an
+    // activity at all, so it takes a category label of its own.
+    expect($category->only(['1110', '1120', '1130', '1140'])->unique()->values()->all())
+        ->toBe(['internal_transfer']);
+
+    // Declared on the two non-current headers and inherited by every child,
+    // which is the whole point of the inheritance: one line each.
+    expect($category->only(['1510', '1520', '1530', '1540', '1550', '1590'])->unique()->values()->all())
+        ->toBe(['investing'])
+        ->and($category->only(['2510', '3100', '3200', '3300', '3400'])->unique()->values()->all())
+        ->toBe(['financing']);
+
+    // Everything the tree does not single out is operating: trading,
+    // receivables, payables, revenue and expenses.
+    expect($category->only(['1200', '1300', '1400', '2110', '4100', '5100', '6100'])->unique()->values()->all())
+        ->toBe(['operating']);
+
+    // A roll-up is never posted to, so it carries no line of its own.
+    expect($category->only(['1000', '1100', '1500', '2000', '2100', '2500', '3000', '4000', '5000', '6000'])
+        ->unique()->values()->all())
+        ->toBe([null]);
+
+    // The standard chart is fully classified: every null row above is one of
+    // the ten headers, and nothing a posting can reach is left unexplained.
+    expect(DB::table('accounts')->whereNull('cash_flow_category')->count())->toBe(10);
+});
+
 it('opens a fiscal year with twelve open monthly periods inside the 1..12 range', function () {
     $year = DB::table('fiscal_years')->sole();
 

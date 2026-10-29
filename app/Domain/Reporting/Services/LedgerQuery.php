@@ -211,6 +211,84 @@ final class LedgerQuery
     }
 
     /**
+     * Signed balances for a set of accounts as at a date, keyed by account id.
+     *
+     * One GROUP BY rather than a call to accountBalance() per account: the cash
+     * reports ask this question about every account the company keeps money in,
+     * and a company with a dozen tills should not cost a dozen round trips.
+     *
+     * An account that never moved is absent from the result rather than present
+     * as zero, because a SUM over a group that does not exist returns no row.
+     * The caller already holds the list of accounts it asked about and fills
+     * the gap itself, which is cheaper than making MySQL invent rows.
+     *
+     * @param  array<int, int>  $accountIds
+     * @return array<int, Money> account id => debit minus credit
+     */
+    public function accountBalances(int $companyId, array $accountIds, ?string $asOf = null): array
+    {
+        if ($accountIds === []) {
+            return [];
+        }
+
+        $rows = $this->postedLines($companyId, null, null, $asOf)
+            ->whereIn('journal_lines.account_id', $accountIds)
+            ->selectRaw(
+                'journal_lines.account_id AS account_id,'
+                .' COALESCE(SUM(journal_lines.debit), 0) AS debit,'
+                .' COALESCE(SUM(journal_lines.credit), 0) AS credit'
+            )
+            ->groupBy('journal_lines.account_id')
+            ->get();
+
+        $balances = [];
+
+        foreach ($rows as $row) {
+            $balances[(int) $row->account_id] = Money::of((string) $row->debit)
+                ->minus(Money::of((string) $row->credit));
+        }
+
+        return $balances;
+    }
+
+    /**
+     * Posted lines in a window restricted to a set of accounts.
+     *
+     * Exposed so a report can ask a question the methods here do not cover —
+     * the cash flow statement needs the journals that touched the money
+     * accounts — without restating which journals count as being in the ledger.
+     * A second copy of that rule in another service is a second place to get it
+     * wrong, and the two would drift the first time a status is added.
+     *
+     * @param  array<int, int>  $accountIds
+     */
+    public function postedLinesFor(
+        int $companyId,
+        array $accountIds,
+        ?string $from = null,
+        ?string $to = null,
+    ): Builder {
+        return $this->postedLines($companyId, null, $from, $to)
+            ->whereIn('journal_lines.account_id', $accountIds);
+    }
+
+    /**
+     * What one account stands at, as at a date, as debit minus credit.
+     *
+     * The reconciliation engine compares this against the balance the bank
+     * printed, and it has to be the same figure the general ledger shows or the
+     * two reports would disagree about the same account. So it is built from
+     * the same filter as everything else here rather than from a query of its
+     * own: posted and reversed journals only, so a draft's lines — which are
+     * physically in the table long before they belong in a report — are left
+     * out.
+     */
+    public function accountBalance(int $companyId, int $accountId, ?string $asOf = null): Money
+    {
+        return $this->signedTotal($this->postedLines($companyId, $accountId, null, $asOf));
+    }
+
+    /**
      * Trial balance for a date range: one row per account that moved, with the
      * movement split into its debit and credit sides.
      *

@@ -11,9 +11,13 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\JournalController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\ReconciliationController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\VersionController;
+use App\Http\Controllers\Api\V1\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 // Controllers registered here stay thin: validation, authorisation and
@@ -44,10 +48,20 @@ Route::prefix('v1')->group(function (): void {
         // Read surface. Same middleware pair, so every report is scoped to the
         // company the caller proved membership of.
         Route::get('/accounts', [AccountController::class, 'index'])->name('api.v1.accounts.index');
+        // Classifying an account changes how every period's cash movements are
+        // presented, so it is its own route with its own right rather than a
+        // general account update.
+        Route::patch('/accounts/{account}/cash-flow-category', [AccountController::class, 'updateCashFlowCategory'])
+            ->name('api.v1.accounts.cash-flow-category.update');
         Route::get('/reports/general-ledger', [ReportController::class, 'generalLedger'])->name('api.v1.reports.general-ledger');
         Route::get('/reports/trial-balance', [ReportController::class, 'trialBalance'])->name('api.v1.reports.trial-balance');
         Route::get('/reports/receivables-ageing', [ReportController::class, 'receivablesAgeing'])->name('api.v1.reports.receivables-ageing');
         Route::get('/reports/payables-ageing', [ReportController::class, 'payablesAgeing'])->name('api.v1.reports.payables-ageing');
+        // The cash flow statement and the standing cash position. Both read the
+        // posted ledger through CashFlowQuery, which is what makes the closing
+        // figure of one agree with the total of the other.
+        Route::get('/reports/cash-flow', [ReportController::class, 'cashFlow'])->name('api.v1.reports.cash-flow');
+        Route::get('/reports/cash-position', [ReportController::class, 'cashPosition'])->name('api.v1.reports.cash-position');
 
         // Master data the sales and purchase screens pick from.
         Route::get('/customers', [CustomerController::class, 'index'])->name('api.v1.customers.index');
@@ -97,5 +111,58 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.bank-accounts.statement-uploads.store');
         Route::post('/bank-accounts/{bankAccount}/statement-imports', [BankStatementController::class, 'import'])
             ->name('api.v1.bank-accounts.statement-imports.store');
+
+        // Reconciliation: comparing what the bank printed with what the books
+        // hold. Reading the standing is a report; every route below it decides
+        // something and carries the reconcile right instead. Nothing here
+        // reaches the ledger — a match records which entry a movement already
+        // in the books is. A match is named by its own id rather than a ULID,
+        // because a reconciliation is a pair of ids rather than a row with a
+        // public handle of its own.
+        Route::get('/bank-accounts/{bankAccount}/reconciliation', [ReconciliationController::class, 'show'])
+            ->name('api.v1.bank-accounts.reconciliation.show');
+        Route::post('/bank-accounts/{bankAccount}/reconciliation/auto-match', [ReconciliationController::class, 'autoMatch'])
+            ->name('api.v1.bank-accounts.reconciliation.auto-match');
+        Route::post('/bank-accounts/{bankAccount}/reconciliation/matches', [ReconciliationController::class, 'match'])
+            ->name('api.v1.bank-accounts.reconciliation.matches.store');
+        Route::delete('/bank-accounts/{bankAccount}/reconciliation/matches/{reconciliation}', [ReconciliationController::class, 'release'])
+            ->whereNumber('reconciliation')
+            ->name('api.v1.bank-accounts.reconciliation.matches.destroy');
+        Route::post('/bank-accounts/{bankAccount}/reconciliation/ignored-lines', [ReconciliationController::class, 'ignore'])
+            ->name('api.v1.bank-accounts.reconciliation.ignored-lines.store');
+        Route::post('/bank-accounts/{bankAccount}/reconciliation/completion', [ReconciliationController::class, 'complete'])
+            ->name('api.v1.bank-accounts.reconciliation.completion.store');
+
+        // Stock master data. Products and warehouses are what every movement
+        // names, and a product is what decides which inventory and cost
+        // accounts its own stock posts to. Reading the catalogue is a stock
+        // right of its own, so a cashier can answer "have we got any" without
+        // being able to invent an item.
+        Route::get('/products', [ProductController::class, 'index'])->name('api.v1.products.index');
+        Route::post('/products', [ProductController::class, 'store'])->name('api.v1.products.store');
+        Route::get('/products/{product}', [ProductController::class, 'show'])->name('api.v1.products.show');
+        Route::patch('/products/{product}', [ProductController::class, 'update'])->name('api.v1.products.update');
+
+        Route::get('/warehouses', [WarehouseController::class, 'index'])->name('api.v1.warehouses.index');
+        Route::post('/warehouses', [WarehouseController::class, 'store'])->name('api.v1.warehouses.store');
+        Route::get('/warehouses/{warehouse}', [WarehouseController::class, 'show'])->name('api.v1.warehouses.show');
+        Route::patch('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('api.v1.warehouses.update');
+
+        // Stock movements. Each direction is its own route because each is a
+        // different decision: a receipt is met by an account the caller names,
+        // an issue is met by the product's own cost account, an adjustment can
+        // go either way, and a transfer is two movements and no entry at all.
+        // A movement is never edited, so there is no update route; correcting
+        // one is the reversal below, which is a movement of its own.
+        Route::get('/stock/movements', [StockMovementController::class, 'index'])->name('api.v1.stock.movements.index');
+        Route::post('/stock/receipts', [StockMovementController::class, 'storeReceipt'])->name('api.v1.stock.receipts.store');
+        Route::post('/stock/issues', [StockMovementController::class, 'storeIssue'])->name('api.v1.stock.issues.store');
+        Route::post('/stock/adjustments', [StockMovementController::class, 'storeAdjustment'])->name('api.v1.stock.adjustments.store');
+        Route::post('/stock/transfers', [StockMovementController::class, 'storeTransfer'])->name('api.v1.stock.transfers.store');
+        Route::post('/stock/movements/{movement}/reversal', [StockMovementController::class, 'reverse'])->name('api.v1.stock.movements.reversal.store');
+
+        // What the stock on hand is worth, against the inventory accounts it is
+        // carried in.
+        Route::get('/reports/stock-valuation', [ReportController::class, 'stockValuation'])->name('api.v1.reports.stock-valuation');
     });
 });

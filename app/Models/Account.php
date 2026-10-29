@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Accounting\Enums\AccountType;
+use App\Domain\Accounting\Enums\CashFlowCategory;
 use App\Domain\Accounting\Enums\NormalBalance;
 use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'is_postable',
     'is_cash',
     'is_bank',
+    'cash_flow_category',
     'currency_code',
     'description',
     'status',
@@ -47,6 +49,7 @@ class Account extends Model
         return [
             'account_type' => AccountType::class,
             'normal_balance' => NormalBalance::class,
+            'cash_flow_category' => CashFlowCategory::class,
             'depth' => 'integer',
             'is_postable' => 'boolean',
             'is_cash' => 'boolean',

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Reporting\Services\AgeingQuery;
+use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
+use App\Domain\Reporting\Services\StockValuationQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\StockMovement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -108,6 +111,66 @@ class ReportController extends Controller
         return response()->json([
             'data' => $ageing->payables($this->companyId($request), $filters['as_of'] ?? null),
         ]);
+    }
+
+    /**
+     * Where the money came from and where it went, over a period.
+     *
+     * Guarded by the same report permission as the ledger and the ageing
+     * reports: reading the company's cash movements is reading the books.
+     */
+    public function cashFlow(Request $request, CashFlowQuery $cashFlow): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        [$from, $to] = $this->range($filters);
+
+        return response()->json($cashFlow->statement($this->companyId($request), $from, $to));
+    }
+
+    /**
+     * What is in each cash and bank account as at a date, and the total.
+     *
+     * The date is named `as_of` like the ageing reports', because this is a
+     * standing figure rather than a movement over a range.
+     */
+    public function cashPosition(Request $request, CashFlowQuery $cashFlow): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        return response()->json(
+            $cashFlow->position($this->companyId($request), $filters['as_of'] ?? null)
+        );
+    }
+
+    /**
+     * What the stock on hand is worth as at a date, and whether the inventory
+     * accounts in the ledger say the same.
+     *
+     * Guarded by the stock read right rather than the report right: this is a
+     * report about what is on the shelves, and whoever may read the movements
+     * is who may read what they are worth.
+     */
+    public function stockValuation(Request $request, StockValuationQuery $valuation): JsonResponse
+    {
+        $this->authorize('viewAny', StockMovement::class);
+
+        $filters = $request->validate([
+            'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        return response()->json(
+            $valuation->valuation($this->companyId($request), $filters['as_of'] ?? null)
+        );
     }
 
     /**

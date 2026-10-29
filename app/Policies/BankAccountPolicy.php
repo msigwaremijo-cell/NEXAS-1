@@ -68,4 +68,21 @@ class BankAccountPolicy
         return $user->belongsToCompany((int) $bankAccount->company_id)
             && $user->can(AccessMatrix::PERMISSION_BANK_MANAGE);
     }
+
+    /**
+     * Matching the statement's movements to the books, ignoring one, and
+     * signing the whole off.
+     *
+     * This is the write half of reconciliation and it is deliberately not the
+     * same right as reading it. An Auditor may see what the bank and the books
+     * say and what a completed reconciliation was signed off on; deciding which
+     * ledger entry a movement is, and putting a name to the agreement, is the
+     * Accountant's work. The change is to the record of who agreed with what,
+     * not to a balance, but it is the record the audit rests on.
+     */
+    public function reconcile(User $user, BankAccount $bankAccount): bool
+    {
+        return $user->belongsToCompany((int) $bankAccount->company_id)
+            && $user->can(AccessMatrix::PERMISSION_BANK_RECONCILE);
+    }
 }

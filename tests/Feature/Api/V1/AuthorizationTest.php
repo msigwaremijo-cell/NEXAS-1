@@ -200,6 +200,7 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_JOURNAL_POST,
                 AccessMatrix::PERMISSION_JOURNAL_REVERSE,
                 AccessMatrix::PERMISSION_REPORT_VIEW,
+                AccessMatrix::PERMISSION_ACCOUNT_MANAGE,
                 AccessMatrix::PERMISSION_PARTY_VIEW,
                 AccessMatrix::PERMISSION_PARTY_MANAGE,
                 AccessMatrix::PERMISSION_INVOICE_VIEW,
@@ -212,6 +213,10 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_PAYMENT_RECORD,
                 AccessMatrix::PERMISSION_BANK_VIEW,
                 AccessMatrix::PERMISSION_BANK_MANAGE,
+                AccessMatrix::PERMISSION_BANK_RECONCILE,
+                AccessMatrix::PERMISSION_STOCK_VIEW,
+                AccessMatrix::PERMISSION_STOCK_MANAGE,
+                AccessMatrix::PERMISSION_STOCK_POST,
             ])->sort()->values()->all()
         );
 });

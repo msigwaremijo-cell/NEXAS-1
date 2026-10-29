@@ -25,6 +25,16 @@ final class AccessMatrix
 
     public const PERMISSION_REPORT_VIEW = 'report.view';
 
+    /**
+     * Maintaining the chart of accounts, as opposed to reading the books it
+     * describes. Today the only thing that needs it is classifying an account
+     * on the cash flow statement, which is a decision about how the books are
+     * presented and not a posting, so it is deliberately not folded into any of
+     * the journal rights: an Accountant who may post a journal may also say
+     * which activity its account belongs to, and that is the whole of it.
+     */
+    public const PERMISSION_ACCOUNT_MANAGE = 'account.manage';
+
     public const PERMISSION_USER_MANAGE = 'user.manage';
 
     public const PERMISSION_PARTY_VIEW = 'party.view';
@@ -53,6 +63,29 @@ final class AccessMatrix
 
     public const PERMISSION_BANK_MANAGE = 'bank.manage';
 
+    public const PERMISSION_BANK_RECONCILE = 'bank.reconcile';
+
+    /**
+     * Reading products, warehouses, quantities on hand and what they are worth.
+     */
+    public const PERMISSION_STOCK_VIEW = 'stock.view';
+
+    /**
+     * Maintaining the item and warehouse lists. Separate from moving stock
+     * because adding a product to the catalogue and counting it out of a
+     * warehouse are different jobs, and a member trusted with one is not
+     * automatically trusted with the other.
+     */
+    public const PERMISSION_STOCK_MANAGE = 'stock.manage';
+
+    /**
+     * Receiving, issuing, adjusting and transferring stock, and reversing any
+     * of those. Distinct from the journal rights for the same reason the
+     * document rights are: this posts, and posting is the thing that has to be
+     * granted rather than inherited.
+     */
+    public const PERMISSION_STOCK_POST = 'stock.post';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -74,6 +107,7 @@ final class AccessMatrix
             self::PERMISSION_JOURNAL_POST,
             self::PERMISSION_JOURNAL_REVERSE,
             self::PERMISSION_REPORT_VIEW,
+            self::PERMISSION_ACCOUNT_MANAGE,
             self::PERMISSION_USER_MANAGE,
             self::PERMISSION_PARTY_VIEW,
             self::PERMISSION_PARTY_MANAGE,
@@ -88,6 +122,10 @@ final class AccessMatrix
             self::PERMISSION_PAYMENT_RECORD,
             self::PERMISSION_BANK_VIEW,
             self::PERMISSION_BANK_MANAGE,
+            self::PERMISSION_BANK_RECONCILE,
+            self::PERMISSION_STOCK_VIEW,
+            self::PERMISSION_STOCK_MANAGE,
+            self::PERMISSION_STOCK_POST,
         ];
     }
 
@@ -107,6 +145,7 @@ final class AccessMatrix
                 self::PERMISSION_JOURNAL_POST,
                 self::PERMISSION_JOURNAL_REVERSE,
                 self::PERMISSION_REPORT_VIEW,
+                self::PERMISSION_ACCOUNT_MANAGE,
                 self::PERMISSION_PARTY_VIEW,
                 self::PERMISSION_PARTY_MANAGE,
                 self::PERMISSION_INVOICE_VIEW,
@@ -126,6 +165,19 @@ final class AccessMatrix
                 // see and open the accounts the money sits in.
                 self::PERMISSION_BANK_VIEW,
                 self::PERMISSION_BANK_MANAGE,
+                // Matching and signing off a reconciliation. This is not a
+                // separate pair of hands from opening the account: the person
+                // who keeps the cashbook is the person who compares it with the
+                // bank's file. What it is separate from is reading, which the
+                // Auditor keeps and this does not grant.
+                self::PERMISSION_BANK_RECONCILE,
+                // Stock. The accountant keeps the stock ledger as well as the
+                // financial one, so they may receive, issue and adjust — and,
+                // because a wrong movement is corrected rather than removed,
+                // reverse what they posted.
+                self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_STOCK_MANAGE,
+                self::PERMISSION_STOCK_POST,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -143,6 +195,9 @@ final class AccessMatrix
                 // A cashier has to know which till they are banking into, but
                 // opening a new account to bank into is not their call.
                 self::PERMISSION_BANK_VIEW,
+                // What is on the shelf behind the counter, so a cashier can
+                // answer a customer. Counting it in and out is not their job.
+                self::PERMISSION_STOCK_VIEW,
             ],
 
             // Reads the books and never writes to them.
@@ -154,6 +209,7 @@ final class AccessMatrix
                 self::PERMISSION_BILL_VIEW,
                 self::PERMISSION_PAYMENT_VIEW,
                 self::PERMISSION_BANK_VIEW,
+                self::PERMISSION_STOCK_VIEW,
             ],
         ];
     }

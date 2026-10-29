@@ -3,8 +3,13 @@
 namespace App\Domain\Accounting\Enums;
 
 /**
- * Mirrors the `journals.journal_type` column comment
- * ('general|sales|purchase|receipt|payment|credit_note|opening|closing|reversal|transfer').
+ * The kinds of entry the books are written with.
+ *
+ * This began as the `journals.journal_type` column comment
+ * ('general|sales|purchase|receipt|payment|credit_note|opening|closing|reversal|transfer')
+ * and has since grown a `stock` case of its own, so the column comment is the
+ * original set rather than the whole of it. The column is a plain VARCHAR, so
+ * the enum is the authority.
  */
 enum JournalType: string
 {
@@ -28,6 +33,21 @@ enum JournalType: string
      */
     case Transfer = 'transfer';
 
+    /**
+     * Stock moved through a warehouse.
+     *
+     * A receipt, an issue and an adjustment each change what the inventory is
+     * worth, so each posts one of these and names the counter-account it
+     * moved the value against. It is kept apart from a general journal
+     * because a stock entry has an item and a quantity behind it that a
+     * manual entry never does.
+     *
+     * A transfer between two of the company's own warehouses changes the
+     * total by nothing and posts nothing at all, so no stock journal is
+     * written for it.
+     */
+    case Stock = 'stock';
+
     public function label(): string
     {
         return match ($this) {
@@ -41,6 +61,7 @@ enum JournalType: string
             self::Closing => 'Closing entries',
             self::Reversal => 'Reversal',
             self::Transfer => 'Transfer',
+            self::Stock => 'Stock movement',
         };
     }
 }

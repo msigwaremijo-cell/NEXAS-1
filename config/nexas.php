@@ -43,7 +43,11 @@ return [
     */
 
     'policy' => [
-        'inventory_costing' => env('NEXAS_INVENTORY_COSTING', 'weighted_average'),
+        // First in, first out is the only method this build values stock with,
+        // so it is also the default: a company that keeps this value can move
+        // stock, and one set to an unimplemented method is refused out loud
+        // rather than quietly costed by a rule it did not ask for.
+        'inventory_costing' => env('NEXAS_INVENTORY_COSTING', 'fifo'),
         'allow_negative_stock' => (bool) env('NEXAS_ALLOW_NEGATIVE_STOCK', false),
     ],
 

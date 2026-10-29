@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Domain\Accounting\Enums\AccountType;
+use App\Domain\Accounting\Enums\CashFlowCategory;
 use App\Domain\Accounting\Enums\NormalBalance;
 use App\Models\Account;
 use App\Models\Company;
@@ -19,6 +20,9 @@ use Illuminate\Database\Seeder;
  *  - Header nodes set `postable => false`. Nothing may be posted to a roll-up.
  *  - `path` holds the ancestor codes only, so 1110 under 1100 under 1000 has
  *    path "1000/1100" and depth 2.
+ *  - `cash_flow` declares which activity a node belongs to on the cash flow
+ *    statement, and is inherited by its children. It is only written where the
+ *    type rule below would get the answer wrong; see cashFlowCategory().
  */
 class ChartOfAccountsSeeder extends Seeder
 {
@@ -52,6 +56,7 @@ class ChartOfAccountsSeeder extends Seeder
                     'code' => '1500',
                     'name' => 'Non-Current Assets',
                     'postable' => false,
+                    'cash_flow' => 'investing',
                     'children' => [
                         ['code' => '1510', 'name' => 'Land and Buildings'],
                         ['code' => '1520', 'name' => 'Plant and Machinery'],
@@ -89,6 +94,7 @@ class ChartOfAccountsSeeder extends Seeder
                     'code' => '2500',
                     'name' => 'Non-Current Liabilities',
                     'postable' => false,
+                    'cash_flow' => 'financing',
                     'children' => [
                         ['code' => '2510', 'name' => 'Long-Term Loans'],
                     ],
@@ -176,12 +182,27 @@ class ChartOfAccountsSeeder extends Seeder
     /**
      * @param  array<int, array<string, mixed>>  $nodes
      * @param  array<int, string>  $ancestorCodes
+     * @param  ?CashFlowCategory  $inherited  the activity the parent declared
      */
-    private function seedNodes(Company $company, array $nodes, ?Account $parent, array $ancestorCodes, int $depth): void
-    {
+    private function seedNodes(
+        Company $company,
+        array $nodes,
+        ?Account $parent,
+        array $ancestorCodes,
+        int $depth,
+        ?CashFlowCategory $inherited = null,
+    ): void {
         foreach ($nodes as $node) {
             $type = AccountType::from($node['type'] ?? $parent?->account_type->value ?? 'asset');
             $normal = NormalBalance::from($node['normal'] ?? $type->normalBalance()->value);
+            $postable = $node['postable'] ?? true;
+
+            // Resolved before the write, because a header declares what its
+            // children belong to and is itself never posted to. Carrying the
+            // declaration down separately from the column is what lets 1500
+            // say "investing" for the six accounts under it without holding a
+            // category of its own.
+            $declared = $this->declaredCategory($node, $type, $inherited);
 
             $account = Account::updateOrCreate(
                 ['company_id' => $company->id, 'code' => $node['code']],
@@ -192,9 +213,12 @@ class ChartOfAccountsSeeder extends Seeder
                     'parent_id' => $parent?->id,
                     'path' => $ancestorCodes === [] ? null : implode('/', $ancestorCodes),
                     'depth' => $depth,
-                    'is_postable' => $node['postable'] ?? true,
+                    'is_postable' => $postable,
                     'is_cash' => $node['cash'] ?? false,
                     'is_bank' => $node['bank'] ?? false,
+                    // A roll-up has no line of its own on the statement, so it
+                    // is stored null whatever it declared for its children.
+                    'cash_flow_category' => $postable ? $declared : null,
                     'currency_code' => null,
                     'description' => $node['description'] ?? null,
                     'status' => 'active',
@@ -202,8 +226,51 @@ class ChartOfAccountsSeeder extends Seeder
             );
 
             if (! empty($node['children'])) {
-                $this->seedNodes($company, $node['children'], $account, [...$ancestorCodes, $node['code']], $depth + 1);
+                $this->seedNodes($company, $node['children'], $account, [...$ancestorCodes, $node['code']], $depth + 1, $declared);
             }
         }
+    }
+
+    /**
+     * Which activity a node's movements belong to, and the answer its children
+     * inherit when they declare nothing of their own.
+     *
+     * A node may declare an answer and everything under it inherits, so the one
+     * line on Non-Current Assets covers all six of its children. What is left
+     * over is derived from the type, which is right for everything the tree does
+     * not single out — trading, receivables, payables, revenue and expenses are
+     * all operating, and the equity accounts here are the company's own funding,
+     * which is financing.
+     *
+     * The company's own money is settled first, so 1110 and 1120 are labelled
+     * InternalTransfer rather than being left to the type rule, which would call
+     * a bank account an operating asset.
+     *
+     * @param  array<string, mixed>  $node
+     */
+    private function declaredCategory(
+        array $node,
+        AccountType $type,
+        ?CashFlowCategory $inherited,
+    ): CashFlowCategory {
+        if (($node['cash'] ?? false) || ($node['bank'] ?? false)) {
+            return CashFlowCategory::InternalTransfer;
+        }
+
+        if (isset($node['cash_flow'])) {
+            return CashFlowCategory::from($node['cash_flow']);
+        }
+
+        if ($inherited !== null) {
+            return $inherited;
+        }
+
+        return match ($type) {
+            AccountType::Equity => CashFlowCategory::Financing,
+            AccountType::Asset,
+            AccountType::Liability,
+            AccountType::Revenue,
+            AccountType::Expense => CashFlowCategory::Operating,
+        };
     }
 }

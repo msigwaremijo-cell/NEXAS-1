@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One movement as the bank printed it, imported from a statement file.
@@ -41,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'credit',
     'balance_after',
     'status',
+    'ignored_reason',
     'import_batch',
     'row_version',
 ])]
@@ -71,6 +73,16 @@ class BankStatementLine extends Model
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
+    }
+
+    /**
+     * The ties this line has to the books. More than one means a split match:
+     * a single movement on the statement covered by more than one ledger entry,
+     * or a single ledger entry covered by more than one statement line.
+     */
+    public function reconciliations(): HasMany
+    {
+        return $this->hasMany(Reconciliation::class);
     }
 
     /**
