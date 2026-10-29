@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Reporting\Services\AgeingQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
+use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Domain\Reporting\Services\StockValuationQuery;
 use App\Http\Controllers\Controller;
@@ -170,6 +171,48 @@ class ReportController extends Controller
 
         return response()->json(
             $valuation->valuation($this->companyId($request), $filters['as_of'] ?? null)
+        );
+    }
+
+    /**
+     * Revenue less expense over a period.
+     *
+     * Guarded by the same report permission as the ledger beside it: the
+     * statement is the ledger's temporary accounts read a second way, so a
+     * member who may read one is who may read the other.
+     */
+    public function profitAndLoss(Request $request, FinancialStatementQuery $statements): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        [$from, $to] = $this->range($filters);
+
+        return response()->json(
+            $statements->profitAndLoss($this->companyId($request), $from, $to)
+        );
+    }
+
+    /**
+     * What the company owns and what it owes as at a date.
+     *
+     * The date is named `as_of` like the ageing and cash position reports',
+     * because this is a standing figure rather than a movement over a range.
+     */
+    public function balanceSheet(Request $request, FinancialStatementQuery $statements): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        return response()->json(
+            $statements->balanceSheet($this->companyId($request), $filters['as_of'] ?? null)
         );
     }
 

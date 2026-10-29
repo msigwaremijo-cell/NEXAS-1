@@ -227,11 +227,44 @@ final class LedgerQuery
      */
     public function accountBalances(int $companyId, array $accountIds, ?string $asOf = null): array
     {
+        return $this->movementBetween($companyId, $accountIds, null, $asOf);
+    }
+
+    /**
+     * Net debit-minus-credit movement per account over a date range.
+     *
+     * accountBalances() is this with no lower bound: a balance as at a date is
+     * the movement from the beginning of the ledger to that date. They are one
+     * method for that reason. A report that compares a period's movement with a
+     * closing balance must not be able to get two different answers from two
+     * implementations of the same sum.
+     *
+     * $excludeJournalTypes is how a report says it wants trading and not
+     * bookkeeping. The closing entries that clear revenue and expense into
+     * retained earnings carry the closed year's own last day as their posting
+     * date, so they fall inside the very window a profit and loss report
+     * covers; counting them would make a finished year's statement add up to
+     * nothing, which is the opposite of what the entry means. That is a
+     * reporting decision rather than a ledger one, so the rule that decides
+     * which journals are in the ledger stays where it is and this only narrows
+     * it.
+     *
+     * @param  array<int, int>  $accountIds
+     * @param  list<string>  $excludeJournalTypes
+     * @return array<int, Money> account id => debit minus credit
+     */
+    public function movementBetween(
+        int $companyId,
+        array $accountIds,
+        ?string $from = null,
+        ?string $to = null,
+        array $excludeJournalTypes = [],
+    ): array {
         if ($accountIds === []) {
             return [];
         }
 
-        $rows = $this->postedLines($companyId, null, null, $asOf)
+        $rows = $this->postedLines($companyId, null, $from, $to, $excludeJournalTypes)
             ->whereIn('journal_lines.account_id', $accountIds)
             ->selectRaw(
                 'journal_lines.account_id AS account_id,'
@@ -369,18 +402,31 @@ final class LedgerQuery
      * ORDER BY on a column that is not in an aggregate's select list is
      * rejected outright by ONLY_FULL_GROUP_BY.
      */
-    private function postedLines(int $companyId, ?int $accountId, ?string $from, ?string $to): Builder
-    {
+    private function postedLines(
+        int $companyId,
+        ?int $accountId,
+        ?string $from,
+        ?string $to,
+        array $excludeJournalTypes = [],
+    ): Builder {
         return JournalLine::query()
             ->where('journal_lines.company_id', $companyId)
             ->when($accountId !== null, fn (Builder $query): Builder => $query->where('journal_lines.account_id', $accountId))
             ->when($from !== null, fn (Builder $query): Builder => $query->where('journal_lines.posting_date', '>=', $from))
             ->when($to !== null, fn (Builder $query): Builder => $query->where('journal_lines.posting_date', '<=', $to))
-            ->whereExists(function (QueryBuilder $query): void {
+            ->whereExists(function (QueryBuilder $query) use ($excludeJournalTypes): void {
                 $query->select(DB::raw('1'))
                     ->from('journals')
                     ->whereColumn('journals.id', 'journal_lines.journal_id')
-                    ->whereIn('journals.status', JournalStatus::ledgerStatuses());
+                    ->whereIn('journals.status', JournalStatus::ledgerStatuses())
+                    // Tested inside the subquery rather than outside it, because
+                    // journal_type lives on the journals row and the outer query
+                    // is journal_lines: naming the column outside would be a
+                    // reference to a table that is not there.
+                    ->when(
+                        $excludeJournalTypes !== [],
+                        fn (QueryBuilder $inner): QueryBuilder => $inner->whereNotIn('journals.journal_type', $excludeJournalTypes)
+                    );
             });
     }
 

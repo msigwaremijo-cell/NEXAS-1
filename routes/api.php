@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\JournalController;
@@ -46,6 +47,13 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/journals/{journal}/post', [JournalController::class, 'post'])->name('api.v1.journals.post');
         Route::post('/journals/{journal}/reverse', [JournalController::class, 'reverse'])->name('api.v1.journals.reverse');
 
+        // Ending the year. Closing writes the closing journal, shuts every
+        // period of the year and the year itself, and is the one action that
+        // needs its own right rather than the journal rights beside it: it is
+        // what turns a set of books into a historical fact.
+        Route::post('/fiscal-years/{fiscalYear}/close', [FiscalYearController::class, 'close'])
+            ->name('api.v1.fiscal-years.close');
+
         // Read surface. Same middleware pair, so every report is scoped to the
         // company the caller proved membership of.
         Route::get('/accounts', [AccountController::class, 'index'])->name('api.v1.accounts.index');
@@ -63,6 +71,13 @@ Route::prefix('v1')->group(function (): void {
         // figure of one agree with the total of the other.
         Route::get('/reports/cash-flow', [ReportController::class, 'cashFlow'])->name('api.v1.reports.cash-flow');
         Route::get('/reports/cash-position', [ReportController::class, 'cashPosition'])->name('api.v1.reports.cash-position');
+
+        // The two statements. Read through the same ledger as the trial balance
+        // beside them, so the profit they report is the profit the trial
+        // balance's temporary accounts hold, and the balance sheet may only be
+        // read when it balances.
+        Route::get('/reports/profit-and-loss', [ReportController::class, 'profitAndLoss'])->name('api.v1.reports.profit-and-loss');
+        Route::get('/reports/balance-sheet', [ReportController::class, 'balanceSheet'])->name('api.v1.reports.balance-sheet');
 
         // Master data the sales and purchase screens pick from.
         Route::get('/customers', [CustomerController::class, 'index'])->name('api.v1.customers.index');

@@ -100,6 +100,19 @@ final class AccessMatrix
      */
     public const PERMISSION_COMPANY_MANAGE = 'company.manage';
 
+    /**
+     * Closing a fiscal year: writing the period's result into retained
+     * earnings, then shutting every period of the year and the year itself
+     * against further postings.
+     *
+     * This is the one action in the system that turns a set of books into a
+     * historical fact, and it is reversible only by reopening the year. It is
+     * therefore its own right rather than part of `journal.post`: an accountant
+     * may post any number of ordinary journals without being the person who
+     * declares the year finished.
+     */
+    public const PERMISSION_FISCAL_YEAR_CLOSE = 'fiscal_year.close';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -141,6 +154,7 @@ final class AccessMatrix
             self::PERMISSION_STOCK_MANAGE,
             self::PERMISSION_STOCK_POST,
             self::PERMISSION_COMPANY_MANAGE,
+            self::PERMISSION_FISCAL_YEAR_CLOSE,
         ];
     }
 
@@ -200,6 +214,13 @@ final class AccessMatrix
                 // neither keeps the books and neither should change what the
                 // numbers already written mean.
                 self::PERMISSION_COMPANY_MANAGE,
+                // Closing the year is the accountant's own year-end job: they
+                // keep the ledger all year, so they are the person who rolls its
+                // result into retained earnings. Left out of the Cashier's and
+                // the Auditor's grants — the cashier does not keep the books,
+                // and an auditor who could close the year could write off the
+                // very figures they are meant to be checking.
+                self::PERMISSION_FISCAL_YEAR_CLOSE,
             ],
 
             // A cashier takes money over a counter: they must be able to look a

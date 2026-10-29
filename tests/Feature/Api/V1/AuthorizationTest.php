@@ -218,6 +218,7 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_STOCK_MANAGE,
                 AccessMatrix::PERMISSION_STOCK_POST,
                 AccessMatrix::PERMISSION_COMPANY_MANAGE,
+                AccessMatrix::PERMISSION_FISCAL_YEAR_CLOSE,
             ])->sort()->values()->all()
         );
 });

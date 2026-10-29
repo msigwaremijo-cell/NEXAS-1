@@ -4,6 +4,7 @@ use App\Domain\Accounting\Exceptions\AccountingException;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Exceptions\DocumentLineException;
 use App\Domain\Accounting\Exceptions\FiscalPeriodNotOpenException;
+use App\Domain\Accounting\Exceptions\FiscalYearStateException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Exceptions\InvalidJournalException;
 use App\Domain\Accounting\Exceptions\JournalStateException;
@@ -65,6 +66,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof IdempotencyConflictException,
                 $exception instanceof InvoiceStateException,
                 $exception instanceof BillStateException,
+                // A year-end close asked for against the state of the books
+                // rather than against the request itself: a year already shut,
+                // or a chart of accounts with nowhere to put the result. Named
+                // before the base class below, since it is also one.
+                $exception instanceof FiscalYearStateException,
                 $exception instanceof PaymentStateException,
                 $exception instanceof TransferStateException,
                 // A reconciliation asked for against the state the books are
