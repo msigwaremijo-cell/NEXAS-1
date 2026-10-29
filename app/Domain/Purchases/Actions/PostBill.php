@@ -209,11 +209,16 @@ final class PostBill
             );
         }
 
-        foreach ($this->calculator->taxByAccount($companyId, $lines, purchase: true) as $accountId => $tax) {
+        // One posting per tax code rather than per account, so the line names
+        // the tax it carries and the VAT return can read the input tax back
+        // code by code even when two codes share the same control account.
+        foreach ($this->calculator->taxByCode($companyId, $lines, purchase: true) as $tax) {
             $postings[] = new JournalLineData(
-                accountId: $accountId,
-                debit: $tax,
-                description: 'Input VAT on bill '.$bill->bill_no,
+                accountId: $tax['account_id'],
+                debit: $tax['amount'],
+                description: 'Input VAT '.$tax['tax_code'].' on bill '.$bill->bill_no,
+                taxCodeId: $tax['tax_code_id'],
+                taxAmount: $tax['amount'],
                 branchId: $bill->branch_id === null ? null : (int) $bill->branch_id,
             );
         }

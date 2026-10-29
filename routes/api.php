@@ -79,6 +79,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/profit-and-loss', [ReportController::class, 'profitAndLoss'])->name('api.v1.reports.profit-and-loss');
         Route::get('/reports/balance-sheet', [ReportController::class, 'balanceSheet'])->name('api.v1.reports.balance-sheet');
 
+        // The VAT3 return. Read from the tax accounts of the ledger like the
+        // statements beside it, and usually named by fiscal period rather than
+        // by a hand-picked range, because that is how a return is filed.
+        Route::get('/reports/vat-return', [ReportController::class, 'vatReturn'])->name('api.v1.reports.vat-return');
+
         // Master data the sales and purchase screens pick from.
         Route::get('/customers', [CustomerController::class, 'index'])->name('api.v1.customers.index');
         Route::post('/customers', [CustomerController::class, 'store'])->name('api.v1.customers.store');

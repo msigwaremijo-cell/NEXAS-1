@@ -190,11 +190,18 @@ final class IssueInvoice
             );
         }
 
-        foreach ($this->calculator->taxByAccount($companyId, $lines, purchase: false) as $accountId => $tax) {
+        // One posting per tax code rather than per account: the code is written
+        // onto the line so the ledger says which tax it is, which is what the
+        // VAT return reads back. Two codes settling into the same control
+        // account therefore produce two lines, and the return can still tell
+        // the standard-rated tax from the rest.
+        foreach ($this->calculator->taxByCode($companyId, $lines, purchase: false) as $tax) {
             $postings[] = new JournalLineData(
-                accountId: $accountId,
-                credit: $tax,
-                description: 'VAT on invoice '.$invoice->invoice_no,
+                accountId: $tax['account_id'],
+                credit: $tax['amount'],
+                description: 'VAT '.$tax['tax_code'].' on invoice '.$invoice->invoice_no,
+                taxCodeId: $tax['tax_code_id'],
+                taxAmount: $tax['amount'],
                 branchId: $invoice->branch_id === null ? null : (int) $invoice->branch_id,
             );
         }

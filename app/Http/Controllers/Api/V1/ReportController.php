@@ -7,8 +7,10 @@ use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Domain\Reporting\Services\StockValuationQuery;
+use App\Domain\Reporting\Services\VatReturnQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\FiscalPeriod;
 use App\Models\StockMovement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -214,6 +216,59 @@ class ReportController extends Controller
         return response()->json(
             $statements->balanceSheet($this->companyId($request), $filters['as_of'] ?? null)
         );
+    }
+
+    /**
+     * The VAT3 return for a period: what the company charged, what it was
+     * charged, and what is left to pay.
+     *
+     * The period may be named by its fiscal period, which is how a return is
+     * actually filed, or by an explicit range. Naming the period is preferred
+     * because the calendar, not the caller, decides where a month begins: the
+     * period resolves to its own `starts_on` and `ends_on`. The lookup is
+     * scoped to the caller's company, so a period belonging to another tenant
+     * is a 404 rather than a leak.
+     *
+     * Guarded by the same report permission as the ledger beside it: a return
+     * is the tax accounts of the ledger read a second way.
+     */
+    public function vatReturn(Request $request, VatReturnQuery $vat): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'fiscal_period' => ['sometimes', 'nullable', 'string', 'size:26'],
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $companyId = $this->companyId($request);
+        $period = null;
+
+        if (! empty($filters['fiscal_period'])) {
+            $period = FiscalPeriod::query()
+                ->where('company_id', $companyId)
+                ->where('ulid', $filters['fiscal_period'])
+                ->firstOrFail();
+
+            [$from, $to] = [$period->starts_on->toDateString(), $period->ends_on->toDateString()];
+        } else {
+            [$from, $to] = $this->range($filters);
+        }
+
+        $report = $vat->vatReturn($companyId, $from, $to);
+
+        if ($period !== null) {
+            $report['fiscal_period'] = [
+                'ulid' => $period->ulid,
+                'name' => $period->name,
+                'period_no' => (int) $period->period_no,
+                'starts_on' => $period->starts_on->toDateString(),
+                'ends_on' => $period->ends_on->toDateString(),
+            ];
+        }
+
+        return response()->json($report);
     }
 
     /**

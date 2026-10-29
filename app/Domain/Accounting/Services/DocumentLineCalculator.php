@@ -56,18 +56,32 @@ final class DocumentLineCalculator
     }
 
     /**
-     * Groups the tax carried by a set of priced lines by the ledger account it
-     * has to post to: a tax code's output account on a sale, its input account
-     * on a purchase.
+     * Groups the tax carried by a set of priced lines by the tax code that
+     * produced it, and names the ledger account that code posts to: a tax
+     * code's output account on a sale, its input account on a purchase.
      *
      * The tax is grouped rather than listed line by line so a twenty-line
      * invoice carries one VAT posting rather than twenty of them, and so the
      * journal is balanced against the header tax_total by construction.
      *
+     * It is grouped by *code* rather than by account because the account is not
+     * a fine enough key to read the tax back from. Two codes may share one
+     * account — a standard-rated and a zero-rated VAT code can both settle into
+     * the same VAT control account — and a tax return has to tell them apart.
+     * Grouping by code lets the posting name the code it came from, so the
+     * ledger line says what it is, and two such codes produce two lines on the
+     * same account rather than one anonymous line the return cannot split.
+     *
+     * A code with nothing due is skipped: a zero-rated code charges no tax, so
+     * it has no posting to make. That skip happens before the account is
+     * resolved, which is what lets a zero-rated purchase carry a code that
+     * names no input account.
+     *
      * @param  iterable<object>  $lines  priced lines exposing tax_code_id and tax_amount
-     * @return array<int, Money> ledger account id => tax due on it
+     * @return array<int, array{tax_code_id: int, tax_code: string, account_id: int, amount: Money}>
+     *                                   tax code id => what that code owes and where it goes
      */
-    public function taxByAccount(int $companyId, iterable $lines, bool $purchase): array
+    public function taxByCode(int $companyId, iterable $lines, bool $purchase): array
     {
         $grouped = [];
 
@@ -84,26 +98,33 @@ final class DocumentLineCalculator
                 );
             }
 
-            $taxCode = TaxCode::query()
-                ->where('company_id', $companyId)
-                ->whereKey($line->tax_code_id)
-                ->first();
+            $taxCodeId = (int) $line->tax_code_id;
 
-            if ($taxCode === null) {
-                throw DocumentLineException::unknownTaxCode((int) $line->tax_code_id);
+            if (! isset($grouped[$taxCodeId])) {
+                $taxCode = TaxCode::query()
+                    ->where('company_id', $companyId)
+                    ->whereKey($taxCodeId)
+                    ->first();
+
+                if ($taxCode === null) {
+                    throw DocumentLineException::unknownTaxCode($taxCodeId);
+                }
+
+                $accountId = $purchase ? $taxCode->input_account_id : $taxCode->output_account_id;
+
+                if ($accountId === null) {
+                    throw DocumentLineException::taxAccountMissing($taxCode->code);
+                }
+
+                $grouped[$taxCodeId] = [
+                    'tax_code_id' => $taxCodeId,
+                    'tax_code' => $taxCode->code,
+                    'account_id' => (int) $accountId,
+                    'amount' => Money::zero(),
+                ];
             }
 
-            $accountId = $purchase ? $taxCode->input_account_id : $taxCode->output_account_id;
-
-            if ($accountId === null) {
-                throw DocumentLineException::taxAccountMissing($taxCode->code);
-            }
-
-            $accountId = (int) $accountId;
-
-            $grouped[$accountId] = isset($grouped[$accountId])
-                ? $grouped[$accountId]->plus($amount)
-                : $amount;
+            $grouped[$taxCodeId]['amount'] = $grouped[$taxCodeId]['amount']->plus($amount);
         }
 
         return $grouped;
