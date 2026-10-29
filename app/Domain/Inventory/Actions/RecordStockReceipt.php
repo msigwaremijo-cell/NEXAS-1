@@ -9,6 +9,7 @@ use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Inventory\Services\FifoLayerLedger;
 use App\Domain\Inventory\Services\StockMovementRecorder;
 use App\Domain\Inventory\Services\StockPolicy;
+use App\Models\Company;
 use App\Models\StockMovement;
 use App\Support\Money;
 use App\Support\Quantity;
@@ -26,11 +27,20 @@ use Illuminate\Support\Facades\DB;
  * It posts one balanced entry:
  *
  *   Dr  the product's inventory account   what the delivery was worth
- *   Cr  the counter account it was met by
+ *   Cr  the account the delivery was met by
  *
- * The counter account is the caller's, because it depends on why the goods
- * came rather than on what they are: a purchase is met by what the supplier is
- * owed, a return by cost of sales, an owner's contribution by capital.
+ * Which account that is depends on whether the goods were bought. A **purchase
+ * receipt** names a supplier, so it credits the company's goods received not
+ * invoiced account: the company has the goods and owes for them, and the bill
+ * that follows clears that liability rather than receiving the stock a second
+ * time. The caller's own counter account is ignored in that case, because the
+ * account is what makes the GRNI clearing work and naming it is not the
+ * caller's to do.
+ *
+ * A **non-purchase receipt** names no supplier and must name the account it
+ * was met by, since that depends on why the goods came rather than on what
+ * they are: a return is met by cost of sales, an owner's contribution by
+ * capital. Such a receipt is never owed for, so no bill can clear it.
  *
  * Stock that arrived at no cost opens a layer at nothing and posts nothing.
  * There is no value to add to the inventory account, and a journal of two
@@ -76,7 +86,8 @@ final class RecordStockReceipt
                 quantity: $quantity,
                 totalCost: $unitCost->times($quantity),
                 debitAccountId: $accounts['inventory'],
-                creditAccountId: $data->counterAccountId,
+                creditAccountId: $this->counterAccount($data, $company),
+                supplierId: $data->supplierId,
                 reference: $data->reference,
                 memo: $data->memo,
                 userId: $data->userId,
@@ -94,5 +105,28 @@ final class RecordStockReceipt
 
             return $movement;
         });
+    }
+
+    /**
+     * The account a delivery is credited to.
+     *
+     * A purchase is met by goods received not invoiced whatever the caller
+     * said, because a receipt credited anywhere else would leave the bill that
+     * follows with nothing to clear. A delivery that names no supplier is the
+     * caller's to meet, and has to be named.
+     */
+    private function counterAccount(StockReceiptData $data, Company $company): int
+    {
+        if ($data->supplierId !== null) {
+            $this->recorder->supplier($data->companyId, $data->supplierId);
+
+            return $this->policy->purchaseAccounts($company)['grni'];
+        }
+
+        if ($data->counterAccountId === null) {
+            throw StockStateException::receiptNeedsCounterAccount();
+        }
+
+        return $data->counterAccountId;
     }
 }

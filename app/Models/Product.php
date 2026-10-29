@@ -130,4 +130,30 @@ class Product extends Model
     {
         return $this->product_type->holdsStock();
     }
+
+    /**
+     * The item a document line names, when the company carries it as stock.
+     *
+     * A line that names no item, or names one that is a service, is an ordinary
+     * expense or revenue line — there is nothing on a shelf to move or settle.
+     * The product is resolved inside the tenant, so an id belonging to another
+     * company finds nothing rather than reaching across the books, and the line
+     * is then read as the plain line it was written as.
+     *
+     * This is the one place an invoice line and a bill line decide whether they
+     * are talking about stock, so both sides of Stage 8B agree on the answer.
+     */
+    public static function stockItemFor(int $companyId, ?int $productId): ?self
+    {
+        if ($productId === null) {
+            return null;
+        }
+
+        $product = self::query()
+            ->where('company_id', $companyId)
+            ->whereKey($productId)
+            ->first();
+
+        return $product?->holdsStock() === true ? $product : null;
+    }
 }

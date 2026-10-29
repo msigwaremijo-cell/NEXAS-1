@@ -98,6 +98,11 @@ class InvoiceController extends Controller
             'reference' => ['sometimes', 'nullable', 'string', 'max:255'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
+            // A product names the item the line is for. Naming a stock item is
+            // what makes issuing the invoice take the goods off the shelf, so
+            // the id is validated even though the line itself does not require
+            // one: a service line is sold without a movement.
+            'lines.*.product_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:255'],
             // The revenue account is what the line's credit posts to, so it is
             // required here rather than defaulted: guessing it would silently

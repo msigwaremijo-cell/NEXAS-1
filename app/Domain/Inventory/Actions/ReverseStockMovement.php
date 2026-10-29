@@ -11,6 +11,7 @@ use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Inventory\Services\FifoLayerLedger;
 use App\Domain\Inventory\Services\StockMovementRecorder;
 use App\Domain\Inventory\Services\StockPolicy;
+use App\Models\GrniAllocation;
 use App\Models\StockLayer;
 use App\Models\StockMovement;
 use App\Support\Money;
@@ -219,6 +220,14 @@ final class ReverseStockMovement
 
         if ($original->reversal()->exists()) {
             throw StockStateException::alreadyReversed($original->movement_type);
+        }
+
+        // A receipt a bill has already cleared is bound to that bill: the
+        // clearing would be left pointing at stock that had never arrived, and
+        // the GRNI allocation row cannot simply be dropped. The bill is
+        // corrected first, and the receipt only after it.
+        if (GrniAllocation::query()->where('receipt_movement_id', $original->getKey())->exists()) {
+            throw StockStateException::receiptAlreadyCleared();
         }
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\BankAccountController;
 use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
+use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -132,6 +133,15 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.bank-accounts.reconciliation.ignored-lines.store');
         Route::post('/bank-accounts/{bankAccount}/reconciliation/completion', [ReconciliationController::class, 'complete'])
             ->name('api.v1.bank-accounts.reconciliation.completion.store');
+
+        // How the company keeps its stock books. Reading and writing sit
+        // together because they answer the same question, and the write is
+        // where the costing lock is enforced: the method may only change while
+        // the shelves are empty, so this is the one route that may set it.
+        Route::get('/company/inventory-settings', [CompanyController::class, 'inventorySettings'])
+            ->name('api.v1.company.inventory-settings.show');
+        Route::patch('/company/inventory-settings', [CompanyController::class, 'updateInventorySettings'])
+            ->name('api.v1.company.inventory-settings.update');
 
         // Stock master data. Products and warehouses are what every movement
         // names, and a product is what decides which inventory and cost

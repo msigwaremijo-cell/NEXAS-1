@@ -102,6 +102,10 @@ class BillController extends Controller
             'reference' => ['sometimes', 'nullable', 'string', 'max:255'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
+            // A product names the item the line is for. Naming a stock item is
+            // what makes posting the bill clear goods received rather than
+            // leaving the line as a plain expense.
+            'lines.*.product_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:255'],
             // The expense account is what the line's debit posts to, so it is
             // required rather than defaulted.

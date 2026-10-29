@@ -70,6 +70,62 @@ final class StockPolicy
     }
 
     /**
+     * The liability account a purchase receipt credits and a bill clears.
+     *
+     * Goods received not invoiced: the company has the stock but not yet the
+     * invoice for it. A purchase raises this liability when the goods arrive
+     * and clears it when the bill for them is posted, so the two events are
+     * told apart instead of the bill receiving the stock a second time.
+     */
+    public function grniAccountId(Company $company): ?int
+    {
+        return $this->accountSetting($company, 'grni_account_id');
+    }
+
+    /**
+     * Where a difference between what a receipt was booked at and what the
+     * bill for it says lands.
+     */
+    public function purchaseVarianceAccountId(Company $company): ?int
+    {
+        return $this->accountSetting($company, 'purchase_variance_account_id');
+    }
+
+    /**
+     * The pair of accounts a purchase needs, once it is known there is one.
+     *
+     * Both are refused together rather than one at a time: a receipt with no
+     * GRNI account has nowhere to credit, and a bill whose price differs from
+     * the receipt with no variance account has nowhere to put the difference.
+     * Asking for them as a pair is what stops the first posting of a purchase
+     * from being the moment the company finds out the second one is missing.
+     *
+     * @return array{grni: int, variance: int}
+     */
+    public function purchaseAccounts(Company $company): array
+    {
+        $grni = $this->grniAccountId($company);
+        $variance = $this->purchaseVarianceAccountId($company);
+
+        if ($grni === null) {
+            throw StockStateException::grniAccountNotConfigured();
+        }
+
+        if ($variance === null) {
+            throw StockStateException::purchaseVarianceAccountNotConfigured();
+        }
+
+        return ['grni' => $grni, 'variance' => $variance];
+    }
+
+    private function accountSetting(Company $company, string $key): ?int
+    {
+        $configured = ($company->settings ?? [])[$key] ?? null;
+
+        return is_numeric($configured) ? (int) $configured : null;
+    }
+
+    /**
      * Refuse a change of costing method once stock has started moving.
      *
      * This is the guard the company settings screen has to call before it
@@ -93,6 +149,19 @@ final class StockPolicy
         if ($this->hasMovements((int) $company->getKey())) {
             throw StockStateException::costingMethodLocked($current->value, $requested);
         }
+    }
+
+    /**
+     * Whether the costing method is already spoken for.
+     *
+     * The read side of the guard above, so the settings screen can say the
+     * method is settled rather than offering a field that will be refused the
+     * moment it is used. It answers the same question the guard asks and by
+     * the same means, so the two cannot drift apart.
+     */
+    public function costingIsLocked(Company $company): bool
+    {
+        return $this->hasMovements((int) $company->getKey());
     }
 
     private function hasMovements(int $companyId): bool

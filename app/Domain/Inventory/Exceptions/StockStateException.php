@@ -5,6 +5,7 @@ namespace App\Domain\Inventory\Exceptions;
 use App\Domain\Inventory\Enums\StockMovementStatus;
 use App\Domain\Inventory\Enums\StockMovementType;
 use App\Models\Product;
+use App\Models\Supplier;
 use App\Models\Warehouse;
 
 /**
@@ -191,5 +192,112 @@ final class StockStateException extends InventoryException
             $current,
             $requested
         ));
+    }
+
+    /**
+     * A purchase has no goods received not invoiced account to clear against.
+     */
+    public static function grniAccountNotConfigured(): self
+    {
+        return new self(
+            'This company names no goods received not invoiced account, so a purchase receipt has nowhere to credit and a bill has nothing to clear. Set one in the inventory settings.'
+        );
+    }
+
+    /**
+     * A bill disagrees with the receipt it settles and there is nowhere for the
+     * difference to go.
+     */
+    public static function purchaseVarianceAccountNotConfigured(): self
+    {
+        return new self(
+            'This company names no purchase variance account, so a difference between what a receipt was booked at and what the bill says has nowhere to post. Set one in the inventory settings.'
+        );
+    }
+
+    /**
+     * A receipt that is not a purchase has to say what it was met by.
+     *
+     * Without a supplier there is nothing for a bill to clear, so the movement
+     * is a non-purchase receipt — opening stock, a customer return, an owner's
+     * contribution — and the account it was met by is the caller's to name.
+     */
+    public static function receiptNeedsCounterAccount(): self
+    {
+        return new self(
+            'A stock receipt must name either the supplier it came from or the counter account it was met by.'
+        );
+    }
+
+    public static function unknownSupplier(int $supplierId): self
+    {
+        return new self(sprintf(
+            'No supplier with id %d belongs to this company, so the receipt cannot be attributed to it.',
+            $supplierId
+        ));
+    }
+
+    /**
+     * A goods line was billed before the goods arrived, or for more than did.
+     *
+     * Nothing here receives the stock. The receipt moves it and opens the layer
+     * that prices every later issue; the bill only settles what is owed for
+     * what has already been received and not yet billed.
+     */
+    public static function noOpenReceipt(Product $product, Supplier $supplier): self
+    {
+        return new self(sprintf(
+            'Supplier %s has no received and unbilled %s for this bill line to clear; receive the goods before billing for them.',
+            $supplier->name,
+            $product->sku
+        ));
+    }
+
+    /**
+     * More was billed than has been received and not yet billed.
+     *
+     * @param  string  $wanted  The billed quantity, as a decimal string.
+     * @param  string  $available  What is still open on the supplier's receipts.
+     */
+    public static function insufficientOpenReceipt(
+        Product $product,
+        Supplier $supplier,
+        string $wanted,
+        string $available,
+    ): self {
+        return new self(sprintf(
+            'Supplier %s has only %s of %s received and unbilled, and this bill line asks to clear %s.',
+            $supplier->name,
+            $available,
+            $product->sku,
+            $wanted
+        ));
+    }
+
+    /**
+     * A receipt a bill has already drawn on cannot be reversed.
+     *
+     * The bill cleared its GRNI against this receipt, so undoing the receipt
+     * would leave the clearing pointing at stock that had never arrived. The
+     * bill is corrected first, by reversing it, and only then the receipt.
+     */
+    public static function receiptAlreadyCleared(): self
+    {
+        return new self(
+            'A bill has already cleared part of this receipt, so the receipt cannot be reversed until that bill is reversed first.'
+        );
+    }
+
+    /**
+     * A sale of goods has nowhere to issue them from.
+     *
+     * Issuing needs a warehouse to draw the layers out of, and the company has
+     * not said which one a sale uses by default.
+     */
+    public static function noDefaultWarehouse(): self
+    {
+        return new self(
+            'This company names no default warehouse, so a sale of goods has nowhere to issue the stock from. Set one on the warehouses screen.'
+        );
     }
 }

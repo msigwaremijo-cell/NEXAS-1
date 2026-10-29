@@ -11,11 +11,17 @@ use App\Domain\Accounting\Enums\PartyType;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Services\AuditTrail;
 use App\Domain\Accounting\Services\DocumentLineCalculator;
+use App\Domain\Inventory\Exceptions\StockStateException;
+use App\Domain\Inventory\Services\GrniLedger;
+use App\Domain\Inventory\Services\StockPolicy;
 use App\Domain\Purchases\Exceptions\BillStateException;
 use App\Models\Bill;
 use App\Models\BillLine;
+use App\Models\Company;
+use App\Models\Product;
 use App\Models\Supplier;
 use App\Support\Money;
+use App\Support\Quantity;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -24,9 +30,22 @@ use Illuminate\Support\Facades\DB;
  *
  * The journal is the mirror of an invoice:
  *
- *   Dr  each line's expense account          the line net of discount
- *   Dr  each tax code's input account        the recoverable tax on its lines
- *   Cr  supplier's payable control account   the bill total
+ *   Dr  each expense line's account           the line net of discount
+ *   Dr  goods received not invoiced           a stock line's receipts, at what they were booked at
+ *   Dr  purchase variance                     where the bill is dearer than the receipt
+ *   Cr  purchase variance                     where it is cheaper
+ *   Dr  each tax code's input account         the recoverable tax on its lines
+ *   Cr  supplier's payable control account    the bill total
+ *
+ * A line naming an item the company carries as stock is the exception, and it
+ * is the rule Stage 8B exists for: **a bill for a stock item must not create a
+ * second receipt.** The goods arrived already — the receipt moved the stock and
+ * credited goods received not invoiced — so the bill settles that liability
+ * rather than debiting an expense account. Nothing here writes a stock movement
+ * or opens a layer; the oldest open receipts for the supplier and the product
+ * are cleared, no further than what is still received and unbilled, and any
+ * difference between what the delivery was booked at and what the bill says
+ * lands on the purchase variance account.
  *
  * The approval gate is enforced here rather than in the controller, so no code
  * path — API, console command or job — can put an unapproved liability into the
@@ -41,6 +60,8 @@ final class PostBill
         private readonly PostJournal $post,
         private readonly DocumentLineCalculator $calculator,
         private readonly AuditTrail $audit,
+        private readonly StockPolicy $policy,
+        private readonly GrniLedger $grni,
     ) {}
 
     public function __invoke(
@@ -122,6 +143,19 @@ final class PostBill
     }
 
     /**
+     * The entry a bill makes.
+     *
+     * Every line contributes its own net to the debit side, but by one of two
+     * routes. A line for something the company buys and does not carry —
+     * stationery, a service, a utility — debits the expense account it names.
+     *
+     * A line for an item the company carries as stock is the Stage 8B rule. The
+     * goods arrived when they were received, so the bill settles what that
+     * receipt credited instead of debiting an expense account, and it never
+     * receives the stock a second time: it debits goods received not invoiced
+     * for what the delivery was booked at, and any difference between that and
+     * what the bill now says lands on the purchase variance account.
+     *
      * @param  Collection<int, BillLine>  $lines
      * @return array<int, JournalLineData>
      */
@@ -131,12 +165,32 @@ final class PostBill
         $lines,
         int $companyId,
     ): array {
+        // Resolved only when a line actually turns out to be stock, and once:
+        // a bill made up entirely of expenses has nothing to clear, and a
+        // company that has never configured a goods received account can still
+        // post one.
+        $company = null;
+        $purchaseAccounts = null;
+
         $postings = [];
 
         foreach ($lines as $line) {
             $net = Money::of($line->line_subtotal);
 
             if (! $net->isPositive()) {
+                continue;
+            }
+
+            $product = Product::stockItemFor($companyId, $line->product_id === null ? null : (int) $line->product_id);
+
+            if ($product !== null) {
+                $company ??= Company::query()->findOrFail($companyId);
+                $purchaseAccounts ??= $this->policy->purchaseAccounts($company);
+
+                foreach ($this->clearStockLine($bill, $supplier, $line, $net, $product, $companyId, $purchaseAccounts) as $posting) {
+                    $postings[] = $posting;
+                }
+
                 continue;
             }
 
@@ -172,6 +226,95 @@ final class PostBill
             partyId: (int) $supplier->getKey(),
             branchId: $bill->branch_id === null ? null : (int) $bill->branch_id,
         );
+
+        return $postings;
+    }
+
+    /**
+     * What one stock line of a bill does: clears the oldest receipts this
+     * supplier delivered for this item, and says what a price difference costs.
+     *
+     * Nothing here receives stock. The receipt moved it and opened the layer
+     * that prices every later issue; a second receipt would count the quantity
+     * twice and value the same units twice against the inventory account. The
+     * plan is worked out and written down through the same ledger the receipts
+     * use, so what this bill cleared is a fact the next bill reads rather than
+     * a figure it recomputes.
+     *
+     * A bill for goods that were never received, or for more than is still
+     * received and unbilled, is refused rather than answered with a receipt.
+     *
+     * @param  array{grni: int, variance: int}  $accounts
+     * @return array<int, JournalLineData>
+     */
+    private function clearStockLine(
+        Bill $bill,
+        Supplier $supplier,
+        BillLine $line,
+        Money $net,
+        Product $product,
+        int $companyId,
+        array $accounts,
+    ): array {
+        $wanted = Quantity::of((string) $line->quantity);
+
+        if (! Quantity::isPositive($wanted)) {
+            throw StockStateException::nonPositiveQuantity('bill line');
+        }
+
+        $plan = $this->grni->plan(
+            companyId: $companyId,
+            supplierId: (int) $supplier->getKey(),
+            productId: (int) $product->getKey(),
+            quantity: $wanted,
+        );
+
+        if ($plan->isEmpty()) {
+            throw StockStateException::noOpenReceipt($product, $supplier);
+        }
+
+        if ($plan->isShort()) {
+            throw StockStateException::insufficientOpenReceipt(
+                $product,
+                $supplier,
+                $wanted,
+                $plan->clearedQuantity(),
+            );
+        }
+
+        // Written down before the entry is built, so what this line cleared is
+        // recorded even as the posting below is assembled from it.
+        $this->grni->apply($companyId, (int) $line->getKey(), $plan);
+
+        $branchId = $bill->branch_id === null ? null : (int) $bill->branch_id;
+        $cleared = $plan->value();
+
+        $postings = [
+            new JournalLineData(
+                accountId: $accounts['grni'],
+                debit: $cleared,
+                description: (string) $line->description,
+                branchId: $branchId,
+            ),
+        ];
+
+        // The delivery was booked at one price and the bill says another. What
+        // the line is really worth is what the bill says, so the difference
+        // lands on the variance account: a debit when the goods arrived dearer
+        // than they were billed, a credit when the bill is the dearer of the
+        // two. Posting it keeps the debit side of the line equal to its net,
+        // which is what the header total is built from.
+        $variance = $net->minus($cleared);
+
+        if (! $variance->isZero()) {
+            $postings[] = new JournalLineData(
+                accountId: $accounts['variance'],
+                debit: $variance->isPositive() ? $variance : Money::zero(),
+                credit: $variance->isNegative() ? $variance->absolute() : Money::zero(),
+                description: 'Purchase variance on '.$line->description,
+                branchId: $branchId,
+            );
+        }
 
         return $postings;
     }

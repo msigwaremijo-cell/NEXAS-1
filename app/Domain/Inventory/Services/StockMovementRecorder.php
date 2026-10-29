@@ -15,6 +15,7 @@ use App\Models\Company;
 use App\Models\Journal;
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Models\Warehouse;
 
 /**
@@ -91,6 +92,24 @@ final class StockMovementRecorder
     }
 
     /**
+     * The supplier a purchase receipt is attributed to, looked up inside the
+     * tenant so an id from another company's books finds nothing.
+     */
+    public function supplier(int $companyId, int $supplierId): Supplier
+    {
+        $supplier = Supplier::query()
+            ->where('company_id', $companyId)
+            ->whereKey($supplierId)
+            ->first();
+
+        if ($supplier === null) {
+            throw StockStateException::unknownSupplier($supplierId);
+        }
+
+        return $supplier;
+    }
+
+    /**
      * The two ledger accounts an item's stock posts through.
      *
      * Both are named by the product rather than by the caller, so the same item
@@ -128,6 +147,9 @@ final class StockMovementRecorder
             'company_id' => $draft->companyId,
             'product_id' => (int) $draft->product->getKey(),
             'warehouse_id' => (int) $draft->warehouse->getKey(),
+            // Empty on everything but a purchase receipt, because a bill may
+            // only clear the deliveries of its own supplier.
+            'supplier_id' => $draft->supplierId,
             'movement_type' => $draft->type->value,
             'movement_date' => $draft->movementDate,
             // A movement is written already posted. There is no draft state to

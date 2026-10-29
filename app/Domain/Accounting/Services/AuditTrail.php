@@ -23,11 +23,19 @@ final class AuditTrail
     /**
      * @param  array<string, mixed>|null  $before
      * @param  array<string, mixed>|null  $after
+     * @param  int|null  $companyId  Named explicitly when the subject is the
+     *                               company itself, which carries no
+     *                               `company_id` attribute to read.
      */
-    public function record(string $action, Model $subject, ?array $before = null, ?array $after = null): AuditLog
-    {
+    public function record(
+        string $action,
+        Model $subject,
+        ?array $before = null,
+        ?array $after = null,
+        ?int $companyId = null,
+    ): AuditLog {
         return AuditLog::create([
-            'company_id' => $subject->getAttribute('company_id'),
+            'company_id' => $companyId ?? $subject->getAttribute('company_id'),
             'user_id' => Auth::id(),
             'action' => $action,
             'auditable_type' => $subject->getMorphClass(),

@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'company_id',
     'product_id',
     'warehouse_id',
+    'supplier_id',
     'movement_type',
     'movement_date',
     'status',
@@ -79,6 +80,32 @@ class StockMovement extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * Who a receipt's goods came from, where they came from a supplier.
+     *
+     * Null on everything that is not a purchase: an issue, a count, a transfer
+     * and a non-purchase receipt such as opening stock belong to nobody, and a
+     * bill may only clear the receipts of its own supplier.
+     */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * What has been taken off this receipt by the bills that settled it.
+     *
+     * Only meaningful on a receipt. A later bill may draw on what this leaves,
+     * which is what makes a partial receipt and a partial bill add up rather
+     * than overlap.
+     */
+    public function clearedQuantity(): string
+    {
+        return (string) GrniAllocation::query()
+            ->where('receipt_movement_id', $this->getKey())
+            ->sum('quantity');
     }
 
     public function journal(): BelongsTo

@@ -171,6 +171,8 @@ it('refuses the stock surface without a token', function (string $method, string
     ['POST', '/api/v1/stock/receipts'],
     ['POST', '/api/v1/stock/transfers'],
     ['GET', '/api/v1/reports/stock-valuation'],
+    ['GET', '/api/v1/company/inventory-settings'],
+    ['PATCH', '/api/v1/company/inventory-settings'],
 ]);
 
 it('lets an auditor read the stock and the valuation without moving any of it', function () {
@@ -346,28 +348,105 @@ it('lets the stock go negative when the company allows it, and posts nothing for
 |--------------------------------------------------------------------------
 */
 
+it('reports the inventory policy the engine will actually apply', function () {
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    // Read back through the engine rather than echoed from the settings blob,
+    // so what the screen is shown is what a receipt will do.
+    $this->getJson('/api/v1/company/inventory-settings')
+        ->assertOk()
+        ->assertJsonPath('data.company_id', $this->companyId)
+        ->assertJsonPath('data.inventory_costing', 'fifo')
+        ->assertJsonPath('data.costing_implemented', true)
+        ->assertJsonPath('data.costing_locked', false)
+        ->assertJsonPath('data.allow_negative_stock', false);
+});
+
+it('lets the costing method change while the shelves are empty', function () {
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => 'weighted_average'])
+        ->assertOk()
+        ->assertJsonPath('data.inventory_costing', 'weighted_average')
+        ->assertJsonPath('data.costing_implemented', false);
+
+    // And back again, because a choice made while the shelves are empty is not
+    // binding until some stock has actually moved.
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => InventoryCosting::Fifo->value])
+        ->assertOk()
+        ->assertJsonPath('data.inventory_costing', 'fifo');
+});
+
 it('refuses a change of costing method once any stock has moved', function () {
-    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_OWNER));
-
-    $policy = app(StockPolicy::class);
-
-    // The shelves are empty, so the method is still a choice — and asking for
-    // the one already in force is never a change.
-    $policy->assertCostingMayChangeTo(Company::query()->findOrFail($this->companyId), InventoryCosting::WeightedAverage->value);
-    $policy->assertCostingMayChangeTo(Company::query()->findOrFail($this->companyId), InventoryCosting::Fifo->value);
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
 
     $this->postJson('/api/v1/stock/receipts', nxStockReceiptBody())->assertCreated();
 
     // The layer that receipt opened was priced by FIFO. Valuing what is left of
-    // it by another rule would put the difference nowhere in particular.
-    expect(fn () => $policy->assertCostingMayChangeTo(
-        Company::query()->findOrFail($this->companyId),
-        InventoryCosting::WeightedAverage->value,
-    ))->toThrow(StockStateException::class, 'cannot be changed to');
+    // it by another rule would put the difference nowhere in particular, so the
+    // settings route refuses rather than writing a method the engine would then
+    // apply to layers it never priced.
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => InventoryCosting::WeightedAverage->value])
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'StockStateException');
 
-    // Choosing the method already in force is not a change, so it still passes.
-    $policy->assertCostingMayChangeTo(Company::query()->findOrFail($this->companyId), InventoryCosting::Fifo->value);
+    // The refusal has to leave the setting alone, not merely answer 409.
+    $this->getJson('/api/v1/company/inventory-settings')
+        ->assertOk()
+        ->assertJsonPath('data.inventory_costing', 'fifo')
+        ->assertJsonPath('data.costing_locked', true);
 });
+
+it('answers a change to the method already in force without refusing it', function () {
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    $this->postJson('/api/v1/stock/receipts', nxStockReceiptBody())->assertCreated();
+
+    // The lock stops the method from changing, not the setting from being
+    // written: restating what is already in force changes nothing, so it is not
+    // the change the guard exists to refuse.
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => InventoryCosting::Fifo->value])
+        ->assertOk()
+        ->assertJsonPath('data.inventory_costing', 'fifo')
+        ->assertJsonPath('data.costing_locked', true);
+});
+
+it('writes one policy setting without dropping the other', function () {
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    nxStockSettings($this->companyId, ['inventory_costing' => 'fifo', 'allow_negative_stock' => false]);
+
+    $this->patchJson('/api/v1/company/inventory-settings', ['allow_negative_stock' => true])
+        ->assertOk()
+        ->assertJsonPath('data.allow_negative_stock', true)
+        ->assertJsonPath('data.inventory_costing', 'fifo');
+
+    // The blob is merged rather than replaced, so the key the request never
+    // mentioned is still there.
+    expect(Company::query()->findOrFail($this->companyId)->settings)
+        ->toMatchArray(['inventory_costing' => 'fifo', 'allow_negative_stock' => true]);
+});
+
+it('refuses a costing method the system does not know', function () {
+    Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => 'lifo'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('inventory_costing');
+});
+
+it('does not let a member without the right read or change the policy', function (string $role) {
+    Sanctum::actingAs(nxStockMember($this->companyId, $role));
+
+    $this->getJson('/api/v1/company/inventory-settings')->assertForbidden();
+
+    $this->patchJson('/api/v1/company/inventory-settings', ['inventory_costing' => InventoryCosting::WeightedAverage->value])
+        ->assertForbidden();
+
+    // The refusal has to leave the method alone, not merely answer 403.
+    expect(app(StockPolicy::class)->costing(Company::query()->findOrFail($this->companyId))->value)
+        ->toBe(InventoryCosting::Fifo->value);
+})->with([AccessMatrix::ROLE_CASHIER, AccessMatrix::ROLE_AUDITOR]);
 
 it('refuses to move stock for a company costed by a method that has not been built', function () {
     Sanctum::actingAs(nxStockMember($this->companyId, AccessMatrix::ROLE_OWNER));

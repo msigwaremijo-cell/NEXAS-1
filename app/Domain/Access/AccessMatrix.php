@@ -86,6 +86,20 @@ final class AccessMatrix
      */
     public const PERMISSION_STOCK_POST = 'stock.post';
 
+    /**
+     * Changing the policy a company keeps its books under, as opposed to
+     * reading them or posting to them.
+     *
+     * Today the only thing that needs it is the inventory policy: which method
+     * the stock is valued by, and whether the quantity on hand may go below
+     * zero. Neither is a posting — nothing reaches the ledger when either is
+     * set — which is why it is not folded into the stock rights that move the
+     * stock itself. What it is instead is the choice that decides what every
+     * later number means, so it is granted deliberately rather than inherited
+     * from being allowed to move stock.
+     */
+    public const PERMISSION_COMPANY_MANAGE = 'company.manage';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -126,6 +140,7 @@ final class AccessMatrix
             self::PERMISSION_STOCK_VIEW,
             self::PERMISSION_STOCK_MANAGE,
             self::PERMISSION_STOCK_POST,
+            self::PERMISSION_COMPANY_MANAGE,
         ];
     }
 
@@ -178,6 +193,13 @@ final class AccessMatrix
                 self::PERMISSION_STOCK_VIEW,
                 self::PERMISSION_STOCK_MANAGE,
                 self::PERMISSION_STOCK_POST,
+                // Which method the stock is valued by is an accounting policy,
+                // so the person who keeps the stock ledger is the person who
+                // may answer it — and the lock holds regardless of who asks.
+                // Left out of the Cashier's and the Auditor's grants, because
+                // neither keeps the books and neither should change what the
+                // numbers already written mean.
+                self::PERMISSION_COMPANY_MANAGE,
             ],
 
             // A cashier takes money over a counter: they must be able to look a

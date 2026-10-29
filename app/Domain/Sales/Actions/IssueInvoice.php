@@ -11,12 +11,18 @@ use App\Domain\Accounting\Enums\PartyType;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Services\AuditTrail;
 use App\Domain\Accounting\Services\DocumentLineCalculator;
+use App\Domain\Inventory\Actions\IssueStock;
+use App\Domain\Inventory\DTOs\StockIssueData;
+use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Sales\Enums\InvoiceStatus;
 use App\Domain\Sales\Exceptions\InvoiceStateException;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
+use App\Models\Product;
+use App\Models\Warehouse;
 use App\Support\Money;
+use App\Support\Quantity;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -28,6 +34,13 @@ use Illuminate\Support\Facades\DB;
  *   Dr  customer's receivable control account   the invoice total
  *   Cr  each line's revenue account             the line net of discount
  *   Cr  each tax code's output account          the tax on its lines
+ *
+ * Issuing also takes the goods off the shelf. A line for an item the company
+ * carries as stock is a real movement of real goods, so it is issued from the
+ * company's default warehouse through the same IssueStock the stock routes use:
+ * the cost leaves the inventory account and lands on the product's own cost of
+ * sales account. A company that has not named a default warehouse is refused
+ * with a sentence rather than left to guess where the stock went.
  *
  * The two sides agree by construction, but the balance is still checked by
  * PostJournal rather than assumed: the lines are read back out of the database
@@ -45,6 +58,7 @@ final class IssueInvoice
         private readonly PostJournal $post,
         private readonly DocumentLineCalculator $calculator,
         private readonly AuditTrail $audit,
+        private readonly IssueStock $issueStock,
     ) {}
 
     public function __invoke(
@@ -97,6 +111,12 @@ final class IssueInvoice
             ));
 
             $posted = ($this->post)($journal, $idempotencyKey, $userId, $journal->row_version);
+
+            // The goods leave as the sale is recognised. This is inside the
+            // same transaction as the journal, so a sale that cannot be funded
+            // — no default warehouse, or no stock when the company forbids
+            // negatives — is refused as a whole rather than half-posted.
+            $this->issueGoods($locked, $lines, $companyId, $userId);
 
             $affected = Invoice::query()
                 ->whereKey($locked->getKey())
@@ -180,5 +200,59 @@ final class IssueInvoice
         }
 
         return $postings;
+    }
+
+    /**
+     * Issues the goods lines off the shelf.
+     *
+     * Only lines for items the company carries as stock move anything: a
+     * service line names no product, and a product the company does not hold
+     * as stock is sold without a movement. An invoice made up entirely of
+     * those needs no warehouse at all, so the lookup is done lazily — after
+     * the last line, not before the first — and a company that sells a service
+     * is never refused for naming no default warehouse.
+     *
+     * @param  Collection<int, InvoiceLine>  $lines
+     */
+    private function issueGoods(Invoice $invoice, $lines, int $companyId, ?int $userId): void
+    {
+        $goods = [];
+
+        foreach ($lines as $line) {
+            $product = Product::stockItemFor(
+                $companyId,
+                $line->product_id === null ? null : (int) $line->product_id
+            );
+
+            if ($product !== null) {
+                $goods[] = [$product, Quantity::of((string) $line->quantity)];
+            }
+        }
+
+        if ($goods === []) {
+            return;
+        }
+
+        $warehouse = Warehouse::query()
+            ->where('company_id', $companyId)
+            ->where('is_default', true)
+            ->first();
+
+        if ($warehouse === null) {
+            throw StockStateException::noDefaultWarehouse();
+        }
+
+        foreach ($goods as [$product, $quantity]) {
+            ($this->issueStock)(new StockIssueData(
+                companyId: $companyId,
+                productId: (int) $product->getKey(),
+                warehouseId: (int) $warehouse->getKey(),
+                movementDate: $invoice->invoice_date->toDateString(),
+                quantity: $quantity,
+                reference: $invoice->invoice_no,
+                memo: 'Invoice '.$invoice->invoice_no,
+                userId: $userId,
+            ));
+        }
     }
 }

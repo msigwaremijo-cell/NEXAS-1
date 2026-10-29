@@ -93,7 +93,16 @@ class StockMovementController extends Controller
             // A decimal string like every other money field on this surface: a
             // JSON number cannot round-trip DECIMAL(19,4).
             'unit_cost' => ['required', 'string', 'max:32', 'regex:/^\d+(\.\d+)?$/'],
-            'counter_account_id' => $this->accountRule($companyId),
+            // Named only for a delivery that names no supplier. A purchase
+            // receipt credits the GRNI account whatever the caller says, so
+            // requiring an account here would be asking for one that is
+            // ignored.
+            'counter_account_id' => ['sometimes', 'nullable', 'integer', 'min:1',
+                Rule::exists('accounts', 'id')->where('company_id', $companyId)],
+            // Naming a supplier is what makes this a purchase: it credits GRNI
+            // and opens it to be cleared by the bill that follows.
+            'supplier_id' => ['sometimes', 'nullable', 'integer', 'min:1',
+                Rule::exists('suppliers', 'id')->where('company_id', $companyId)],
             'reference' => ['sometimes', 'nullable', 'string', 'max:60'],
             'memo' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
@@ -105,7 +114,8 @@ class StockMovementController extends Controller
             movementDate: $data['movement_date'],
             quantity: $data['quantity'],
             unitCost: $data['unit_cost'],
-            counterAccountId: (int) $data['counter_account_id'],
+            counterAccountId: isset($data['counter_account_id']) ? (int) $data['counter_account_id'] : null,
+            supplierId: isset($data['supplier_id']) ? (int) $data['supplier_id'] : null,
             reference: $data['reference'] ?? null,
             memo: $data['memo'] ?? null,
             userId: $request->user()?->getKey(),

@@ -29,6 +29,11 @@ use App\Support\Quantity;
  * `unitCost` is deliberately absent. It is derived from the total over the
  * quantity, so a caller cannot state a per-unit price that disagrees with the
  * amount it is moving.
+ *
+ * `supplierId` is set only on a purchase receipt. It is what lets a bill find
+ * the receipts its own supplier has delivered and clear them, and it is the
+ * reason every other movement leaves the column empty: a bill must never be
+ * able to settle a delivery that is not owed for.
  */
 final class StockMovementDraft
 {
@@ -42,6 +47,7 @@ final class StockMovementDraft
         public readonly Money $totalCost,
         public readonly ?int $debitAccountId = null,
         public readonly ?int $creditAccountId = null,
+        public readonly ?int $supplierId = null,
         public readonly ?string $reference = null,
         public readonly ?string $memo = null,
         public readonly ?int $userId = null,
