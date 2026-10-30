@@ -20,8 +20,8 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ReconciliationController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\RoleController;
-use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\StockMovementController;
+use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\VersionController;
 use App\Http\Controllers\Api\V1\WarehouseController;
@@ -71,10 +71,12 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/trial-balance', [ReportController::class, 'trialBalance'])->name('api.v1.reports.trial-balance');
         Route::get('/reports/receivables-ageing', [ReportController::class, 'receivablesAgeing'])->name('api.v1.reports.receivables-ageing');
         Route::get('/reports/payables-ageing', [ReportController::class, 'payablesAgeing'])->name('api.v1.reports.payables-ageing');
-        // The cash flow statement and the standing cash position. Both read the
-        // posted ledger through CashFlowQuery, which is what makes the closing
-        // figure of one agree with the total of the other.
+        // The cash flow statement, its indirect reading and the standing cash
+        // position. All three read the posted ledger through CashFlowQuery,
+        // which is what makes the closing figure of one agree with the total of
+        // the others, and the indirect reading agree with the direct one.
         Route::get('/reports/cash-flow', [ReportController::class, 'cashFlow'])->name('api.v1.reports.cash-flow');
+        Route::get('/reports/cash-flow-indirect', [ReportController::class, 'cashFlowIndirect'])->name('api.v1.reports.cash-flow-indirect');
         Route::get('/reports/cash-position', [ReportController::class, 'cashPosition'])->name('api.v1.reports.cash-position');
 
         // The two statements. Read through the same ledger as the trial balance

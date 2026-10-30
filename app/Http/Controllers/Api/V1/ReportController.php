@@ -146,6 +146,37 @@ class ReportController extends Controller
     }
 
     /**
+     * The same period's cash movement, read the indirect way: from the profit
+     * down to the money.
+     *
+     * A second route rather than a flag on `cashFlow()`, because the two are
+     * different statements about one period rather than one statement shown two
+     * ways: a reader asks for the reconciliation or for the activities, and the
+     * window, the comparison and the permission are the same for both.
+     *
+     * Guarded by the same report permission as the direct statement beside it.
+     */
+    public function cashFlowIndirect(Request $request, CashFlowQuery $cashFlow): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'compare' => ['sometimes', 'boolean'],
+        ]);
+
+        [$from, $to] = $this->range($filters);
+
+        return response()->json($cashFlow->statementIndirect(
+            $this->companyId($request),
+            $from,
+            $to,
+            $request->boolean('compare'),
+        ));
+    }
+
+    /**
      * What is in each cash and bank account as at a date, and the total.
      *
      * The date is named `as_of` like the ageing reports', because this is a

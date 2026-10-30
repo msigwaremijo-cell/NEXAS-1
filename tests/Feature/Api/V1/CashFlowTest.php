@@ -664,3 +664,224 @@ it('answers not found for an account that belongs to another company', function 
         'cash_flow_category' => CashFlowCategory::Operating->value,
     ])->assertNotFound();
 });
+
+/*
+|--------------------------------------------------------------------------
+| The indirect statement
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * The sample period the indirect tests read: a credit sale and its collection,
+ * depreciation that moved no money, stock bought on credit and partly paid for,
+ * and a cash sale.
+ *
+ * It carries one of each thing an indirect statement has to reconcile — a
+ * receivable, an inventory balance, a payables balance and a non-cash charge —
+ * so the add-backs can be checked by hand rather than only totalled.
+ *
+ * @param  array<string, mixed>  $ctx
+ * @return array<string, int>
+ */
+function nxCashPostTheTradingMonth(array $ctx, int $payableAccountId): array
+{
+    // Deliberately unclassified for the direct tests; the indirect statement
+    // needs its revenue placed on the same side as the direct statement's.
+    nxCashCategorize($ctx['revenue'], CashFlowCategory::Operating->value);
+    nxCashCategorize($payableAccountId, CashFlowCategory::Operating->value);
+
+    $inventory = nxCashAccountId($ctx['company_id'], '1200');
+    $accumulatedDepreciation = nxCashAccountId($ctx['company_id'], '1590');
+    $depreciation = nxCashAccountId($ctx['company_id'], '5100');
+
+    // The one account of the three that is not an asset: it is a charge, and
+    // the ledger has to know it is one for the profit to read correctly.
+    DB::table('accounts')->where('id', $depreciation)->update([
+        'account_type' => 'expense',
+        'normal_balance' => 'debit',
+    ]);
+
+    nxCashCategorize($inventory, CashFlowCategory::Operating->value);
+    nxCashCategorize($accumulatedDepreciation, CashFlowCategory::Operating->value);
+    nxCashCategorize($depreciation, CashFlowCategory::Operating->value);
+
+    $date = '2026-03-15';
+
+    // A sale on credit, then the customer pays part of it.
+    nxCashPost($ctx, 'JV-900001', $date, $ctx['receivable'], $ctx['revenue'], '500.0000');
+    nxCashPost($ctx, 'JV-900002', $date, $ctx['cash'], $ctx['receivable'], '300.0000');
+
+    // Depreciation: no money moved, so it is only ever an add-back.
+    nxCashPost($ctx, 'JV-900003', $date, $depreciation, $accumulatedDepreciation, '50.0000');
+
+    // Stock bought on credit, and part of the supplier paid.
+    nxCashPost($ctx, 'JV-900004', $date, $inventory, $payableAccountId, '200.0000');
+    nxCashPost($ctx, 'JV-900005', $date, $payableAccountId, $ctx['cash'], '120.0000');
+
+    // A cash sale.
+    nxCashPost($ctx, 'JV-900006', $date, $ctx['cash'], $ctx['revenue'], '400.0000');
+
+    return [
+        'inventory' => $inventory,
+        'accumulated_depreciation' => $accumulatedDepreciation,
+        'depreciation' => $depreciation,
+    ];
+}
+
+it('reads the sample period from the profit and agrees with the direct statement', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    nxCashPostTheTradingMonth($this->cashFlow, $this->payableAccountId);
+
+    $indirect = $this->getJson('/api/v1/reports/cash-flow-indirect?from=2026-03-01&to=2026-03-31')
+        ->assertOk()
+        ->json();
+
+    // Profit: 900 of revenue less 50 of depreciation.
+    expect($indirect['net_profit'])->toBe('850.0000');
+
+    // One line per balance sheet account that is not itself a money account, in
+    // code order, each the movement with its sign flipped.
+    $operating = $indirect['adjustments'][0];
+
+    expect($operating['category'])->toBe('operating')
+        ->and(array_column($operating['accounts'], 'code'))->toBe(['1100', '1200', '1590', '2000'])
+        ->and(array_column($operating['accounts'], 'amount'))->toBe([
+            '-200.0000', // receivables grew by 200, so 200 of money is tied up in them
+            '-200.0000', // stock grew by 200
+            '50.0000',   // depreciation added back: a charge that moved no money
+            '80.0000',   // payables fell by 80, so 80 of money went out with them
+        ])
+        ->and($operating['total'])->toBe('-270.0000');
+
+    // Profit 850 less the 270 of movement the money accounts paid for.
+    expect($indirect['net_adjustments'])->toBe('-270.0000')
+        ->and($indirect['net_movement'])->toBe('580.0000')
+        ->and($indirect['opening_cash'])->toBe('0.0000')
+        ->and($indirect['closing_cash'])->toBe('580.0000')
+        ->and($indirect['balanced'])->toBeTrue()
+        ->and($indirect['complete'])->toBeTrue();
+
+    // The direct statement reaches the same figure by its own route. Every
+    // account that moved here is operating-classified, so the two agree on the
+    // operating block as well as on the total.
+    $direct = $this->getJson('/api/v1/reports/cash-flow?from=2026-03-01&to=2026-03-31')
+        ->assertOk()
+        ->json();
+
+    expect($direct['net_movement'])->toBe($indirect['net_movement'])
+        ->and($direct['closing_cash'])->toBe($indirect['closing_cash'])
+        ->and($direct['activities'][0]['net'])->toBe('580.0000')
+        // Profit plus the operating adjustments is the operating figure the
+        // direct statement reaches from the other side.
+        ->and(bcadd($indirect['net_profit'], $operating['total'], 4))->toBe($direct['activities'][0]['net']);
+});
+
+it('makes the indirect net change in cash equal the direct one, comparative column included', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    nxCashCategorize($this->cashFlow['revenue'], CashFlowCategory::Operating->value);
+
+    // The window before: a receipt of 40 and an expense of 10.
+    nxCashPost($this->cashFlow, 'JV-A10001', '2026-03-10', $this->cashFlow['cash'], $this->cashFlow['receivable'], '40.0000');
+    nxCashPost($this->cashFlow, 'JV-A10002', '2026-03-12', $this->cashFlow['expense'], $this->cashFlow['cash'], '10.0000');
+
+    // The window asked for: a receipt of 100 and equipment bought for cash.
+    nxCashPost($this->cashFlow, 'JV-A10003', '2026-03-22', $this->cashFlow['cash'], $this->cashFlow['receivable'], '100.0000');
+    nxCashPost($this->cashFlow, 'JV-A10004', '2026-03-25', $this->cashFlow['equipment'], $this->cashFlow['cash'], '30.0000');
+
+    $indirect = $this->getJson('/api/v1/reports/cash-flow-indirect?from=2026-03-20&to=2026-03-31&compare=1')
+        ->assertOk()
+        ->json();
+
+    $direct = $this->getJson('/api/v1/reports/cash-flow?from=2026-03-20&to=2026-03-31&compare=1')
+        ->assertOk()
+        ->json();
+
+    // The same figure by both routes, in the current column and in the prior
+    // one, because the two statements read one period rather than two.
+    expect($indirect['net_movement'])->toBe('70.0000')
+        ->and($indirect['comparison']['net_movement'])->toBe('30.0000')
+        ->and($indirect['net_movement'])->toBe($direct['net_movement'])
+        ->and($indirect['comparison']['net_movement'])->toBe($direct['comparison']['net_movement'])
+        ->and($indirect['comparison']['from'])->toBe('2026-03-08')
+        ->and($indirect['comparison']['to'])->toBe('2026-03-19')
+        ->and($indirect['variance']['net_movement'])->toBe('40.0000')
+        // The adjustment blocks split the same way the activities do: the
+        // receivable in operating, the equipment in investing.
+        ->and($indirect['adjustments'][0]['total'])->toBe('100.0000')
+        ->and($indirect['adjustments'][1]['total'])->toBe('-30.0000');
+});
+
+it('shows an unclassified balance sheet movement on its own line and marks the report incomplete', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    // A prepayment nobody has classified. The indirect statement has nowhere to
+    // put it and says so, rather than folding it into operating.
+    $prepaid = nxCashAccountId($this->companyId, '1300');
+
+    nxCashPost($this->cashFlow, 'JV-B10001', '2026-03-15', $prepaid, $this->cashFlow['cash'], '60.0000');
+
+    $indirect = $this->getJson('/api/v1/reports/cash-flow-indirect?from=2026-03-01&to=2026-03-31')
+        ->assertOk()
+        ->json();
+
+    $unclassified = collect($indirect['adjustments'])->firstWhere('category', 'unclassified');
+
+    expect($indirect['complete'])->toBeFalse()
+        ->and($unclassified['total'])->toBe('-60.0000')
+        ->and($unclassified['accounts'][0]['code'])->toBe('1300')
+        // Shown, not dropped — and the arithmetic still closes, because the
+        // line is part of the movement rather than a hole in it.
+        ->and($indirect['net_adjustments'])->toBe('-60.0000')
+        ->and($indirect['net_movement'])->toBe('-60.0000')
+        ->and($indirect['closing_cash'])->toBe('-60.0000')
+        ->and($indirect['balanced'])->toBeTrue();
+
+    $direct = $this->getJson('/api/v1/reports/cash-flow?from=2026-03-01&to=2026-03-31')
+        ->assertOk()
+        ->json();
+
+    expect($direct['complete'])->toBeFalse()
+        ->and($direct['net_movement'])->toBe($indirect['net_movement']);
+});
+
+it('does not compare an indirect statement that covers the whole ledger', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    nxCashPostTheQuarter($this->cashFlow);
+
+    // There is no window before all of the ledger, so a report with no dates is
+    // single-column however compare is set.
+    $this->getJson('/api/v1/reports/cash-flow-indirect?compare=1')
+        ->assertOk()
+        ->assertJsonPath('comparison', null)
+        ->assertJsonPath('variance', null);
+});
+
+it('guards the indirect statement as the direct one and refuses a backwards range', function () {
+    $this->getJson('/api/v1/reports/cash-flow-indirect')->assertUnauthorized();
+
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    $this->withHeader('X-Company-Id', (string) nxCashForeignCompanyId())
+        ->getJson('/api/v1/reports/cash-flow-indirect')
+        ->assertForbidden()
+        ->assertJsonPath('message', 'You do not have access to this company.');
+
+    // The company header is a default on this test, not on one request, so it
+    // is cleared before the next request is made without it.
+    $this->flushHeaders();
+
+    $this->getJson('/api/v1/reports/cash-flow-indirect?from=2026-03-31&to=2026-03-01')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('from');
+});
+
+it('lets a role holding report.view read the indirect statement and refuses one with no role', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    $this->getJson('/api/v1/reports/cash-flow-indirect')->assertOk();
+
+    Sanctum::actingAs(nxCashMember($this->companyId));
+    $this->getJson('/api/v1/reports/cash-flow-indirect')->assertForbidden();
+});

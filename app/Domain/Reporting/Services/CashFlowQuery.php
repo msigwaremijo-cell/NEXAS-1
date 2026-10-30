@@ -2,7 +2,9 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Accounting\Enums\AccountType;
 use App\Domain\Accounting\Enums\CashFlowCategory;
+use App\Domain\Accounting\Enums\JournalType;
 use App\Models\Account;
 use App\Models\JournalLine;
 use App\Support\Money;
@@ -12,11 +14,12 @@ use Illuminate\Support\Collection;
 /**
  * Where the company's money came from and where it went.
  *
- * Two reports, built from one rule. `position()` says what is in each account
- * as at a date; `statement()` says how the total moved over a period. They
- * share the definition of which accounts hold the money, so the closing figure
- * of one and the total of the other are the same figure read twice, and a test
- * asserts they agree.
+ * Three reports, built from one rule. `position()` says what is in each account
+ * as at a date; `statement()` says how the total moved over a period;
+ * `statementIndirect()` says the same movement the other way round, from the
+ * profit. They share the definition of which accounts hold the money, so the
+ * closing figure of one and the total of the others are the same figure read
+ * twice, and tests assert they agree.
  *
  * The money accounts are the ones the chart flags `is_cash` or `is_bank`. That
  * flag, not a list in code, is what decides the pool: a company that adds a
@@ -90,6 +93,166 @@ final class CashFlowQuery
         return $body + [
             'comparison' => $prior,
             'variance' => $this->variance($body, $prior),
+        ];
+    }
+
+    /**
+     * The same period's money, read the indirect way: down from the profit
+     * rather than across the activities.
+     *
+     * The direct statement above asks what each counter account was; this one
+     * asks what the profit and the balance sheet did. It opens on the period's
+     * net profit and then adds back, one line per balance sheet account, the
+     * movement in every account that is not itself one of the money accounts.
+     * An asset that grew by its movement used that much money and is subtracted;
+     * a liability that grew by it provided that much and is added. Nothing here
+     * is a convention: it is the ledger's own debit-minus-credit read the other
+     * way round, which is why an adjustment and the movement it describes are
+     * never two figures that could disagree.
+     *
+     * The total is not a second opinion on the period. Every journal balances,
+     * and every line of a journal carries the journal's own posting date, so
+     * over any window the movements of all the accounts sum to zero: whatever
+     * the money accounts gained, the profit and the other balances gave up
+     * between them. So net profit plus the adjustments is the same figure the
+     * direct statement reaches by a different route, and a test asserts the two
+     * agree rather than trusting the paragraph.
+     *
+     * Closing entries are left out on both sides. See movementBetween() for why
+     * they are outside a period's trading: they carry the closed year's own last
+     * day, so counting them would take the very year being reported back to
+     * nothing. Leaving them out of the profit and out of the equity adjustments
+     * together leaves the total unmoved, because the entry the closing makes is
+     * a movement between two accounts that are both excluded here.
+     *
+     * $compare asks for a prior column, over the same window the direct
+     * statement compares against, so the two reports' prior columns describe one
+     * period rather than two. Which window that is lives in PeriodComparison and
+     * not here.
+     *
+     * @return array<string, mixed>
+     */
+    public function statementIndirect(
+        int $companyId,
+        ?string $from = null,
+        ?string $to = null,
+        bool $compare = false,
+    ): array {
+        $body = $this->indirectBody($companyId, $from, $to);
+
+        if (! $compare || $from === null || $to === null) {
+            return $body + ['comparison' => null, 'variance' => null];
+        }
+
+        [$priorFrom, $priorTo] = $this->periods->precedingWindow($from, $to);
+
+        $prior = $this->indirectBody($companyId, $priorFrom, $priorTo);
+
+        return $body + [
+            'comparison' => $prior,
+            'variance' => $this->indirectVariance($body, $prior),
+        ];
+    }
+
+    /**
+     * One indirect statement over one window, before any comparison is added.
+     *
+     * @return array<string, mixed>
+     */
+    private function indirectBody(int $companyId, ?string $from, ?string $to): array
+    {
+        $netProfit = $this->netProfit($companyId, $from, $to);
+
+        $accounts = $this->adjustmentAccounts($companyId);
+
+        $movements = $this->ledger->movementBetween(
+            $companyId,
+            $this->ids($accounts),
+            $from,
+            $to,
+            [JournalType::Closing->value],
+        );
+
+        /** @var array<string, list<array<string, mixed>>> $lines */
+        $lines = [];
+
+        foreach (self::bucketOrder() as $key) {
+            $lines[$key] = [];
+        }
+
+        foreach ($accounts as $account) {
+            $movement = $movements[(int) $account->getKey()] ?? Money::zero();
+
+            // An account that never moved, or whose movements cancelled out
+            // inside the window, has nothing to add back.
+            if ($movement->isZero()) {
+                continue;
+            }
+
+            $lines[$this->bucketKey($account)][] = [
+                'account_id' => (int) $account->getKey(),
+                'account_ulid' => $account->ulid,
+                'code' => $account->code,
+                'name' => $account->name,
+                'account_type' => $account->account_type->value,
+                'normal_balance' => $account->normal_balance->value,
+                // The ledger reads debit minus credit. Its opposite is the
+                // movement's effect on cash, so the sign is flipped once, here,
+                // and the reader never has to know which side the account is on.
+                'amount' => $movement->negated()->toDecimal(),
+            ];
+        }
+
+        $adjustments = [];
+        $netAdjustments = Money::zero();
+
+        foreach (self::bucketOrder() as $key) {
+            $total = Money::sum(array_map(
+                static fn (array $row): Money => Money::of((string) $row['amount']),
+                $lines[$key],
+            ));
+
+            $netAdjustments = $netAdjustments->plus($total);
+
+            $adjustments[] = [
+                'category' => $key,
+                'label' => self::bucketLabel($key),
+                'accounts' => $lines[$key],
+                'total' => $total->toDecimal(),
+            ];
+        }
+
+        ['opening' => $opening, 'closing' => $closing] = $this->cashBalances(
+            $companyId,
+            $this->ids($this->moneyAccounts($companyId)),
+            $from,
+            $to,
+        );
+
+        $net = $netProfit->plus($netAdjustments);
+
+        return [
+            'from' => $from,
+            'to' => $to,
+            'net_profit' => $netProfit->toDecimal(),
+            'adjustments' => $adjustments,
+            'net_adjustments' => $netAdjustments->toDecimal(),
+            'net_movement' => $net->toDecimal(),
+            'opening_cash' => $opening->toDecimal(),
+            'closing_cash' => $closing->toDecimal(),
+            // Profit plus the adjustments, against a closing figure read
+            // independently out of the ledger. The direct statement makes the
+            // same claim by another route; a test asserts the two totals agree.
+            'balanced' => $opening->plus($net)->equals($closing),
+            // True when every balance sheet movement this statement reads was
+            // on an account that carries a category. An account nobody has
+            // classified is shown on its own line rather than dropped, and this
+            // is what says the report could not place everything it read.
+            'complete' => $lines['unclassified'] === [],
+            'uses_current_categories' => true,
+            'note' => 'The same period as the direct statement, read from the profit: each line is the '
+                .'movement in one balance sheet account that is not itself a money account, with its '
+                .'sign flipped, so the total is the direct statement\'s total by construction.',
         ];
     }
 
@@ -351,6 +514,156 @@ final class CashFlowQuery
         foreach ($activities as $line) {
             if (($line['category'] ?? null) === $category->value) {
                 return Money::of((string) $line['net']);
+            }
+        }
+
+        return Money::zero();
+    }
+
+    /**
+     * The period's profit, as the profit and loss statement reads it, so the
+     * figure the indirect statement opens on is the figure the statement beside
+     * it reports and not a second one computed another way.
+     *
+     * Revenue is credit-normal, so over the temporary accounts the ledger's
+     * debit-minus-credit sums to expense less revenue — the profit the other way
+     * round. Negating it puts a profit up as a positive figure and a loss as a
+     * negative one. Closing entries are excluded for the same reason the profit
+     * and loss report excludes them: they carry the closed year's own last day.
+     */
+    private function netProfit(int $companyId, ?string $from, ?string $to): Money
+    {
+        $accounts = $this->accountsOfType($companyId, [AccountType::Revenue, AccountType::Expense]);
+
+        $movements = $this->ledger->movementBetween(
+            $companyId,
+            $this->ids($accounts),
+            $from,
+            $to,
+            [JournalType::Closing->value],
+        );
+
+        return Money::sum(array_values($movements))->negated();
+    }
+
+    /**
+     * The balance sheet accounts a movement is added back for: everything that
+     * holds a balance between two year ends and is not itself one of the money
+     * accounts. Revenue and expense are absent because the profit they make is
+     * the statement's opening line, not an adjustment to it.
+     *
+     * @return Collection<int, Account>
+     */
+    private function adjustmentAccounts(int $companyId): Collection
+    {
+        return $this->accountsOfType($companyId, [
+            AccountType::Asset,
+            AccountType::Liability,
+            AccountType::Equity,
+        ])->reject(static fn (Account $account): bool => (bool) $account->is_cash || (bool) $account->is_bank);
+    }
+
+    /**
+     * The company's accounts of the given types, in code order, keyed by id.
+     *
+     * Read withTrashed on purpose, for the same reason the statements read it
+     * that way: an account taken out of the chart listing still has lines in the
+     * ledger, and leaving it out would not make the movement smaller, it would
+     * stop the statement agreeing with the money that actually moved.
+     *
+     * @param  array<int, AccountType>  $types
+     * @return Collection<int, Account>
+     */
+    private function accountsOfType(int $companyId, array $types): Collection
+    {
+        return Account::withTrashed()
+            ->where('company_id', $companyId)
+            ->whereIn('account_type', array_map(
+                static fn (AccountType $type): string => $type->value,
+                $types,
+            ))
+            ->orderBy('code')
+            ->get()
+            ->keyBy(static fn (Account $account): int => (int) $account->getKey());
+    }
+
+    /**
+     * Which block an account's adjustment belongs in.
+     *
+     * The category is the account's own, the same one the direct statement
+     * classifies counter lines by, so the two readings of the period agree about
+     * what is operating and what is not. An account nobody has classified is
+     * its own block rather than being folded into operating, because a report
+     * that invents a home for what it cannot place is worse than one that says
+     * it could not.
+     */
+    private function bucketKey(Account $account): string
+    {
+        return $account->cash_flow_category?->value ?? 'unclassified';
+    }
+
+    /**
+     * The blocks the adjustment lines are grouped into, in reading order.
+     *
+     * @return list<string>
+     */
+    private static function bucketOrder(): array
+    {
+        return ['operating', 'investing', 'financing', 'internal_transfer', 'unclassified'];
+    }
+
+    private static function bucketLabel(string $key): string
+    {
+        $category = CashFlowCategory::tryFrom($key);
+
+        return $category === null ? 'Unclassified' : $category->label();
+    }
+
+    /**
+     * The current column less the prior one, activity by activity and in total.
+     *
+     * A positive figure is always an increase, the same sign convention the
+     * direct statement's variance uses, so the two comparative columns read the
+     * same way.
+     *
+     * @param  array<string, mixed>  $body
+     * @param  array<string, mixed>  $prior
+     * @return array<string, string>
+     */
+    private function indirectVariance(array $body, array $prior): array
+    {
+        $variance = [];
+
+        foreach (CashFlowCategory::statementOrder() as $category) {
+            $variance[$category->value] = $this->adjustmentTotal($body, $category->value)
+                ->minus($this->adjustmentTotal($prior, $category->value))
+                ->toDecimal();
+        }
+
+        $variance['net_profit'] = Money::of((string) $body['net_profit'])
+            ->minus(Money::of((string) $prior['net_profit']))
+            ->toDecimal();
+
+        $variance['net_movement'] = Money::of((string) $body['net_movement'])
+            ->minus(Money::of((string) $prior['net_movement']))
+            ->toDecimal();
+
+        return $variance;
+    }
+
+    /**
+     * One adjustment block's total out of a statement body.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    private function adjustmentTotal(array $body, string $category): Money
+    {
+        /** @var list<array<string, mixed>> $adjustments */
+        $adjustments = $body['adjustments'];
+
+        foreach ($adjustments as $block) {
+            if (($block['category'] ?? null) === $category) {
+                return Money::of((string) $block['total']);
             }
         }
 
