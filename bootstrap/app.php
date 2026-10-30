@@ -19,6 +19,7 @@ use App\Domain\Inventory\Exceptions\InventoryException;
 use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
 use App\Domain\Purchases\Exceptions\PurchasesException;
+use App\Domain\Reporting\Exceptions\ForecastUnavailableException;
 use App\Domain\Sales\Exceptions\InvoiceStateException;
 use App\Domain\Sales\Exceptions\SalesException;
 use App\Http\Middleware\SetPermissionsTeamId;
@@ -100,7 +101,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 // reversed, a costing method locked by movements already
                 // posted. Named before InventoryException below, since each is
                 // also an inventory refusal.
-                $exception instanceof StockStateException => 409,
+                $exception instanceof StockStateException,
+
+                // A forecast asked for where the calendar cannot answer it: no
+                // periods at all, no period covering the date, or a fiscal year
+                // that is not open. The request is well formed and no change to
+                // it would help, so it is a collision with the shape of the
+                // books rather than a bad request.
+                $exception instanceof ForecastUnavailableException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.

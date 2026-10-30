@@ -6,6 +6,7 @@ use App\Domain\Reporting\Services\AgeingQuery;
 use App\Domain\Reporting\Services\BudgetVarianceQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
+use App\Domain\Reporting\Services\ForecastQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Domain\Reporting\Services\LedgerVerification;
 use App\Domain\Reporting\Services\StockValuationQuery;
@@ -389,6 +390,35 @@ class ReportController extends Controller
 
         return response()->json(
             $variance->report($companyId, $period, $request->boolean('compare'))
+        );
+    }
+
+    /**
+     * The rest of the open fiscal year projected period by period.
+     *
+     * A forecast is built from the plan where the company wrote one for the
+     * period and from the trailing run-rate where it did not, so it is guarded
+     * by the budget read right rather than the report right the statements.
+     * Reading the books has never meant being shown what the company intends,
+     * and a projection that is half plan is still half plan.
+     *
+     * Nothing is stored and nothing is posted: the payload says which basis
+     * each figure came from, so a reader is never left to guess whether a
+     * number is a plan, an average or a fact. The horizon is decided by the
+     * company's own calendar — the current period to the last period of the
+     * open year — so there is no window to name and no date to be handed one
+     * outside the periods that exist.
+     */
+    public function forecast(Request $request, ForecastQuery $forecast): JsonResponse
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        $filters = $request->validate([
+            'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        return response()->json(
+            $forecast->forecast($this->companyId($request), $filters['as_of'] ?? null)
         );
     }
 

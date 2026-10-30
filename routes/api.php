@@ -107,6 +107,15 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/budget-vs-actual', [ReportController::class, 'budgetVsActual'])
             ->name('api.v1.reports.budget-vs-actual');
 
+        // The rest of the open fiscal year projected forward, from the plan
+        // where the company wrote one and from the trailing run-rate where it
+        // did not. Behind the budget right like the report above it, because a
+        // projection built from the plan is still the plan. Nothing is stored
+        // and no window is named: which periods are projected is the company's
+        // own calendar's answer, not the caller's.
+        Route::get('/reports/forecast', [ReportController::class, 'forecast'])
+            ->name('api.v1.reports.forecast');
+
         // Master data the sales and purchase screens pick from. Reading one
         // record and amending it are separate routes from listing, and both are
         // resolved inside the caller's company so another tenant's party is a
