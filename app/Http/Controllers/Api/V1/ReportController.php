@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Reporting\Services\AgeingQuery;
+use App\Domain\Reporting\Services\BudgetVarianceQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
@@ -11,6 +12,7 @@ use App\Domain\Reporting\Services\StockValuationQuery;
 use App\Domain\Reporting\Services\VatReturnQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\Budget;
 use App\Models\FiscalPeriod;
 use App\Models\StockMovement;
 use Illuminate\Http\JsonResponse;
@@ -351,6 +353,43 @@ class ReportController extends Controller
         }
 
         return response()->json($report);
+    }
+
+    /**
+     * The plan for a period beside what the period actually did.
+     *
+     * Guarded by the budget read right rather than the report right the
+     * statements. The two columns come from two different places — the actual
+     * is the posted ledger read through the same profit and loss statement as
+     * the report above, and the budget is what the company intends, which
+     * writing posts no journal for. Reading the books has never meant being
+     * shown the plan, so a member who may read the statements is not thereby
+     * handed this.
+     *
+     * Named by fiscal period rather than by a hand-picked range, because a
+     * plan is written for a period and only a period can have one. The lookup
+     * is scoped to the caller's company, so another tenant's period is a 404
+     * rather than a leak.
+     */
+    public function budgetVsActual(Request $request, BudgetVarianceQuery $variance): JsonResponse
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        $filters = $request->validate([
+            'fiscal_period' => ['required', 'string', 'size:26'],
+            'compare' => ['sometimes', 'boolean'],
+        ]);
+
+        $companyId = $this->companyId($request);
+
+        $period = FiscalPeriod::query()
+            ->where('company_id', $companyId)
+            ->where('ulid', $filters['fiscal_period'])
+            ->firstOrFail();
+
+        return response()->json(
+            $variance->report($companyId, $period, $request->boolean('compare'))
+        );
     }
 
     /**

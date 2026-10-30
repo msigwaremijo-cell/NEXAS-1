@@ -125,6 +125,31 @@ final class AccessMatrix
      */
     public const PERMISSION_AUDIT_VIEW = 'audit.view';
 
+    /**
+     * Reading what the company plans to earn and spend, and how the plan
+     * compares with what actually happened.
+     *
+     * Its own right rather than part of `report.view`, because a plan is not the
+     * books. A budget is a statement of intent that the ledger knows nothing
+     * about — writing one posts no journal — so being trusted to read the books
+     * is not the same as being trusted with next year's numbers. It is kept
+     * from the Read-only role and from the Cashier for that reason: both read
+     * what the books report, and neither is shown what the company intends.
+     */
+    public const PERMISSION_BUDGET_VIEW = 'budget.view';
+
+    /**
+     * Writing a plan: the amounts and the cost centres they are split across.
+     *
+     * Separate from `budget.view` for the ordinary reason — reading a plan is
+     * not deciding it — and separate from every posting right for the reason
+     * the plan is not a posting. Nothing here reaches the ledger, so this is
+     * not a second way to move the books; it is the right to say what the
+     * company means to do, which is deliberately held by fewer people than may
+     * read the result.
+     */
+    public const PERMISSION_BUDGET_MANAGE = 'budget.manage';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -190,6 +215,8 @@ final class AccessMatrix
             self::PERMISSION_COMPANY_MANAGE,
             self::PERMISSION_FISCAL_YEAR_CLOSE,
             self::PERMISSION_AUDIT_VIEW,
+            self::PERMISSION_BUDGET_VIEW,
+            self::PERMISSION_BUDGET_MANAGE,
         ];
     }
 
@@ -249,6 +276,13 @@ final class AccessMatrix
                 // neither keeps the books and neither should change what the
                 // numbers already written mean.
                 self::PERMISSION_COMPANY_MANAGE,
+                // The plan, both halves. The accountant keeps the books and is
+                // the person who says what a period is expected to do, so the
+                // right to write the plan is not separated from the right to
+                // read the accounts it is written against. Neither of these is
+                // a posting: nothing in a budget reaches the ledger.
+                self::PERMISSION_BUDGET_VIEW,
+                self::PERMISSION_BUDGET_MANAGE,
                 // Deliberately absent: PERMISSION_FISCAL_YEAR_CLOSE. Closing
                 // the year turns a set of books into a historical fact and is
                 // reversible only by reopening it, so it is kept for the Owner
@@ -289,6 +323,11 @@ final class AccessMatrix
                 self::PERMISSION_STOCK_VIEW,
                 self::PERMISSION_STOCK_MANAGE,
                 self::PERMISSION_STOCK_POST,
+                // Reads the plan because a second pair of eyes on a supplier
+                // bill needs to know what the period was meant to spend. Does
+                // not write it: the second pair of hands is on the approval,
+                // and the plan is the accountant's to set.
+                self::PERMISSION_BUDGET_VIEW,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -339,11 +378,18 @@ final class AccessMatrix
                 self::PERMISSION_BANK_VIEW,
                 self::PERMISSION_STOCK_VIEW,
                 self::PERMISSION_AUDIT_VIEW,
+                // Auditing a period is comparing what the company meant to do
+                // with what it did, so the plan is read here as well. Reading
+                // the plan is not the same as reading the trail behind it,
+                // which is why the two rights are kept apart.
+                self::PERMISSION_BUDGET_VIEW,
             ],
 
-            // Sees everything the books report and nothing more. The eight
-            // `.view` rights without `audit.view`: a member who may look but
-            // must not be trusted with the trail of who changed what.
+            // Sees everything the books report and nothing more: the `.view`
+            // right of each part of the books, without `audit.view` and without
+            // `budget.view`. A budget is not something the books report — it is
+            // what the company intends to do next — so a member trusted to look
+            // at the results is not thereby shown the plan.
             self::ROLE_READ_ONLY => [
                 self::PERMISSION_JOURNAL_VIEW,
                 self::PERMISSION_REPORT_VIEW,

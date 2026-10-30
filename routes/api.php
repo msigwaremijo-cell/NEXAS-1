@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\V1\BankAccountController;
 use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
+use App\Http\Controllers\Api\V1\BudgetController;
 use App\Http\Controllers\Api\V1\CompanyController;
+use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DebitNoteController;
@@ -97,6 +99,13 @@ Route::prefix('v1')->group(function (): void {
         // statements beside it, and usually named by fiscal period rather than
         // by a hand-picked range, because that is how a return is filed.
         Route::get('/reports/vat-return', [ReportController::class, 'vatReturn'])->name('api.v1.reports.vat-return');
+
+        // The plan beside what the period actually did. Its own right rather
+        // than the report right above, because the budget column is what the
+        // company intends and not what the books hold: writing a plan posts no
+        // journal, so reading the books has never meant being shown the plan.
+        Route::get('/reports/budget-vs-actual', [ReportController::class, 'budgetVsActual'])
+            ->name('api.v1.reports.budget-vs-actual');
 
         // Master data the sales and purchase screens pick from. Reading one
         // record and amending it are separate routes from listing, and both are
@@ -243,6 +252,24 @@ Route::prefix('v1')->group(function (): void {
         // What the stock on hand is worth, against the inventory accounts it is
         // carried in.
         Route::get('/reports/stock-valuation', [ReportController::class, 'stockValuation'])->name('api.v1.reports.stock-valuation');
+
+        // The plan for a period: the accounts the company means to earn and
+        // spend on, and the cost centres it splits that across. Held behind its
+        // own pair of rights rather than the report rights, because a budget is
+        // a statement of intent and not a posting — nothing here reaches the
+        // ledger. A plan is written as a whole, so there is no per-line route
+        // and no delete: a budget is replaced by writing it again, and a cost
+        // centre is retired by moving its status. Writing is a put of the plan
+        // named by its fiscal period, because the company keeps one plan per
+        // period and only a period can be planned for.
+        Route::get('/cost-centers', [CostCenterController::class, 'index'])->name('api.v1.cost-centers.index');
+        Route::post('/cost-centers', [CostCenterController::class, 'store'])->name('api.v1.cost-centers.store');
+        Route::get('/cost-centers/{costCenter}', [CostCenterController::class, 'show'])->name('api.v1.cost-centers.show');
+        Route::patch('/cost-centers/{costCenter}', [CostCenterController::class, 'update'])->name('api.v1.cost-centers.update');
+
+        Route::get('/budgets', [BudgetController::class, 'index'])->name('api.v1.budgets.index');
+        Route::get('/budgets/{budget}', [BudgetController::class, 'show'])->name('api.v1.budgets.show');
+        Route::put('/budgets', [BudgetController::class, 'save'])->name('api.v1.budgets.save');
 
         // Administering the company's members. Every route here is a
         // `user.manage` route, which in the matrix means the Owner alone, and
