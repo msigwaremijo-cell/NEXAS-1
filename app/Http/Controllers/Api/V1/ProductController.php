@@ -217,6 +217,9 @@ class ProductController extends Controller
             ],
             'unit_cost' => ['sometimes', 'numeric', 'min:0'],
             'sale_price' => ['sometimes', 'numeric', 'min:0'],
+            // The level at which the item wants reordering. Null means nobody is
+            // watching it; a value the low-stock job compares the layers against.
+            'reorder_level' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'status' => ['sometimes', Rule::enum(StockItemStatus::class)],
         ];
     }
@@ -259,6 +262,7 @@ class ProductController extends Controller
             'tax_code_id' => $product->tax_code_id === null ? null : (int) $product->tax_code_id,
             'unit_cost' => $product->unit_cost,
             'sale_price' => $product->sale_price,
+            'reorder_level' => $product->reorder_level,
             'status' => $product->status->value,
         ];
     }

@@ -40,6 +40,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'tax_code_id',
     'unit_cost',
     'sale_price',
+    'reorder_level',
     'status',
     'row_version',
 ])]
@@ -57,6 +58,7 @@ class Product extends Model
             'status' => StockItemStatus::class,
             'unit_cost' => 'decimal:4',
             'sale_price' => 'decimal:4',
+            'reorder_level' => 'decimal:6',
             'row_version' => 'integer',
         ];
     }
