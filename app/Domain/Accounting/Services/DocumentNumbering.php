@@ -88,6 +88,7 @@ final class DocumentNumbering
             DocumentType::Bill => 'BILL-',
             DocumentType::Payment => 'PAY-',
             DocumentType::CreditNote => 'CN-',
+            DocumentType::DebitNote => 'DBN-',
         };
     }
 }

@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'discount_rate',
     'tax_code_id',
     'expense_account_id',
+    'debit_note_for_line_id',
 ])]
 class BillLine extends Model
 {

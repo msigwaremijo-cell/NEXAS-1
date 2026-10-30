@@ -19,6 +19,17 @@ enum JournalType: string
     case Receipt = 'receipt';
     case Payment = 'payment';
     case CreditNote = 'credit_note';
+
+    /**
+     * A supplier debit note: the purchase side correcting a bill it approved.
+     *
+     * It is kept apart from the credit note because the two correct opposite
+     * sides of the books — one answers a sale, the other a purchase — and a
+     * report that lumped them together could not tell a return of goods the
+     * company bought from a return of goods it sold.
+     */
+    case DebitNote = 'debit_note';
+
     case Opening = 'opening';
     case Closing = 'closing';
     case Reversal = 'reversal';
@@ -57,6 +68,7 @@ enum JournalType: string
             self::Receipt => 'Receipt',
             self::Payment => 'Payment',
             self::CreditNote => 'Credit note',
+            self::DebitNote => 'Debit note',
             self::Opening => 'Opening balances',
             self::Closing => 'Closing entries',
             self::Reversal => 'Reversal',

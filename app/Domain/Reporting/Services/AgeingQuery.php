@@ -31,6 +31,23 @@ use Illuminate\Database\Eloquent\Model;
  * and a `void` one never did. The same rule is expressed for bills, with the
  * addition that a bill must have been approved — an unposted bill has no
  * liability in the ledger, so it has no place in a payables report.
+ *
+ * A correction is a document too, and it is netted off rather than counted the
+ * way its own columns read. A credit note is a row in the invoices table whose
+ * `total` is positive, so adding it the way an invoice is added would *raise*
+ * the receivable it exists to reduce; a debit note does the same to the
+ * payable. Each is therefore given the opposite sign, per party, so the report
+ * agrees with the control account it is read against and a party that has been
+ * overpaid, credited or debited reads as a negative balance rather than being
+ * silently floored at zero.
+ *
+ * The sign is applied in the same bucket the correction itself falls in — aged
+ * from its own due date, which its action sets to its own document date — so a
+ * credit raised this month reduces this month's column whether the invoice it
+ * answers was raised this month or a year ago. That can leave an individual
+ * bucket negative while the party's total stays right, which is the honest
+ * reading: the money really has been given back, and hiding it by clamping the
+ * column at zero would make the buckets stop adding up to the control account.
  */
 final class AgeingQuery
 {
@@ -44,6 +61,9 @@ final class AgeingQuery
     /**
      * What customers owe, bucketed by how late it is.
      *
+     * A credit note answers a sale, so it reduces what the customer owes and
+     * is given the opposite sign to the invoices it sits beside.
+     *
      * @return array<string, mixed>
      */
     public function receivables(int $companyId, ?string $asOf = null): array
@@ -55,11 +75,15 @@ final class AgeingQuery
             Customer::class,
             $companyId,
             $asOf,
+            correctionType: 'credit_note',
         );
     }
 
     /**
      * What the company owes suppliers, bucketed by how late it is.
+     *
+     * A debit note answers a purchase, so it reduces what the company owes and
+     * is given the opposite sign to the bills it sits beside.
      *
      * @return array<string, mixed>
      */
@@ -77,6 +101,7 @@ final class AgeingQuery
             // liability in the ledger, and reporting it would make the ageing
             // disagree with the payables control account.
             requirePosted: true,
+            correctionType: 'debit_note',
         );
     }
 
@@ -84,6 +109,7 @@ final class AgeingQuery
      * @param  class-string<Model>  $documentModel
      * @param  list<string>  $openStatuses
      * @param  class-string<Model>  $partyModel
+     * @param  string|null  $correctionType  the document_type that reduces the balance
      * @return array<string, mixed>
      */
     private function age(
@@ -94,16 +120,44 @@ final class AgeingQuery
         int $companyId,
         ?string $asOf,
         bool $requirePosted = false,
+        ?string $correctionType = null,
     ): array {
         // Ageing is always "as of" a date. Defaulting to today is what makes a
         // report reproducible tomorrow only if the caller pins it, so the
         // resolved date is echoed back in the payload.
         $asOf = $asOf ?? now()->toDateString();
 
-        // One placeholder per bucket, all bound to the as-of date. They are
-        // positional and appear in the select clause, so Laravel binds them
-        // ahead of the where clause, which is also their order in the SQL text.
-        //
+        // The amount a document contributes to the balance. Most documents
+        // contribute what is still owed on them; a correction contributes the
+        // negative of that, because it exists to take the balance away. The
+        // sign is applied to the whole outstanding figure rather than to the
+        // buckets, so the five columns and the total always agree.
+        $amount = $correctionType === null
+            ? 'total - amount_paid'
+            : '(CASE WHEN document_type = ? THEN amount_paid - total ELSE total - amount_paid END)';
+
+        // One placeholder per bucket for the as-of date, and — when corrections
+        // are netted — one more for the document type inside the same arm. They
+        // are positional and appear in the select clause, so the bindings are
+        // assembled in the same order the placeholders appear in the SQL text.
+        $bucketColumns = [];
+        $bindings = [];
+
+        foreach ([
+            'current' => 'DATEDIFF(?, due_date) <= 0',
+            '1_30' => 'DATEDIFF(?, due_date) BETWEEN 1 AND 30',
+            '31_60' => 'DATEDIFF(?, due_date) BETWEEN 31 AND 60',
+            '61_90' => 'DATEDIFF(?, due_date) BETWEEN 61 AND 90',
+            'over_90' => 'DATEDIFF(?, due_date) > 90',
+        ] as $key => $condition) {
+            $bucketColumns[] = "SUM(CASE WHEN {$condition} THEN {$amount} ELSE 0 END) AS {$key}";
+            $bindings[] = $asOf;
+
+            if ($correctionType !== null) {
+                $bindings[] = $correctionType;
+            }
+        }
+
         // The party column has to be selected explicitly: grouping by a column
         // does not put it in the result set, and without it every row would
         // come back with a null party and the whole report would collapse into
@@ -111,16 +165,16 @@ final class AgeingQuery
         $expression = implode(', ', [
             $partyColumn,
             'COUNT(*) AS document_count',
-            $this->bucket('current', 'DATEDIFF(?, due_date) <= 0'),
-            $this->bucket('1_30', 'DATEDIFF(?, due_date) BETWEEN 1 AND 30'),
-            $this->bucket('31_60', 'DATEDIFF(?, due_date) BETWEEN 31 AND 60'),
-            $this->bucket('61_90', 'DATEDIFF(?, due_date) BETWEEN 61 AND 90'),
-            $this->bucket('over_90', 'DATEDIFF(?, due_date) > 90'),
-            'SUM(total - amount_paid) AS total_outstanding',
+            ...$bucketColumns,
+            "SUM({$amount}) AS total_outstanding",
         ]);
 
+        if ($correctionType !== null) {
+            $bindings[] = $correctionType;
+        }
+
         $rows = $documentModel::query()
-            ->selectRaw($expression, [$asOf, $asOf, $asOf, $asOf, $asOf])
+            ->selectRaw($expression, $bindings)
             ->where('company_id', $companyId)
             ->whereIn('status', $openStatuses)
             ->when($requirePosted, fn ($query) => $query->whereNotNull('journal_id'))
@@ -157,7 +211,9 @@ final class AgeingQuery
         }
 
         // Largest debt first: an ageing report is read from the top, and the
-        // party that owes the most is the one being chased.
+        // party that owes the most is the one being chased. A party in credit —
+        // more corrections than invoices — sorts to the bottom, where its
+        // negative total is plainly visible rather than hidden.
         usort($presented, static fn (array $a, array $b): int => Money::of($b['total'])->compareTo(Money::of($a['total'])));
 
         $totals['total'] = Money::of(array_reduce(
@@ -173,11 +229,6 @@ final class AgeingQuery
             'parties' => $presented,
             'totals' => $totals,
         ];
-    }
-
-    private function bucket(string $key, string $condition): string
-    {
-        return "SUM(CASE WHEN {$condition} THEN total - amount_paid ELSE 0 END) AS {$key}";
     }
 
     /**

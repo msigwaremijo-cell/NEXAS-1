@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'bill_no',
     'supplier_invoice_no',
     'document_type',
+    'debit_note_for_bill_id',
     'status',
     'bill_date',
     'due_date',

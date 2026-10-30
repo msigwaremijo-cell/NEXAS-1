@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\CompanyController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\DebitNoteController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -117,6 +118,18 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/bills/{bill}/submit', [BillController::class, 'submit'])->name('api.v1.bills.submit');
         Route::post('/bills/{bill}/approve', [BillController::class, 'approve'])->name('api.v1.bills.approve');
         Route::post('/bills/{bill}/post', [BillController::class, 'post'])->name('api.v1.bills.post');
+
+        // Supplier debit notes. A debit note is the purchase side correcting a
+        // bill it already posted, so it reuses the bill rights rather than
+        // adding a set of its own. A line names one line of the bill it answers
+        // and a quantity — never a price or an account — and writing the draft
+        // is a separate route from posting it. There is deliberately no update
+        // or delete route: a posted note is immutable and is corrected by
+        // reversing it.
+        Route::get('/debit-notes', [DebitNoteController::class, 'index'])->name('api.v1.debit-notes.index');
+        Route::post('/bills/{bill}/debit-notes', [DebitNoteController::class, 'store'])->name('api.v1.bills.debit-notes.store');
+        Route::get('/debit-notes/{debitNote}', [DebitNoteController::class, 'show'])->name('api.v1.debit-notes.show');
+        Route::post('/debit-notes/{debitNote}/post', [DebitNoteController::class, 'post'])->name('api.v1.debit-notes.post');
 
         Route::get('/payments', [PaymentController::class, 'index'])->name('api.v1.payments.index');
         Route::post('/payments', [PaymentController::class, 'store'])->name('api.v1.payments.store');
