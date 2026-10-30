@@ -132,11 +132,17 @@ class ReportController extends Controller
         $filters = $request->validate([
             'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'compare' => ['sometimes', 'boolean'],
         ]);
 
         [$from, $to] = $this->range($filters);
 
-        return response()->json($cashFlow->statement($this->companyId($request), $from, $to));
+        return response()->json($cashFlow->statement(
+            $this->companyId($request),
+            $from,
+            $to,
+            $request->boolean('compare'),
+        ));
     }
 
     /**

@@ -47,28 +47,63 @@ use Illuminate\Support\Collection;
  */
 final class CashFlowQuery
 {
-    public function __construct(private readonly LedgerQuery $ledger) {}
+    public function __construct(
+        private readonly LedgerQuery $ledger,
+        private readonly PeriodComparison $periods,
+    ) {}
 
     /**
-     * The cash flow statement for a period.
+     * The cash flow statement for a period, with an optional comparative column.
      *
      * `from` is inclusive, and opening cash is what the accounts stood at the
      * day before it, so a statement run for March does not count February's
      * closing movement twice. Omitting both dates reports the whole ledger,
      * opening at zero.
      *
+     * $compare asks for a prior column: the same statement read over the window
+     * of equal length immediately before this one, so the two columns are one
+     * report read twice rather than two figures computed different ways. Which
+     * window "the previous period" means is decided in one place,
+     * PeriodComparison, and not here. A variance is the prior column taken off
+     * the current one, so a positive number is always an increase. Comparing a
+     * whole-ledger report is meaningless — there is no window before all of it —
+     * so a report with no dates stays single-column however $compare is set.
+     *
      * @return array<string, mixed>
      */
-    public function statement(int $companyId, ?string $from = null, ?string $to = null): array
+    public function statement(
+        int $companyId,
+        ?string $from = null,
+        ?string $to = null,
+        bool $compare = false,
+    ): array {
+        $body = $this->statementBody($companyId, $from, $to);
+
+        if (! $compare || $from === null || $to === null) {
+            return $body + ['comparison' => null, 'variance' => null];
+        }
+
+        [$priorFrom, $priorTo] = $this->periods->precedingWindow($from, $to);
+
+        $prior = $this->statementBody($companyId, $priorFrom, $priorTo);
+
+        return $body + [
+            'comparison' => $prior,
+            'variance' => $this->variance($body, $prior),
+        ];
+    }
+
+    /**
+     * One statement over one window, before any comparison is added.
+     *
+     * @return array<string, mixed>
+     */
+    private function statementBody(int $companyId, ?string $from, ?string $to): array
     {
         $accounts = $this->moneyAccounts($companyId);
         $accountIds = $this->ids($accounts);
 
-        $opening = $from === null
-            ? Money::zero()
-            : $this->totalCash($companyId, $accountIds, $this->dayBefore($from));
-
-        $closing = $this->totalCash($companyId, $accountIds, $to);
+        ['opening' => $opening, 'closing' => $closing] = $this->cashBalances($companyId, $accountIds, $from, $to);
 
         $movements = $this->classify($companyId, $accountIds, $from, $to);
 
@@ -272,6 +307,77 @@ final class CashFlowQuery
             'inflow' => $inflow->toDecimal(),
             'outflow' => $outflow->toDecimal(),
             'net' => $inflow->minus($outflow)->toDecimal(),
+        ];
+    }
+
+    /**
+     * The current column less the prior one, activity by activity and in total.
+     *
+     * A positive figure is always an increase, the same sign convention the
+     * other comparative statements use, so a movement that grew reads as a
+     * positive variance whichever activity it belongs to.
+     *
+     * @param  array<string, mixed>  $body
+     * @param  array<string, mixed>  $prior
+     * @return array<string, string>
+     */
+    private function variance(array $body, array $prior): array
+    {
+        $variance = [];
+
+        foreach (CashFlowCategory::statementOrder() as $category) {
+            $variance[$category->value] = $this->activityNet($body, $category)
+                ->minus($this->activityNet($prior, $category))
+                ->toDecimal();
+        }
+
+        $variance['net_movement'] = Money::of((string) $body['net_movement'])
+            ->minus(Money::of((string) $prior['net_movement']))
+            ->toDecimal();
+
+        return $variance;
+    }
+
+    /**
+     * One activity's net figure out of a statement body.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    private function activityNet(array $body, CashFlowCategory $category): Money
+    {
+        /** @var list<array<string, mixed>> $activities */
+        $activities = $body['activities'];
+
+        foreach ($activities as $line) {
+            if (($line['category'] ?? null) === $category->value) {
+                return Money::of((string) $line['net']);
+            }
+        }
+
+        return Money::zero();
+    }
+
+    /**
+     * The pool's standing at the two ends of a window: the day before it opens,
+     * and its last day.
+     *
+     * Opening and closing are read here rather than written out at the call
+     * site so that the statement's closing figure and the position report's
+     * total are the same sum over the same accounts read the same way, which is
+     * what a test asserts when it says the two reports agree. A window with no
+     * lower bound reports the whole ledger from zero, because there is no day
+     * before the beginning of everything.
+     *
+     * @param  array<int, int>  $accountIds
+     * @return array{opening: Money, closing: Money}
+     */
+    private function cashBalances(int $companyId, array $accountIds, ?string $from, ?string $to): array
+    {
+        return [
+            'opening' => $from === null
+                ? Money::zero()
+                : $this->totalCash($companyId, $accountIds, $this->dayBefore($from)),
+            'closing' => $this->totalCash($companyId, $accountIds, $to),
         ];
     }
 

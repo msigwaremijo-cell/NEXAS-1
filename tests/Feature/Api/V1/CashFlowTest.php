@@ -367,6 +367,90 @@ it('states that it reads the accounts\u2019 current categories', function () {
 
 /*
 |--------------------------------------------------------------------------
+| The comparative column
+|--------------------------------------------------------------------------
+*/
+
+it('compares the statement with the window of equal length immediately before it', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    // The window before the one asked for: 2026-03-08 to 2026-03-19, the same
+    // twelve days as 2026-03-20 to 2026-03-31. A receipt of 40 less an expense
+    // of 10 leaves 30 of operating money.
+    nxCashPost($this->cashFlow, 'JV-800001', '2026-03-10', $this->cashFlow['cash'], $this->cashFlow['receivable'], '40.0000');
+    nxCashPost($this->cashFlow, 'JV-800002', '2026-03-12', $this->cashFlow['expense'], $this->cashFlow['cash'], '10.0000');
+
+    // The window asked for: a receipt of 100 and equipment bought for cash.
+    nxCashPost($this->cashFlow, 'JV-800003', '2026-03-22', $this->cashFlow['cash'], $this->cashFlow['receivable'], '100.0000');
+    nxCashPost($this->cashFlow, 'JV-800004', '2026-03-25', $this->cashFlow['equipment'], $this->cashFlow['cash'], '30.0000');
+
+    $response = $this->getJson('/api/v1/reports/cash-flow?from=2026-03-20&to=2026-03-31&compare=1')
+        ->assertOk();
+
+    // The current column: 100 in less 30 out.
+    $response
+        ->assertJsonPath('net_activities', '70.0000')
+        ->assertJsonPath('net_movement', '70.0000')
+        ->assertJsonPath('closing_cash', '100.0000');
+
+    // The prior column is the same statement over the window immediately before
+    // this one, not a figure computed a different way.
+    $response
+        ->assertJsonPath('comparison.from', '2026-03-08')
+        ->assertJsonPath('comparison.to', '2026-03-19')
+        ->assertJsonPath('comparison.net_movement', '30.0000')
+        ->assertJsonPath('comparison.closing_cash', '30.0000');
+
+    // The variance is the current column less the prior one, activity by
+    // activity and in total: a positive figure is an increase.
+    $response
+        ->assertJsonPath('variance.operating', '70.0000')
+        ->assertJsonPath('variance.investing', '-30.0000')
+        ->assertJsonPath('variance.financing', '0.0000')
+        ->assertJsonPath('variance.net_movement', '40.0000');
+});
+
+it('makes the comparative closing cash the window\'s opening cash and its position', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    // One receipt in the window before, one in the window asked for.
+    nxCashPost($this->cashFlow, 'JV-810001', '2026-03-10', $this->cashFlow['cash'], $this->cashFlow['receivable'], '40.0000');
+    nxCashPost($this->cashFlow, 'JV-810002', '2026-03-22', $this->cashFlow['cash'], $this->cashFlow['receivable'], '100.0000');
+
+    $statement = $this->getJson('/api/v1/reports/cash-flow?from=2026-03-20&to=2026-03-31&compare=1')
+        ->assertOk()
+        ->json();
+
+    $position = $this->getJson('/api/v1/reports/cash-position?as_of=2026-03-19')
+        ->assertOk()
+        ->json('total');
+
+    // The prior window ends the day before this one starts, so its closing
+    // balance is exactly what this window opens on.
+    expect($statement['comparison']['closing_cash'])->toBe('40.0000')
+        ->and($statement['opening_cash'])->toBe($statement['comparison']['closing_cash'])
+        // And it is the same money the position report reads at that date.
+        ->and($position)->toBe($statement['comparison']['closing_cash'])
+        ->and($statement['balanced'])->toBeTrue()
+        ->and($statement['comparison']['balanced'])->toBeTrue();
+});
+
+it('does not compare a statement that covers the whole ledger', function () {
+    Sanctum::actingAs(nxCashMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    nxCashPostTheQuarter($this->cashFlow);
+
+    // There is no window before all of the ledger, so a report with no dates is
+    // single-column however compare is set — stated rather than silently
+    // ignored.
+    $this->getJson('/api/v1/reports/cash-flow?compare=1')
+        ->assertOk()
+        ->assertJsonPath('comparison', null)
+        ->assertJsonPath('variance', null);
+});
+
+/*
+|--------------------------------------------------------------------------
 | The two reports agree
 |--------------------------------------------------------------------------
 */
