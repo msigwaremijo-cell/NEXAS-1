@@ -353,6 +353,28 @@ it('lets an auditor read a debit note without being able to post it', function (
     $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/post')->assertForbidden();
 });
 
+it('lets an auditor read a debit note without being able to reverse it', function () {
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $bill = nxDnApprovedBill(nxDnExpenseBillBody($this->supplierId));
+    nxDnPostBill($bill['ulid']);
+
+    $lineId = nxDnLineId($bill['ulid']);
+
+    $note = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '1'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/post')->assertOk();
+
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    $this->getJson('/api/v1/debit-notes/'.$note['ulid'])->assertOk();
+
+    // Reversing a correction takes it back out of the ledger, which is as much
+    // a write as posting it: an auditor must never be able to unwrite history.
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/reverse')->assertForbidden();
+});
+
 /*
 |--------------------------------------------------------------------------
 | Writing the draft
@@ -626,6 +648,153 @@ it('has no way to change or delete a posted debit note', function () {
         ->and((int) $after->row_version)->toBe((int) $before->row_version)
         ->and($after->bill_date)->toBe($before->bill_date)
         ->and($after->status)->toBe('approved');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Reversal
+|--------------------------------------------------------------------------
+*/
+
+it('reverses a posted debit note, putting the stock back and netting the ledger to nothing', function () {
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $this->postJson('/api/v1/stock/receipts', nxDnReceiptBody([
+        'quantity' => '10',
+        'unit_cost' => '10.0000',
+    ]))->assertCreated();
+
+    $bill = nxDnApprovedBill(nxDnStockBillBody($this->supplierId));
+    nxDnPostBill($bill['ulid']);
+
+    $lineId = nxDnLineId($bill['ulid']);
+
+    $note = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '4'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/post')->assertOk();
+
+    // Four of the ten went back before the reversal: 60 is on the shelf.
+    expect(nxDnLayerValue())->toBe('60.0000')
+        ->and(nxDnLedger($this->inventoryAccountId)['closing'])->toBe('60.0000');
+
+    $reversed = $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/reverse')
+        ->assertOk()
+        ->json('data');
+
+    expect($reversed['status'])->toBe('reversed');
+
+    // The goods are back on the shelf at what they cost when they left — into a
+    // new layer, because a layer is only ever written downwards — and the
+    // inventory account agrees with them again.
+    expect(nxDnLayerValue())->toBe('100.0000')
+        ->and(nxDnLedger($this->inventoryAccountId)['closing'])->toBe('100.0000');
+
+    // The payable the note reduced is owed again in full.
+    expect(nxDnLedger($this->payableAccountId)['closing'])->toBe('-100.0000');
+
+    // The note never touched profit, and its reversal leaves the cost account
+    // where it started; goods received was cleared by the bill and stays that
+    // way.
+    expect(nxDnLedger($this->cogsAccountId)['closing'])->toBe('0.0000')
+        ->and(nxDnLedger($this->grniAccountId)['closing'])->toBe('0.0000');
+
+    // The entry the note posted is marked reversed and points at its reversal,
+    // and the stock movement was answered by a movement of its own.
+    $entry = DB::table('journals')->where('journal_type', 'debit_note')->first();
+
+    expect($entry->status)->toBe('reversed')
+        ->and($entry->reversed_by_journal_id)->not->toBeNull()
+        ->and(DB::table('stock_movements')->whereNotNull('reverses_movement_id')->count())->toBe(1);
+
+    $this->getJson('/api/v1/reports/stock-valuation')
+        ->assertOk()
+        ->assertJsonPath('total_value', '100.0000')
+        ->assertJsonPath('reconciled', true);
+
+    $this->getJson('/api/v1/reports/trial-balance')
+        ->assertOk()
+        ->assertJsonPath('meta.balanced', true);
+});
+
+it('refuses to reverse a debit note that has already been reversed', function () {
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $bill = nxDnApprovedBill(nxDnExpenseBillBody($this->supplierId));
+    nxDnPostBill($bill['ulid']);
+
+    $lineId = nxDnLineId($bill['ulid']);
+
+    $note = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '1'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/post')->assertOk();
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/reverse')->assertOk();
+
+    // A reversal is the last word: reversing the reversal would put the note
+    // back into the ledger, so it is refused and the books are left alone.
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/reverse')
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'BillStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'already been reversed'));
+
+    expect(DB::table('journals')->where('journal_type', 'reversal')->count())->toBe(1);
+});
+
+it('refuses to reverse a debit note that has not been posted', function () {
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $bill = nxDnApprovedBill(nxDnExpenseBillBody($this->supplierId));
+    nxDnPostBill($bill['ulid']);
+
+    $lineId = nxDnLineId($bill['ulid']);
+
+    // A draft has not reached the ledger, so there is nothing to reverse.
+    $note = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '1'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$note['ulid'].'/reverse')
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'BillStateException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'has not been posted'));
+});
+
+it('restores what a bill still owed once the note that took it off is reversed', function () {
+    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+
+    $bill = nxDnApprovedBill(nxDnExpenseBillBody($this->supplierId, [
+        'lines' => [[
+            'description' => 'Consulting',
+            'account_id' => $this->expenseAccountId,
+            'quantity' => '4',
+            'unit_price' => '150.0000',
+        ]],
+    ]));
+
+    nxDnPostBill($bill['ulid']);
+
+    $lineId = nxDnLineId($bill['ulid']);
+
+    // The whole bill is debited, so nothing is left to debit against it.
+    $first = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '4'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$first['ulid'].'/post')->assertOk();
+
+    $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '1'))
+        ->assertStatus(409)
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'still open'));
+
+    // Reversing the note puts back what it took off the bill, so the bill can
+    // be debited again — a reversed note is not a claim on the open amount.
+    $this->postJson('/api/v1/debit-notes/'.$first['ulid'].'/reverse')->assertOk();
+
+    $second = $this->postJson('/api/v1/bills/'.$bill['ulid'].'/debit-notes', nxDnBody($lineId, '4'))
+        ->assertCreated()->json('data');
+
+    $this->postJson('/api/v1/debit-notes/'.$second['ulid'].'/post')->assertOk();
+
+    expect(nxDnLedger($this->payableAccountId)['closing'])->toBe('0.0000');
 });
 
 /*

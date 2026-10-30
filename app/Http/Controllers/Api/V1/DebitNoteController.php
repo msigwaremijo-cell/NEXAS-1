@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Purchases\Actions\CreateDebitNote;
 use App\Domain\Purchases\Actions\PostDebitNote;
+use App\Domain\Purchases\Actions\ReverseDebitNote;
 use App\Domain\Purchases\Enums\BillStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
@@ -30,9 +31,11 @@ use Illuminate\Validation\Rule;
  *
  * Writing a draft and posting it are separate endpoints because they are
  * separate moves; both reuse the bill rights, because a debit note is the
- * purchase side's own correction of a purchase. There is deliberately no update
- * or delete route: a posted note is immutable and a mistake is corrected by
- * reversing it, which is a later move rather than an edit.
+ * purchase side's own correction of a purchase. Reversing a posted note is a
+ * third move again — the inverse of posting — and is its own endpoint for the
+ * same reason. There is deliberately no update or delete route: a posted note
+ * is immutable, and a mistake is corrected by reversing it rather than by an
+ * edit.
  */
 class DebitNoteController extends Controller
 {
@@ -135,6 +138,33 @@ class DebitNoteController extends Controller
         );
 
         return response()->json(['data' => $this->present($posted)]);
+    }
+
+    /**
+     * The correction of a posted debit note, written as the opposite entry
+     * rather than as an edit. The action puts back any stock the note sent out
+     * and reverses the entry it posted, and refuses a note that has already
+     * been reversed.
+     */
+    public function reverse(Request $request, string $debitNote, ReverseDebitNote $reverse): JsonResponse
+    {
+        $record = $this->findByUlid($request, $debitNote, 'debit_note');
+
+        $this->authorize('reverse', $record);
+
+        $data = $request->validate([
+            'posting_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'memo' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $reversed = $reverse(
+            $record,
+            $data['posting_date'] ?? null,
+            $data['memo'] ?? null,
+            $request->user()->getKey(),
+        );
+
+        return response()->json(['data' => $this->present($reversed)]);
     }
 
     /**

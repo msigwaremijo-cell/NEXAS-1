@@ -134,6 +134,35 @@ final class BillStateException extends PurchasesException
     }
 
     /**
+     * A debit note that has already been reversed. A reversal is the last word
+     * on a correction, so reversing the reversal — which would put the note
+     * back into the ledger — is refused rather than treated as a fresh move.
+     * This mirrors the stock module, which refuses to reverse a movement that
+     * is itself a reversal.
+     */
+    public static function alreadyReversed(Bill $bill): self
+    {
+        return new self(sprintf(
+            'Debit note %s has already been reversed, and a reversal cannot be reversed.',
+            $bill->bill_no
+        ));
+    }
+
+    /**
+     * The note is not in a state a reversal can be asked of. Only a note that
+     * is live in the books — approved, or partly settled — has an entry to take
+     * back out; a draft or a void one has nothing to reverse.
+     */
+    public static function notReversible(Bill $bill, BillStatus $status): self
+    {
+        return new self(sprintf(
+            'Debit note %s is %s, so it cannot be reversed; only a posted debit note can.',
+            $bill->bill_no,
+            $status->label()
+        ));
+    }
+
+    /**
      * A debit note line has to name a line of the very bill it corrects.
      * Naming a line from elsewhere would reduce a payable that was never raised
      * here, so the link is refused rather than silently dropped.

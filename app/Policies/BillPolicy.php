@@ -60,6 +60,19 @@ class BillPolicy
             && $user->can(AccessMatrix::PERMISSION_BILL_POST);
     }
 
+    /**
+     * Reversing a debit note is the inverse of posting it, so it carries the
+     * same right: whoever may push a purchase correction into the ledger is the
+     * person who may take it back out. It is not granted to the reader, which
+     * is what keeps an auditor able to see a correction without being able to
+     * unwrite it.
+     */
+    public function reverse(User $user, Bill $bill): bool
+    {
+        return $this->worksFor($user, $bill)
+            && $user->can(AccessMatrix::PERMISSION_BILL_POST);
+    }
+
     private function worksFor(User $user, Bill $bill): bool
     {
         return $user->belongsToCompany((int) $bill->company_id);

@@ -213,10 +213,11 @@ final class CreateDebitNote
     /**
      * What the bill still owes: its own balance less every earlier debit note.
      *
-     * Only live notes count. A voided note took nothing off the payable, so it
-     * must not eat into what is left to debit. Drafts do count, because a draft
-     * is a claim on the same open amount and two drafts that together exceed it
-     * must be refused even before either is posted.
+     * Only live notes count. A voided note took nothing off the payable, and a
+     * reversed one has had what it took put back, so neither must eat into what
+     * is left to debit. Drafts do count, because a draft is a claim on the same
+     * open amount and two drafts that together exceed it must be refused even
+     * before either is posted.
      */
     private function openAmount(int $companyId, Bill $bill): Money
     {
@@ -226,7 +227,7 @@ final class CreateDebitNote
             ->where('company_id', $companyId)
             ->where('document_type', 'debit_note')
             ->where('debit_note_for_bill_id', $bill->getKey())
-            ->where('status', '!=', BillStatus::Void->value)
+            ->whereNotIn('status', [BillStatus::Void->value, BillStatus::Reversed->value])
             ->sum('total');
 
         return $open->minus(Money::of($debited === null ? '0' : (string) $debited));

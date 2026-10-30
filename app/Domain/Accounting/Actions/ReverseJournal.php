@@ -59,6 +59,15 @@ final class ReverseJournal
                 throw JournalStateException::notPosted($original);
             }
 
+            // A reversal is not itself reversible. The entry it answers has
+            // already been taken out of the books, and reversing the reversal
+            // would put it back — an edit of history by another name. This is
+            // the ledger's half of the rule the stock module keeps for
+            // movements, where a movement that is itself a reversal is refused.
+            if ($original->journal_type === JournalType::Reversal) {
+                throw JournalStateException::reversalCannotBeReversed($original);
+            }
+
             $reversal = ($this->create)(new JournalEntryData(
                 companyId: (int) $original->company_id,
                 postingDate: $postingDate ?? $original->posting_date->toDateString(),

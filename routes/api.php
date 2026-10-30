@@ -130,6 +130,10 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/bills/{bill}/debit-notes', [DebitNoteController::class, 'store'])->name('api.v1.bills.debit-notes.store');
         Route::get('/debit-notes/{debitNote}', [DebitNoteController::class, 'show'])->name('api.v1.debit-notes.show');
         Route::post('/debit-notes/{debitNote}/post', [DebitNoteController::class, 'post'])->name('api.v1.debit-notes.post');
+        // The correction of the correction: the opposite entry, with any stock
+        // the note sent out put back. A reversal is final, so reversing a
+        // reversal is refused rather than treated as a fresh move.
+        Route::post('/debit-notes/{debitNote}/reverse', [DebitNoteController::class, 'reverse'])->name('api.v1.debit-notes.reverse');
 
         Route::get('/payments', [PaymentController::class, 'index'])->name('api.v1.payments.index');
         Route::post('/payments', [PaymentController::class, 'store'])->name('api.v1.payments.store');

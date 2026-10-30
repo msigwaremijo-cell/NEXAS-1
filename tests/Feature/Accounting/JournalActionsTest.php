@@ -267,6 +267,19 @@ it('refuses to reverse the same journal twice', function () {
         ->toThrow(JournalStateException::class, 'cannot be reversed');
 });
 
+it('refuses to reverse a reversal, which would put the entry back', function () {
+    $journal = $this->createViaAction($this->entry($this->balancedLines('100.0000')));
+    $posted = $this->postViaAction($journal);
+
+    $reversal = $this->reverseViaAction($posted);
+
+    // The reversal is posted and answers the original, but it is the last word:
+    // reversing it would put the entry it removed back into the books. This is
+    // the ledger's half of the rule the stock module keeps for movements.
+    expect(fn () => $this->reverseViaAction($reversal))
+        ->toThrow(JournalStateException::class, 'itself a reversal');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Trial balance through the actions
