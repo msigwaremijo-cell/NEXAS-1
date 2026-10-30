@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BankStatementController;
 use App\Http\Controllers\Api\V1\BankTransferController;
 use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\CompanyController;
+use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -96,6 +97,16 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/invoices', [InvoiceController::class, 'store'])->name('api.v1.invoices.store');
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('api.v1.invoices.show');
         Route::post('/invoices/{invoice}/issue', [InvoiceController::class, 'issue'])->name('api.v1.invoices.issue');
+
+        // Credit notes. A credit note is the sales side correcting its own
+        // issued invoice, so it reuses the invoice rights rather than adding a
+        // set of its own. A line names one line of the invoice it answers and a
+        // quantity — never a price — and writing the draft is a separate route
+        // from issuing it, exactly as it is for an invoice.
+        Route::get('/credit-notes', [CreditNoteController::class, 'index'])->name('api.v1.credit-notes.index');
+        Route::post('/invoices/{invoice}/credit-notes', [CreditNoteController::class, 'store'])->name('api.v1.invoices.credit-notes.store');
+        Route::get('/credit-notes/{creditNote}', [CreditNoteController::class, 'show'])->name('api.v1.credit-notes.show');
+        Route::post('/credit-notes/{creditNote}/issue', [CreditNoteController::class, 'issue'])->name('api.v1.credit-notes.issue');
 
         // Purchases. A bill passes draft -> pending_approval -> approved ->
         // posted, and each move is its own route so the matrix can withhold

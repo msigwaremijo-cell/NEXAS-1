@@ -162,6 +162,12 @@ final class StockMovementRecorder
             'total_cost' => $draft->totalCost->toDecimal(),
             'journal_id' => $journal?->getKey(),
             'reverses_movement_id' => $draft->reverses?->getKey(),
+            // What the movement came from, where it came from a document. Set
+            // at creation because a trigger freezes both columns afterwards,
+            // and it is what a credit note follows back to the invoice line
+            // whose issue it has to answer.
+            'source_type' => $draft->sourceType,
+            'source_id' => $draft->sourceId,
             'created_by_user_id' => $draft->userId,
         ]);
 

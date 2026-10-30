@@ -232,7 +232,11 @@ final class IssueInvoice
             );
 
             if ($product !== null) {
-                $goods[] = [$product, Quantity::of((string) $line->quantity)];
+                // The line is carried along with the goods so the issue movement
+                // can name it as its source. That is what lets a later credit
+                // note find exactly the movement this line caused, rather than
+                // guessing from the product and the date.
+                $goods[] = [$product, Quantity::of((string) $line->quantity), (int) $line->getKey()];
             }
         }
 
@@ -249,7 +253,7 @@ final class IssueInvoice
             throw StockStateException::noDefaultWarehouse();
         }
 
-        foreach ($goods as [$product, $quantity]) {
+        foreach ($goods as [$product, $quantity, $lineId]) {
             ($this->issueStock)(new StockIssueData(
                 companyId: $companyId,
                 productId: (int) $product->getKey(),
@@ -259,6 +263,8 @@ final class IssueInvoice
                 reference: $invoice->invoice_no,
                 memo: 'Invoice '.$invoice->invoice_no,
                 userId: $userId,
+                sourceType: InvoiceLine::class,
+                sourceId: $lineId,
             ));
         }
     }

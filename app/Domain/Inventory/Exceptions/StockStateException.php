@@ -300,4 +300,21 @@ final class StockStateException extends InventoryException
             'This company names no default warehouse, so a sale of goods has nowhere to issue the stock from. Set one on the warehouses screen.'
         );
     }
+
+    /**
+     * A credit note line puts a stock item back, but the invoice line it
+     * corrects was never issued from a warehouse.
+     *
+     * This happens when the invoice was raised and issued before the item was
+     * made a stock item, or when the issue was itself reversed. Either way
+     * there is no movement to answer, and the whole credit note is refused so
+     * the ledger and the shelf stay in step.
+     */
+    public static function noIssueToReturn(string $description): self
+    {
+        return new self(sprintf(
+            'Credit note line [%s] gives back stock, but the invoice line it corrects was never issued from a warehouse, so there is no movement to return.',
+            $description
+        ));
+    }
 }

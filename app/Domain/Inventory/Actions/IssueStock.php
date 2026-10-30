@@ -88,6 +88,8 @@ final class IssueStock
                 reference: $data->reference,
                 memo: $data->memo,
                 userId: $data->userId,
+                sourceType: $data->sourceType,
+                sourceId: $data->sourceId,
             ));
 
             $this->layers->apply($data->companyId, $movement, $plan, $data->movementDate);

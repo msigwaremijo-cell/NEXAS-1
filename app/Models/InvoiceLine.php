@@ -18,6 +18,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * tax_rate is a snapshot of the dated tax_rates row that applied on the
  * document date, so re-pricing a tax code later never rewrites history.
+ *
+ * `credit_note_for_line_id` is set only on a credit note line, where it names
+ * the invoice line the credit gives back. It is fillable because the action
+ * that writes the credit note sets it as the line is created; it is what the
+ * over-credit guard sums over to know how much is left.
  */
 #[Fillable([
     'company_id',
@@ -30,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'discount_rate',
     'tax_code_id',
     'revenue_account_id',
+    'credit_note_for_line_id',
 ])]
 class InvoiceLine extends Model
 {

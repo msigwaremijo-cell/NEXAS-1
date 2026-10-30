@@ -34,6 +34,12 @@ use App\Support\Quantity;
  * the receipts its own supplier has delivered and clear them, and it is the
  * reason every other movement leaves the column empty: a bill must never be
  * able to settle a delivery that is not owed for.
+ *
+ * `sourceType`/`sourceId` name the document a movement came from, where it came
+ * from one. They are written straight through to the movement row, which is
+ * what lets a credit note trace the exact invoice line that issued the stock
+ * it is putting back rather than matching on product, warehouse and date.
+ * Everything raised by hand leaves both null.
  */
 final class StockMovementDraft
 {
@@ -53,6 +59,8 @@ final class StockMovementDraft
         public readonly ?int $userId = null,
         public readonly ?StockMovement $reverses = null,
         public readonly ?Journal $journal = null,
+        public readonly ?string $sourceType = null,
+        public readonly ?int $sourceId = null,
     ) {}
 
     /**
