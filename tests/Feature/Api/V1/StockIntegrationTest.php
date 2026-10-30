@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -215,7 +216,15 @@ function nxS8bApprovedBill(array $body): array
     $draft = test()->postJson('/api/v1/bills', $body)->assertCreated()->json('data');
 
     test()->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    // A bill is approved by a second pair of hands, never by the member who
+    // entered it, so the helper clears it under a separate member and then puts
+    // the caller back — the tests around it go on to post and read as that
+    // caller.
+    $enteredBy = Auth::user();
+    Sanctum::actingAs(nxS8bMember($enteredBy->defaultCompanyId(), AccessMatrix::ROLE_FINANCE_OFFICER));
     test()->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
+    Sanctum::actingAs($enteredBy);
 
     return $draft;
 }

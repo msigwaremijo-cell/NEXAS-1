@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Access\Exceptions\AccessException;
+use App\Domain\Access\Exceptions\AccessStateException;
 use App\Domain\Accounting\Exceptions\AccountingException;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Exceptions\DocumentLineException;
@@ -86,6 +88,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 // a duplicate statement is also a banking refusal.
                 $exception instanceof DuplicateStatementException,
 
+                // A member change that collides with the team as it currently
+                // stands: removing the last Owner, or inviting somebody who is
+                // already on the books. Named before AccessException below,
+                // since it is also an access refusal.
+                $exception instanceof AccessStateException,
+
                 // A movement asked for against the stock the books currently
                 // hold rather than against the request itself: more than is on
                 // hand while the policy forbids negatives, a movement already
@@ -98,6 +106,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 // journal, an unknown tax code, a negative amount.
                 $exception instanceof InvalidJournalException,
                 $exception instanceof DocumentLineException,
+                // A member change the caller can fix and resubmit: deactivating
+                // their own account, removing a role the member does not hold.
+                $exception instanceof AccessException,
                 $exception instanceof SalesException,
                 $exception instanceof PurchasesException,
                 $exception instanceof BankingException,

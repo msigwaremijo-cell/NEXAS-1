@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -244,7 +245,15 @@ function nxDnApprovedBill(array $body): array
     $draft = test()->postJson('/api/v1/bills', $body)->assertCreated()->json('data');
 
     test()->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    // A bill is approved by a second pair of hands, never by the member who
+    // entered it. The helper clears it under a separate member and then puts
+    // the caller back, because the tests around it go on to raise the note as
+    // that caller — a bill-managing role, while the approver is not.
+    $enteredBy = Auth::user();
+    Sanctum::actingAs(nxDnMember($enteredBy->defaultCompanyId(), AccessMatrix::ROLE_FINANCE_OFFICER));
     test()->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
+    Sanctum::actingAs($enteredBy);
 
     return $draft;
 }
@@ -899,12 +908,15 @@ it('leaves a stock return with nothing to send back when the whole delivery goes
 */
 
 it('nets a debit note off the payables ageing so it agrees with the payable control account', function () {
-    Sanctum::actingAs(nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $owner = nxDnMember($this->companyId, AccessMatrix::ROLE_OWNER);
+    $approver = nxDnMember($this->companyId, AccessMatrix::ROLE_FINANCE_OFFICER);
+
+    Sanctum::actingAs($owner);
 
     $first = nxDnSupplier($this->companyId, $this->payableAccountId, 'S-A');
     $second = nxDnSupplier($this->companyId, $this->payableAccountId, 'S-B');
 
-    $bill = function (int $supplierId, string $due, string $quantity, string $unitPrice): array {
+    $bill = function (int $supplierId, string $due, string $quantity, string $unitPrice) use ($owner, $approver): array {
         $draft = $this->postJson('/api/v1/bills', nxDnExpenseBillBody($supplierId, [
             'due_date' => $due,
             'lines' => [[
@@ -916,8 +928,13 @@ it('nets a debit note off the payables ageing so it agrees with the payable cont
         ]))->assertCreated()->json('data');
 
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+        // Cleared by a second pair of hands, then the owner is put back for the
+        // next bill and the note raised below.
+        Sanctum::actingAs($approver);
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/post')->assertOk();
+        Sanctum::actingAs($owner);
 
         return $draft;
     };

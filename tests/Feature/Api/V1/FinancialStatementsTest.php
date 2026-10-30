@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Domain\Access\AccessMatrix;
 use App\Models\User;
@@ -414,6 +414,24 @@ it('refuses a close from a member without the right', function () {
     // The auditor reads the books and never writes to them, so they must not be
     // able to declare the year finished.
     Sanctum::actingAs(nxFiscalMember($this->companyId, AccessMatrix::ROLE_AUDITOR));
+
+    $this->postJson('/api/v1/fiscal-years/'.$yearUlid.'/close')->assertForbidden();
+
+    expect(DB::table('fiscal_years')->where('id', $this->fiscalYearId)->value('status'))->toBe('open');
+});
+
+it('refuses a close from the accountant, because closing a year is the Owner\'s alone', function () {
+    nxFiscalFinalPeriod($this->companyId, $this->fiscalYearId);
+
+    $this->makeAccount('3200', 'Retained Earnings', 'equity', 'credit');
+
+    $yearUlid = DB::table('fiscal_years')->where('id', $this->fiscalYearId)->value('ulid');
+
+    // The accountant keeps the books and may post any number of ordinary
+    // journals, but closing a year turns them into a historical fact and is
+    // reversible only by reopening it, so the right is kept for the Owner
+    // alone.
+    Sanctum::actingAs(nxFiscalMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
 
     $this->postJson('/api/v1/fiscal-years/'.$yearUlid.'/close')->assertForbidden();
 

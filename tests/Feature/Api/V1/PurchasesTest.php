@@ -42,6 +42,16 @@ function nxPurchasesMember(int $companyId, string $role): User
 }
 
 /**
+ * The second pair of hands a bill needs. A bill may not be approved by the
+ * member who entered it, so every test that takes a bill past approval names
+ * an approver as well as the member who wrote it.
+ */
+function nxPurchasesApprover(int $companyId): User
+{
+    return nxPurchasesMember($companyId, AccessMatrix::ROLE_FINANCE_OFFICER);
+}
+
+/**
  * A second tenant, used to prove nothing in the caller's company can be
  * reached by naming something in another one.
  */
@@ -297,7 +307,12 @@ it('refuses the approval to the accountant who entered the bill', function () {
 });
 
 it('posts an approved bill to the ledger and leaves the payables account owing', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    // Entered by the accountant and cleared by a second pair of hands, because
+    // a bill may not be approved by the member who entered it.
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $supplierId = nxPurchasesSupplier($this->companyId, $this->payableAccountId);
 
@@ -315,6 +330,8 @@ it('posts an approved bill to the ledger and leaves the payables account owing',
 
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
 
+    Sanctum::actingAs($approver);
+
     $approved = $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')
         ->assertOk()
         ->assertJsonPath('data.status', 'approved')
@@ -322,7 +339,7 @@ it('posts an approved bill to the ledger and leaves the payables account owing',
         ->json('data');
 
     expect($approved['approved_at'])->not->toBeNull()
-        ->and($approved['approved_by_user_id'])->toBeInt();
+        ->and($approved['approved_by_user_id'])->toBe($approver->getKey());
 
     $posted = $this->postJson('/api/v1/bills/'.$draft['ulid'].'/post', [], [
         'Idempotency-Key' => (string) Str::ulid(),
@@ -354,7 +371,10 @@ it('posts an approved bill to the ledger and leaves the payables account owing',
 });
 
 it('refuses to post the same bill twice', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $supplierId = nxPurchasesSupplier($this->companyId, $this->payableAccountId);
 
@@ -370,6 +390,9 @@ it('refuses to post the same bill twice', function () {
     ])->assertCreated()->json('data');
 
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    Sanctum::actingAs($approver);
+
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/post')->assertOk();
 
@@ -414,7 +437,10 @@ it('answers not found for a bill raised in another company', function () {
 */
 
 it('settles a bill with a supplier payment and nets the payable to nil', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $supplierId = nxPurchasesSupplier($this->companyId, $this->payableAccountId);
 
@@ -430,6 +456,9 @@ it('settles a bill with a supplier payment and nets the payable to nil', functio
     ])->assertCreated()->json('data');
 
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    Sanctum::actingAs($approver);
+
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/post')->assertOk();
 
@@ -472,7 +501,10 @@ it('settles a bill with a supplier payment and nets the payable to nil', functio
 });
 
 it('refuses to settle a bill that has not been posted', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $supplierId = nxPurchasesSupplier($this->companyId, $this->payableAccountId);
 
@@ -488,6 +520,8 @@ it('refuses to settle a bill that has not been posted', function () {
     ])->assertCreated()->json('data');
 
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    Sanctum::actingAs($approver);
 
     // Approved but unposted: there is no liability in the ledger yet, so paying
     // it would move money against nothing.
@@ -522,7 +556,10 @@ it('refuses to settle a bill that has not been posted', function () {
 */
 
 it('keeps an approved bill that has not been posted out of the payables report', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $supplierId = nxPurchasesSupplier($this->companyId, $this->payableAccountId);
 
@@ -539,6 +576,9 @@ it('keeps an approved bill that has not been posted out of the payables report',
     ])->assertCreated()->json('data');
 
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+    Sanctum::actingAs($approver);
+
     $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
 
     // Approval alone puts nothing in the ledger, so the ageing report must
@@ -555,12 +595,15 @@ it('keeps an approved bill that has not been posted out of the payables report',
 });
 
 it('buckets payables by how late they are and drops what has been paid', function () {
-    Sanctum::actingAs(nxPurchasesMember($this->companyId, AccessMatrix::ROLE_OWNER));
+    $accountant = nxPurchasesMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT);
+    $approver = nxPurchasesApprover($this->companyId);
+
+    Sanctum::actingAs($accountant);
 
     $first = nxPurchasesSupplier($this->companyId, $this->payableAccountId, 'S-A');
     $second = nxPurchasesSupplier($this->companyId, $this->payableAccountId, 'S-B');
 
-    $bill = function (int $supplierId, string $due, string $amount): array {
+    $bill = function (int $supplierId, string $due, string $amount) use ($accountant, $approver): array {
         $draft = $this->postJson('/api/v1/bills', [
             'supplier_id' => $supplierId,
             'bill_date' => '2026-03-15',
@@ -574,8 +617,14 @@ it('buckets payables by how late they are and drops what has been paid', functio
         ])->assertCreated()->json('data');
 
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/submit')->assertOk();
+
+        // The gate is a second pair of hands, so the bill is cleared by a
+        // member other than the accountant who entered it; the accountant is
+        // put back afterwards for the next bill and the payment below.
+        Sanctum::actingAs($approver);
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/approve')->assertOk();
         $this->postJson('/api/v1/bills/'.$draft['ulid'].'/post')->assertOk();
+        Sanctum::actingAs($accountant);
 
         return $draft;
     };

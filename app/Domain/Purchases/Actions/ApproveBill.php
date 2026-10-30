@@ -32,6 +32,14 @@ final class ApproveBill
                 throw BillStateException::notAwaitingApproval($locked, $locked->status);
             }
 
+            // Approval is a control, not a second signature by the same hand,
+            // so it is refused whoever asks — including the Owner, and
+            // regardless of which grants the caller holds. The bill names its
+            // own author, so the check is a comparison rather than a role test.
+            if ($approverId !== null && $locked->created_by_user_id === $approverId) {
+                throw BillStateException::selfApprovalRefused($locked);
+            }
+
             $affected = Bill::query()
                 ->whereKey($locked->getKey())
                 ->where('row_version', $locked->row_version)

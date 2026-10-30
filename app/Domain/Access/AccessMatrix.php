@@ -113,13 +113,47 @@ final class AccessMatrix
      */
     public const PERMISSION_FISCAL_YEAR_CLOSE = 'fiscal_year.close';
 
+    /**
+     * Reading the audit chain: what was changed, by whom, and when.
+     *
+     * This is deliberately its own right rather than part of `report.view`.
+     * A report says what the books now hold; the audit log says who changed
+     * them and what they held before, which is the evidence behind every other
+     * number. It is granted to the Owner — who answers for every change — and
+     * to the Auditor, whose whole job is to read it. It is withheld from the
+     * Read-only role, which may see the books but not the trail behind them.
+     */
+    public const PERMISSION_AUDIT_VIEW = 'audit.view';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
 
+    /**
+     * The second pair of hands on a supplier bill: they may approve and post a
+     * bill, but not write or edit one. This is what makes approval a control
+     * rather than a second signature by the person who entered the document.
+     */
+    public const ROLE_FINANCE_OFFICER = 'Finance Officer';
+
     public const ROLE_CASHIER = 'Cashier';
 
+    /**
+     * Keeps the stock books and the party lists they name: may receive, issue,
+     * adjust, transfer and correct stock, and read who it came from and went
+     * to. Deliberately kept away from the financial books — this role does not
+     * post journals, take payments or manage members.
+     */
+    public const ROLE_INVENTORY_MANAGER = 'Inventory Manager';
+
     public const ROLE_AUDITOR = 'Auditor';
+
+    /**
+     * Sees everything the books report and nothing more: the eight `.view`
+     * rights, without `audit.view`. Given to a member who must be able to look
+     * but must not be trusted with the trail of who changed what.
+     */
+    public const ROLE_READ_ONLY = 'Read-only';
 
     /**
      * Every permission the application knows about.
@@ -155,6 +189,7 @@ final class AccessMatrix
             self::PERMISSION_STOCK_POST,
             self::PERMISSION_COMPANY_MANAGE,
             self::PERMISSION_FISCAL_YEAR_CLOSE,
+            self::PERMISSION_AUDIT_VIEW,
         ];
     }
 
@@ -214,13 +249,46 @@ final class AccessMatrix
                 // neither keeps the books and neither should change what the
                 // numbers already written mean.
                 self::PERMISSION_COMPANY_MANAGE,
-                // Closing the year is the accountant's own year-end job: they
-                // keep the ledger all year, so they are the person who rolls its
-                // result into retained earnings. Left out of the Cashier's and
-                // the Auditor's grants — the cashier does not keep the books,
-                // and an auditor who could close the year could write off the
-                // very figures they are meant to be checking.
-                self::PERMISSION_FISCAL_YEAR_CLOSE,
+                // Deliberately absent: PERMISSION_FISCAL_YEAR_CLOSE. Closing
+                // the year turns a set of books into a historical fact and is
+                // reversible only by reopening it, so it is kept for the Owner
+                // alone. An accountant may post any number of ordinary journals
+                // without being the person who declares the year finished.
+            ],
+
+            // The second pair of hands on a supplier bill. They may read a bill,
+            // approve it and post it — but not write or edit one, which is what
+            // keeps approval independent of the member who entered the document.
+            // They keep the general ledger beside it, so they hold the journal,
+            // payment, bank and stock rights the Accountant does; what they do
+            // not hold is PERMISSION_BILL_MANAGE, PERMISSION_USER_MANAGE and
+            // PERMISSION_FISCAL_YEAR_CLOSE.
+            self::ROLE_FINANCE_OFFICER => [
+                self::PERMISSION_JOURNAL_VIEW,
+                self::PERMISSION_JOURNAL_CREATE,
+                self::PERMISSION_JOURNAL_POST,
+                self::PERMISSION_JOURNAL_REVERSE,
+                self::PERMISSION_REPORT_VIEW,
+                self::PERMISSION_ACCOUNT_MANAGE,
+                self::PERMISSION_PARTY_VIEW,
+                self::PERMISSION_PARTY_MANAGE,
+                self::PERMISSION_INVOICE_VIEW,
+                self::PERMISSION_INVOICE_MANAGE,
+                self::PERMISSION_INVOICE_ISSUE,
+                self::PERMISSION_BILL_VIEW,
+                // Approve, don't enter: the bill rights they hold stop short of
+                // PERMISSION_BILL_MANAGE, so they can never be the person who
+                // wrote the bill they are signing off.
+                self::PERMISSION_BILL_APPROVE,
+                self::PERMISSION_BILL_POST,
+                self::PERMISSION_PAYMENT_VIEW,
+                self::PERMISSION_PAYMENT_RECORD,
+                self::PERMISSION_BANK_VIEW,
+                self::PERMISSION_BANK_MANAGE,
+                self::PERMISSION_BANK_RECONCILE,
+                self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_STOCK_MANAGE,
+                self::PERMISSION_STOCK_POST,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -243,8 +311,40 @@ final class AccessMatrix
                 self::PERMISSION_STOCK_VIEW,
             ],
 
-            // Reads the books and never writes to them.
+            // Keeps the stock books rather than the financial ones: receives,
+            // issues, adjusts, transfers and corrects stock, and reads the
+            // customers and suppliers those movements name. Nothing here
+            // reaches the ledger — recorded stock movements post through their
+            // own right — so this role carries no journal, payment or member
+            // rights, and is the one role the financial books cannot see.
+            self::ROLE_INVENTORY_MANAGER => [
+                self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_STOCK_MANAGE,
+                self::PERMISSION_STOCK_POST,
+                self::PERMISSION_PARTY_VIEW,
+                self::PERMISSION_REPORT_VIEW,
+            ],
+
+            // Reads the books and never writes to them. `audit.view` is the
+            // Auditor's own right: reading what the books now hold is not the
+            // same as reading who changed them and what they held before, and
+            // the trail is exactly what an audit is for.
             self::ROLE_AUDITOR => [
+                self::PERMISSION_JOURNAL_VIEW,
+                self::PERMISSION_REPORT_VIEW,
+                self::PERMISSION_PARTY_VIEW,
+                self::PERMISSION_INVOICE_VIEW,
+                self::PERMISSION_BILL_VIEW,
+                self::PERMISSION_PAYMENT_VIEW,
+                self::PERMISSION_BANK_VIEW,
+                self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_AUDIT_VIEW,
+            ],
+
+            // Sees everything the books report and nothing more. The eight
+            // `.view` rights without `audit.view`: a member who may look but
+            // must not be trusted with the trail of who changed what.
+            self::ROLE_READ_ONLY => [
                 self::PERMISSION_JOURNAL_VIEW,
                 self::PERMISSION_REPORT_VIEW,
                 self::PERMISSION_PARTY_VIEW,

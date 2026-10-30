@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BankAccountController;
 use App\Http\Controllers\Api\V1\BankStatementController;
@@ -18,8 +19,10 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ReconciliationController;
 use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\StockMovementController;
+use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\VersionController;
 use App\Http\Controllers\Api\V1\WarehouseController;
 use Illuminate\Support\Facades\Route;
@@ -222,5 +225,30 @@ Route::prefix('v1')->group(function (): void {
         // What the stock on hand is worth, against the inventory accounts it is
         // carried in.
         Route::get('/reports/stock-valuation', [ReportController::class, 'stockValuation'])->name('api.v1.reports.stock-valuation');
+
+        // Administering the company's members. Every route here is a
+        // `user.manage` route, which in the matrix means the Owner alone, and
+        // every one is scoped to the caller's company: naming another company's
+        // member is a 404 rather than an existence oracle. There is no delete,
+        // because the audit chain must keep naming whoever moved the books — a
+        // member is deactivated instead.
+        Route::get('/users', [UserController::class, 'index'])->name('api.v1.users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('api.v1.users.store');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('api.v1.users.show');
+        Route::post('/users/{user}/roles', [UserController::class, 'assignRole'])->name('api.v1.users.roles.store');
+        Route::delete('/users/{user}/roles/{role}', [UserController::class, 'removeRole'])->name('api.v1.users.roles.destroy');
+        Route::post('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('api.v1.users.deactivate');
+        Route::post('/users/{user}/activate', [UserController::class, 'activate'])->name('api.v1.users.activate');
+
+        // The roles the company may hand out and what each one grants. Fixed by
+        // the matrix rather than editable, and read behind the same right as
+        // the member list, because it is what the assignment screen shows.
+        Route::get('/roles', [RoleController::class, 'index'])->name('api.v1.roles.index');
+
+        // The audit chain: who changed what, and what it held before. Read
+        // through its own right, `audit.view`, held by the Owner and the
+        // Auditor alone — a member trusted to read the books is not
+        // automatically trusted to read the trail behind them.
+        Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('api.v1.audit-logs.index');
     });
 });

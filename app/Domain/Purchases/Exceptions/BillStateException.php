@@ -42,6 +42,24 @@ final class BillStateException extends PurchasesException
         ));
     }
 
+    /**
+     * The approver is the member who entered the bill.
+     *
+     * Approval is the control that keeps a liability out of the books until a
+     * second pair of eyes has seen it, so it is refused whoever asks: a person
+     * approving their own bill is the same signature twice, and no role is
+     * exempt from that. The check is global rather than a grant so that adding
+     * a role can never accidentally hand someone back the right to sign off
+     * their own work.
+     */
+    public static function selfApprovalRefused(Bill $bill): self
+    {
+        return new self(sprintf(
+            'Bill %s was entered by the member now approving it, and a bill may not be approved by the member who created it.',
+            $bill->bill_no
+        ));
+    }
+
     public static function alreadyPosted(Bill $bill): self
     {
         return new self(sprintf(
