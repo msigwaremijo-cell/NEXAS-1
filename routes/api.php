@@ -89,11 +89,20 @@ Route::prefix('v1')->group(function (): void {
         // by a hand-picked range, because that is how a return is filed.
         Route::get('/reports/vat-return', [ReportController::class, 'vatReturn'])->name('api.v1.reports.vat-return');
 
-        // Master data the sales and purchase screens pick from.
+        // Master data the sales and purchase screens pick from. Reading one
+        // record and amending it are separate routes from listing, and both are
+        // resolved inside the caller's company so another tenant's party is a
+        // 404 rather than an existence oracle. There is no delete: a party is
+        // retired by moving its status, because documents already issued point
+        // at it.
         Route::get('/customers', [CustomerController::class, 'index'])->name('api.v1.customers.index');
         Route::post('/customers', [CustomerController::class, 'store'])->name('api.v1.customers.store');
+        Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('api.v1.customers.show');
+        Route::patch('/customers/{customer}', [CustomerController::class, 'update'])->name('api.v1.customers.update');
         Route::get('/suppliers', [SupplierController::class, 'index'])->name('api.v1.suppliers.index');
         Route::post('/suppliers', [SupplierController::class, 'store'])->name('api.v1.suppliers.store');
+        Route::get('/suppliers/{supplier}', [SupplierController::class, 'show'])->name('api.v1.suppliers.show');
+        Route::patch('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('api.v1.suppliers.update');
 
         // Sales. Issuing is a separate route from writing the draft, because
         // issuing is what reaches the ledger and carries its own permission.

@@ -67,28 +67,7 @@ class SupplierController extends Controller
 
         $companyId = $this->companyId($request);
 
-        $data = $request->validate([
-            'code' => [
-                'required', 'string', 'max:30',
-                Rule::unique('suppliers', 'code')->where('company_id', $companyId),
-            ],
-            'name' => ['required', 'string', 'max:255'],
-            'tin' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'vrn' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'email' => ['sometimes', 'nullable', 'email', 'max:255'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
-            'address' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'currency_code' => ['sometimes', 'nullable', 'string', 'size:3', 'exists:currencies,code'],
-            'payable_account_id' => [
-                'required', 'integer',
-                Rule::exists('accounts', 'id')->where('company_id', $companyId),
-            ],
-            'credit_limit' => ['sometimes', 'string', 'max:32'],
-            'payment_terms_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
-            'withholding_agent' => ['sometimes', 'boolean'],
-            'status' => ['sometimes', 'string', Rule::enum(PartyStatus::class)],
-            'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
-        ]);
+        $data = $request->validate($this->rules($companyId));
 
         $supplier = new Supplier([
             ...$data,
@@ -103,6 +82,93 @@ class SupplierController extends Controller
         $supplier->save();
 
         return response()->json(['data' => $this->present($supplier)], 201);
+    }
+
+    public function show(Request $request, string $supplier): JsonResponse
+    {
+        $record = $this->findByUlid($request, $supplier);
+
+        $this->authorize('view', $record);
+
+        return response()->json(['data' => $this->present($record)]);
+    }
+
+    /**
+     * Amending master data, the mirror of the customer side: every rule is
+     * `sometimes` so one field may be changed on its own, and the code's
+     * uniqueness check ignores the row being amended.
+     */
+    public function update(Request $request, string $supplier): JsonResponse
+    {
+        $record = $this->findByUlid($request, $supplier);
+
+        $this->authorize('update', $record);
+
+        $data = $request->validate($this->rules($this->companyId($request), $record));
+
+        $record->fill($data);
+        $record->save();
+
+        return response()->json(['data' => $this->present($record)]);
+    }
+
+    /**
+     * The rules a supplier is written under, whether it is being created or
+     * amended. The payable account is checked against the caller's company on
+     * both, because moving an existing supplier's control account is as
+     * dangerous as setting it — every bill for them would follow it.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function rules(int $companyId, ?Supplier $supplier = null): array
+    {
+        $uniqueCode = Rule::unique('suppliers', 'code')->where('company_id', $companyId);
+
+        if ($supplier !== null) {
+            $uniqueCode = $uniqueCode->ignore($supplier->getKey());
+        }
+
+        return [
+            'code' => $supplier === null
+                ? ['required', 'string', 'max:30', $uniqueCode]
+                : ['sometimes', 'string', 'max:30', $uniqueCode],
+            'name' => $supplier === null
+                ? ['required', 'string', 'max:255']
+                : ['sometimes', 'string', 'max:255'],
+            'tin' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'vrn' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'address' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'currency_code' => ['sometimes', 'nullable', 'string', 'size:3', 'exists:currencies,code'],
+            'payable_account_id' => $supplier === null
+                ? [
+                    'required', 'integer',
+                    Rule::exists('accounts', 'id')->where('company_id', $companyId),
+                ]
+                : [
+                    'sometimes', 'integer',
+                    Rule::exists('accounts', 'id')->where('company_id', $companyId),
+                ],
+            'credit_limit' => ['sometimes', 'string', 'max:32'],
+            'payment_terms_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
+            'withholding_agent' => ['sometimes', 'boolean'],
+            'status' => ['sometimes', 'string', Rule::enum(PartyStatus::class)],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
+        ];
+    }
+
+    /**
+     * Scoped to the caller's company in the same query that resolves the
+     * record, so another tenant's supplier is a 404 rather than an existence
+     * oracle. A soft-deleted supplier is not found at all.
+     */
+    private function findByUlid(Request $request, string $ulid): Supplier
+    {
+        return Supplier::query()
+            ->where('company_id', $this->companyId($request))
+            ->where('ulid', $ulid)
+            ->firstOrFail();
     }
 
     /**
