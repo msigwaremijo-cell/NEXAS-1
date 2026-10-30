@@ -39,6 +39,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class LedgerQuery
 {
+    public function __construct(private readonly PeriodComparison $periods) {}
+
     /**
      * The chart of accounts, in code order, paginated.
      *
@@ -330,10 +332,24 @@ final class LedgerQuery
      * The result set is bounded by the size of the chart of accounts, which is
      * why the page slice is taken here rather than in SQL.
      *
+     * $compare adds a prior column to the totals: the same trial balance read
+     * over the window of equal length immediately before this one, so the two
+     * columns are the same sum over different dates rather than two different
+     * sums. The prior rows are not returned, only the totals, because a trial
+     * balance is read for whether it balances on each side and what each side
+     * comes to; the per-account lines belong to the general ledger. No dates
+     * means no window and therefore no prior column.
+     *
      * @return array{data: list<array<string, mixed>>, meta: array<string, mixed>}
      */
-    public function trialBalance(int $companyId, ?string $from, ?string $to, int $page, int $perPage): array
-    {
+    public function trialBalance(
+        int $companyId,
+        ?string $from,
+        ?string $to,
+        int $page,
+        int $perPage,
+        bool $compare = false,
+    ): array {
         $totals = $this->trialBalanceQuery($companyId, $from, $to)->get();
 
         $accounts = Account::query()
@@ -391,7 +407,57 @@ final class LedgerQuery
                 'per_page' => $perPage,
                 'total' => $count,
                 'last_page' => $this->lastPage($count, $perPage),
+            ] + $this->comparative($companyId, $from, $to, $totalDebit, $totalCredit, $compare),
+        ];
+    }
+
+    /**
+     * The prior-column half of a trial balance, or nothing when there is no
+     * window to compare against.
+     *
+     * @return array<string, mixed>
+     */
+    private function comparative(
+        int $companyId,
+        ?string $from,
+        ?string $to,
+        Money $totalDebit,
+        Money $totalCredit,
+        bool $compare,
+    ): array {
+        if (! $compare || $from === null || $to === null) {
+            return ['comparison' => null, 'variance' => null];
+        }
+
+        [$priorFrom, $priorTo] = $this->periods->precedingWindow($from, $to);
+
+        $prior = $this->windowTotals($companyId, $priorFrom, $priorTo);
+        $priorDebit = Money::of($prior['total_debit']);
+        $priorCredit = Money::of($prior['total_credit']);
+
+        return [
+            'comparison' => ['from' => $priorFrom, 'to' => $priorTo] + $prior,
+            'variance' => [
+                'total_debit' => $totalDebit->minus($priorDebit)->toDecimal(),
+                'total_credit' => $totalCredit->minus($priorCredit)->toDecimal(),
             ],
+        ];
+    }
+
+    /**
+     * The two sides a window of posted lines comes to, totalled straight from
+     * the ledger rather than from the rows a statement chose to show.
+     *
+     * @return array{total_debit: string, total_credit: string, balanced: bool}
+     */
+    private function windowTotals(int $companyId, ?string $from, ?string $to): array
+    {
+        [$debit, $credit] = $this->totals($this->postedLines($companyId, null, $from, $to));
+
+        return [
+            'total_debit' => $debit->toDecimal(),
+            'total_credit' => $credit->toDecimal(),
+            'balanced' => $debit->equals($credit),
         ];
     }
 

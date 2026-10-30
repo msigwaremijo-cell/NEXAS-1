@@ -33,10 +33,13 @@ use Illuminate\Support\Collection;
  */
 final class FinancialStatementQuery
 {
-    public function __construct(private readonly LedgerQuery $ledger) {}
+    public function __construct(
+        private readonly LedgerQuery $ledger,
+        private readonly PeriodComparison $periods,
+    ) {}
 
     /**
-     * Revenue less expense over a period.
+     * Revenue less expense over a period, with an optional comparative column.
      *
      * Closing entries are left out. See movementBetween() for why: they carry
      * the closed year's own last day as their posting date, so they fall inside
@@ -45,9 +48,50 @@ final class FinancialStatementQuery
      *
      * Omitting both dates reports the whole ledger.
      *
+     * $compare asks for a prior column: the same statement run a second time
+     * over the window of equal length immediately before this one, so the prior
+     * figure is the report read twice rather than a number computed a different
+     * way that could disagree with it. Which window "the previous period" means
+     * is decided in one place, PeriodComparison, and not here. A variance is the
+     * prior column taken off the current one, so a positive number is always an
+     * increase. Comparing a whole-ledger report is meaningless — there is no
+     * window before all of it — so a report with no dates stays single-column
+     * however $compare is set.
+     *
      * @return array<string, mixed>
      */
-    public function profitAndLoss(int $companyId, ?string $from = null, ?string $to = null): array
+    public function profitAndLoss(
+        int $companyId,
+        ?string $from = null,
+        ?string $to = null,
+        bool $compare = false,
+    ): array {
+        $body = $this->profitAndLossBody($companyId, $from, $to);
+
+        if (! $compare || $from === null || $to === null) {
+            return $body + ['comparison' => null, 'variance' => null];
+        }
+
+        [$priorFrom, $priorTo] = $this->periods->precedingWindow($from, $to);
+        $prior = $this->profitAndLossBody($companyId, $priorFrom, $priorTo);
+
+        return $body + [
+            'comparison' => $prior,
+            'variance' => [
+                'revenue' => Money::of((string) $body['revenue']['total'])
+                    ->minus(Money::of((string) $prior['revenue']['total']))->toDecimal(),
+                'expense' => Money::of((string) $body['expense']['total'])
+                    ->minus(Money::of((string) $prior['expense']['total']))->toDecimal(),
+                'net_profit' => Money::of((string) $body['net_profit'])
+                    ->minus(Money::of((string) $prior['net_profit']))->toDecimal(),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function profitAndLossBody(int $companyId, ?string $from, ?string $to): array
     {
         $accounts = $this->accountsOfType($companyId, [AccountType::Revenue, AccountType::Expense]);
 
@@ -119,12 +163,53 @@ final class FinancialStatementQuery
      * is not a convenience — leaving it out would make the statement disagree
      * with itself for most of the year.
      *
+     * $compare asks for a prior column, read as at the end of the latest fiscal
+     * period that closed before this date. A balance sheet is a figure as at an
+     * instant rather than a movement over a window, so it has no window of its
+     * own to halve and the calendar is what decides where the prior column
+     * stands. The prior column is the same statement read at that earlier date,
+     * so the two cannot be computed differently. When there is no earlier period
+     * — a company in its first period — the column is absent rather than
+     * fabricated.
+     *
      * @return array<string, mixed>
      */
-    public function balanceSheet(int $companyId, ?string $asOf = null): array
+    public function balanceSheet(int $companyId, ?string $asOf = null, bool $compare = false): array
     {
         $asOf = $asOf ?? now()->toDateString();
 
+        $body = $this->balanceSheetBody($companyId, $asOf);
+
+        if (! $compare) {
+            return $body + ['comparison' => null, 'variance' => null];
+        }
+
+        $priorAsOf = $this->periods->previousPeriodEnd($companyId, $asOf);
+
+        if ($priorAsOf === null) {
+            return $body + ['comparison' => null, 'variance' => null];
+        }
+
+        $prior = $this->balanceSheetBody($companyId, $priorAsOf);
+
+        return $body + [
+            'comparison' => $prior,
+            'variance' => [
+                'assets' => Money::of((string) $body['total_assets'])
+                    ->minus(Money::of((string) $prior['total_assets']))->toDecimal(),
+                'liabilities' => Money::of((string) $body['liabilities']['total'])
+                    ->minus(Money::of((string) $prior['liabilities']['total']))->toDecimal(),
+                'equity' => Money::of((string) $body['equity']['total'])
+                    ->minus(Money::of((string) $prior['equity']['total']))->toDecimal(),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function balanceSheetBody(int $companyId, string $asOf): array
+    {
         $accounts = $this->accountsOfType($companyId, [
             AccountType::Asset,
             AccountType::Liability,

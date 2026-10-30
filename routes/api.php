@@ -84,6 +84,13 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/profit-and-loss', [ReportController::class, 'profitAndLoss'])->name('api.v1.reports.profit-and-loss');
         Route::get('/reports/balance-sheet', [ReportController::class, 'balanceSheet'])->name('api.v1.reports.balance-sheet');
 
+        // Whether the ledger_balances snapshot still agrees with the ledger.
+        // Read-only: it reports a drift, it does not repair one, because
+        // rebuilding a cache over books nobody has looked at would hide the
+        // fault rather than fix it.
+        Route::get('/reports/ledger-verification', [ReportController::class, 'ledgerVerification'])
+            ->name('api.v1.reports.ledger-verification');
+
         // The VAT3 return. Read from the tax accounts of the ledger like the
         // statements beside it, and usually named by fiscal period rather than
         // by a hand-picked range, because that is how a return is filed.

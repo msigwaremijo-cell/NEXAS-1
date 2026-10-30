@@ -6,6 +6,7 @@ use App\Domain\Reporting\Services\AgeingQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
+use App\Domain\Reporting\Services\LedgerVerification;
 use App\Domain\Reporting\Services\StockValuationQuery;
 use App\Domain\Reporting\Services\VatReturnQuery;
 use App\Http\Controllers\Controller;
@@ -71,6 +72,7 @@ class ReportController extends Controller
         $filters = $request->validate([
             'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'compare' => ['sometimes', 'boolean'],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
@@ -83,6 +85,7 @@ class ReportController extends Controller
             $to,
             max($request->integer('page', 1), 1),
             min(max($request->integer('per_page', 50), 1), 100),
+            $request->boolean('compare'),
         ));
     }
 
@@ -190,12 +193,13 @@ class ReportController extends Controller
         $filters = $request->validate([
             'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'compare' => ['sometimes', 'boolean'],
         ]);
 
         [$from, $to] = $this->range($filters);
 
         return response()->json(
-            $statements->profitAndLoss($this->companyId($request), $from, $to)
+            $statements->profitAndLoss($this->companyId($request), $from, $to, $request->boolean('compare'))
         );
     }
 
@@ -211,11 +215,52 @@ class ReportController extends Controller
 
         $filters = $request->validate([
             'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'compare' => ['sometimes', 'boolean'],
         ]);
 
         return response()->json(
-            $statements->balanceSheet($this->companyId($request), $filters['as_of'] ?? null)
+            $statements->balanceSheet(
+                $this->companyId($request),
+                $filters['as_of'] ?? null,
+                $request->boolean('compare'),
+            )
         );
+    }
+
+    /**
+     * Whether the ledger_balances snapshot still agrees with the ledger.
+     *
+     * A read-only check: nothing is repaired here. It is exposed so the same
+     * answer the nightly `ledger:verify` command reports can be read from the
+     * application, which is what makes a drift visible to somebody who is not
+     * watching a cron mailbox.
+     *
+     * Guarded by the report right, because what it reports is whether the books
+     * the reports read still agree with themselves. Named by fiscal period
+     * optionally, scoped to the caller's company, so another tenant's period is
+     * a 404 rather than a leak.
+     */
+    public function ledgerVerification(Request $request, LedgerVerification $verification): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'fiscal_period' => ['sometimes', 'nullable', 'string', 'size:26'],
+        ]);
+
+        $companyId = $this->companyId($request);
+        $fiscalPeriodId = null;
+
+        if (! empty($filters['fiscal_period'])) {
+            $period = FiscalPeriod::query()
+                ->where('company_id', $companyId)
+                ->where('ulid', $filters['fiscal_period'])
+                ->firstOrFail();
+
+            $fiscalPeriodId = (int) $period->getKey();
+        }
+
+        return response()->json($verification->verify($companyId, $fiscalPeriodId));
     }
 
     /**
