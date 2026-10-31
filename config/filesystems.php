@@ -97,6 +97,23 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Encrypted nightly backups: the whole database plus the documents
+         | filed against it, in one file. Kept off the public disk for the
+         | strongest form of the same reason a statement and an export are:
+         | this one file is every company's books at once, and it is
+         | unreadable without the key held elsewhere. The root sits under
+         | storage/app/private, which storage/app/.gitignore excludes, so a
+         | backup is never committed either.
+         */
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/backups'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

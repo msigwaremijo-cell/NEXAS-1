@@ -158,4 +158,60 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Backups
+    |--------------------------------------------------------------------------
+    |
+    | One encrypted file a night holding the whole database and the documents
+    | filed against it, written outside public and readable by nobody without
+    | the key below.
+    |
+    | `key` is the whole of the safety of the file at rest. A backup holds
+    | every journal, every party and every filed document, and its only
+    | protection is this secret, so it is a key of its own rather than the
+    | application's: rotating APP_KEY must not make last month's backups
+    | unreadable. It is a base64 string of 32 bytes, `base64:` prefix
+    | optional, and it is never committed. A run without it refuses to write
+    | a backup at all, rather than writing the books out where anyone with
+    | the disk can read them.
+    |
+    | A second copy of that key must be kept somewhere other than this server.
+    | A backup and its key sitting on the same disk are one failure away from
+    | being nothing at all — see docs/backups.md for where the copy lives and
+    | the drill that proves it is the right one.
+    |
+    | `retention_days` is how long a nightly file stays on the disk, and
+    | `keep` is a floor beneath it as well as a ceiling: pruning never takes
+    | the newest `keep` files, so a run of failures cannot leave the company
+    | with no backup at all, and a month of quiet nights cannot be pruned
+    | down to an empty folder.
+    |
+    | `include` names the disks whose files travel inside the bundle. Rendered
+    | report exports are deliberately absent: an export is a report that can
+    | be rebuilt from the ledger inside the backup, so carrying a copy of it
+    | would only make the file larger and the restore slower.
+    |
+    | `scratch_database_prefix` is the shape of the throwaway database a
+    | restore drill loads into. A restore refuses a target that is not named
+    | this way and refuses the database the application is currently
+    | connected to, so a drill can never write over the books it is checking.
+    |
+    | `mysqldump` and `mysql` are the client binaries. Left as bare names they
+    | are found on PATH, which is where a deployment should have them; the
+    | full paths are for a machine that keeps them elsewhere.
+    |
+    */
+
+    'backups' => [
+        'disk' => env('NEXAS_BACKUP_DISK', 'backups'),
+        'key' => env('NEXAS_BACKUP_KEY'),
+        'retention_days' => (int) env('NEXAS_BACKUP_RETENTION_DAYS', 30),
+        'keep' => (int) env('NEXAS_BACKUP_KEEP', 7),
+        'include' => ['attachments', 'statements'],
+        'scratch_database_prefix' => (string) env('NEXAS_BACKUP_SCRATCH_PREFIX', 'nexas_restore_'),
+        'mysqldump' => env('NEXAS_MYSQLDUMP_BINARY', 'mysqldump'),
+        'mysql' => env('NEXAS_MYSQL_BINARY', 'mysql'),
+    ],
+
 ];

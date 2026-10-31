@@ -28,3 +28,15 @@ Schedule::command('audit:verify')->dailyAt('02:45');
 // rather than lingering until the next night. The export row is kept: the file
 // goes, the record of what was asked for and what went wrong does not.
 Schedule::command('exports:prune')->hourlyAt(15);
+
+// The nightly backup: the whole database — triggers included, because they are
+// what enforce the posting rules — together with the documents filed against
+// it, in one encrypted file, and then the retention policy over the files
+// already held.
+//
+// Last of the night's work on purpose. The verifications above are read-only
+// and finish by 02:45, so by the time the copy is taken a broken ledger or a
+// tampered audit trail has already been reported rather than being archived
+// with the copy. It runs whether or not they passed: a night with a problem in
+// it is not a night to stop keeping a backup of.
+Schedule::command('backups:run')->dailyAt('03:15');
