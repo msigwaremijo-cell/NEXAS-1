@@ -7,6 +7,29 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Running Nexas locally
+
+```sh
+composer install
+php artisan migrate:fresh --seed   # needs the MySQL database named in .env
+php artisan serve
+```
+
+Report exports are not rendered while the request waits. A request records what
+was asked for and returns a queued export to poll; the reading of the ledger
+happens in a job, so a worker must be running for a file to appear:
+
+```sh
+php artisan queue:work
+```
+
+Without it the export record stays at `queued` and no file is written. Exports
+go to the private `exports` disk (`storage/app/private/exports`, never under
+`public`) and are read only through a short-lived signed link that also checks
+the caller's company and the `report.view` right. Files are removed after
+`exports.retention_hours` (24 by default, in `config/nexas.php`) by the
+scheduled `php artisan exports:prune`, which runs hourly.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

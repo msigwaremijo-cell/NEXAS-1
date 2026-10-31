@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DebitNoteController;
+use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -116,6 +117,23 @@ Route::prefix('v1')->group(function (): void {
         // own calendar's answer, not the caller's.
         Route::get('/reports/forecast', [ReportController::class, 'forecast'])
             ->name('api.v1.reports.forecast');
+
+        // Report exports: the heavy reports as a file. A request records what
+        // was asked for and hands the rendering to the queue, so reading a
+        // year of the ledger as a spreadsheet does not hold a request open.
+        // The record is polled by id, and the file is read only through the
+        // signed, expiring download route below it — never as a public URL.
+        Route::get('/exports', [ExportController::class, 'index'])->name('api.v1.exports.index');
+        Route::post('/exports', [ExportController::class, 'store'])->name('api.v1.exports.store');
+        Route::get('/exports/{export}', [ExportController::class, 'show'])->name('api.v1.exports.show');
+        // Behind `signed:relative` as well as the group's authentication and
+        // company check: the link cannot be guessed and cannot be replayed once
+        // it has expired. The signature is checked before the policy is
+        // reached. Relative because the controller signs a relative link, so
+        // the URL is the same whichever host the caller reached us on.
+        Route::get('/exports/{export}/download', [ExportController::class, 'download'])
+            ->middleware('signed:relative')
+            ->name('api.v1.exports.download');
 
         // Master data the sales and purchase screens pick from. Reading one
         // record and amending it are separate routes from listing, and both are

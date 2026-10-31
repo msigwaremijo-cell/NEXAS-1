@@ -51,4 +51,26 @@ return [
         'allow_negative_stock' => (bool) env('NEXAS_ALLOW_NEGATIVE_STOCK', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Report Exports
+    |--------------------------------------------------------------------------
+    |
+    | A rendered report file is written by a queued job to the disk named
+    | below, which lives outside public, is handed back only through a
+    | temporary signed route, and is deleted after the retention window. Both
+    | figures are configuration rather than constants so a deployment can
+    | tighten them without a code change: the retention is how long a finished
+    | export stays downloadable, and the link lifetime is how long the signed
+    | URL on it stays valid — deliberately shorter, because the file itself
+    | outliving its own link is the point of signing it.
+    |
+    */
+
+    'exports' => [
+        'disk' => env('NEXAS_EXPORT_DISK', 'exports'),
+        'retention_hours' => (int) env('NEXAS_EXPORT_RETENTION_HOURS', 24),
+        'link_ttl_minutes' => (int) env('NEXAS_EXPORT_LINK_TTL_MINUTES', 60),
+    ],
+
 ];

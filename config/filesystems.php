@@ -63,6 +63,23 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Rendered report exports. A balance sheet or a trial balance a human
+         | asked for, written by a queued job and handed back only through a
+         | short-lived signed route. Kept off the public disk for the same
+         | reason a bank statement is: an export is the company's books in a
+         | file, and it must not be readable by whoever guesses a URL. The root
+         | sits under storage/app/private, which storage/app/.gitignore
+         | excludes, so a rendered export is never committed either.
+         */
+        'exports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/exports'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
