@@ -108,6 +108,14 @@ function nxRoutePermissions(): array
         'api.v1.exports.show' => AccessMatrix::PERMISSION_REPORT_VIEW,
         'api.v1.exports.download' => AccessMatrix::PERMISSION_REPORT_VIEW,
 
+        // Documents filed beside records. Reading one is reading the books, so
+        // the list and the download are the read right; filing and withdrawing
+        // one are writes, so they are the manage right.
+        'api.v1.attachments.index' => AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+        'api.v1.attachments.store' => AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
+        'api.v1.attachments.download' => AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+        'api.v1.attachments.destroy' => AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
+
         // Parties.
         'api.v1.customers.index' => AccessMatrix::PERMISSION_PARTY_VIEW,
         'api.v1.customers.store' => AccessMatrix::PERMISSION_PARTY_MANAGE,

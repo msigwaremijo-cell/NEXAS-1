@@ -197,6 +197,31 @@ final class AccessMatrix
      */
     public const PERMISSION_ASSET_POST = 'asset.post';
 
+    /**
+     * Reading the documents filed beside records: a supplier's invoice, a
+     * delivery note, a signed receipt.
+     *
+     * A document filed against a posted entry is part of the account of that
+     * entry, so reading one is reading the books and this is held by every role
+     * that may read them. It is deliberately its own right rather than folded
+     * into the `.view` right of whichever record a document happens to sit
+     * beside: the documents are one shelf, and a member trusted to read the
+     * shelf is decided once rather than once per record type.
+     */
+    public const PERMISSION_ATTACHMENT_VIEW = 'attachment.view';
+
+    /**
+     * Filing a document against a record, and withdrawing one.
+     *
+     * This is a write, but not a posting: filing a document changes nothing in
+     * the ledger and nothing about the record it sits beside, which is why it
+     * is separate from every posting right and why a record already posted can
+     * still receive one. It is held by the members who keep the books — the
+     * Owner, the Accountant and the Finance Officer — because deciding what
+     * evidence belongs with an entry is part of keeping it.
+     */
+    public const PERMISSION_ATTACHMENT_MANAGE = 'attachment.manage';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -268,6 +293,8 @@ final class AccessMatrix
             self::PERMISSION_ASSET_VIEW,
             self::PERMISSION_ASSET_MANAGE,
             self::PERMISSION_ASSET_POST,
+            self::PERMISSION_ATTACHMENT_VIEW,
+            self::PERMISSION_ATTACHMENT_MANAGE,
         ];
     }
 
@@ -341,6 +368,11 @@ final class AccessMatrix
                 self::PERMISSION_ASSET_VIEW,
                 self::PERMISSION_ASSET_MANAGE,
                 self::PERMISSION_ASSET_POST,
+                // Documents filed beside the entries they keep. Filing one is
+                // not a posting, so it travels with the right to keep the books
+                // rather than with any one posting right.
+                self::PERMISSION_ATTACHMENT_VIEW,
+                self::PERMISSION_ATTACHMENT_MANAGE,
                 // Deliberately absent: PERMISSION_FISCAL_YEAR_CLOSE. Closing
                 // the year turns a set of books into a historical fact and is
                 // reversible only by reopening it, so it is kept for the Owner
@@ -396,6 +428,11 @@ final class AccessMatrix
                 self::PERMISSION_ASSET_VIEW,
                 self::PERMISSION_ASSET_MANAGE,
                 self::PERMISSION_ASSET_POST,
+                // The documents filed beside the bills this role clears, for
+                // the same reason it keeps the register: they are part of the
+                // account of the entry, and filing one touches nothing.
+                self::PERMISSION_ATTACHMENT_VIEW,
+                self::PERMISSION_ATTACHMENT_MANAGE,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -420,6 +457,10 @@ final class AccessMatrix
                 // it is worth this month and not the right to take one out of
                 // the books: both of those post, and a cashier does not.
                 self::PERMISSION_ASSET_VIEW,
+                // Documents filed beside the entries this role reads. Reading
+                // them is part of reading the books; filing one is not, so the
+                // manage right is absent.
+                self::PERMISSION_ATTACHMENT_VIEW,
             ],
 
             // Keeps the stock books rather than the financial ones: receives,
@@ -434,6 +475,10 @@ final class AccessMatrix
                 self::PERMISSION_STOCK_POST,
                 self::PERMISSION_PARTY_VIEW,
                 self::PERMISSION_REPORT_VIEW,
+                // A delivery note filed beside a movement is part of reading
+                // the stock books, so it is read here. Filing one is a write to
+                // the documents rather than a move of stock, and is absent.
+                self::PERMISSION_ATTACHMENT_VIEW,
             ],
 
             // Reads the books and never writes to them. `audit.view` is the
@@ -459,6 +504,10 @@ final class AccessMatrix
                 // reads it. Nothing here writes to it: depreciation and
                 // disposals are postings, and an audit posts nothing.
                 self::PERMISSION_ASSET_VIEW,
+                // The documents filed beside the entries under audit. Reading
+                // them is exactly what an audit is for; filing or withdrawing
+                // one is not, and is absent.
+                self::PERMISSION_ATTACHMENT_VIEW,
             ],
 
             // Sees everything the books report and nothing more: the `.view`
@@ -476,6 +525,10 @@ final class AccessMatrix
                 self::PERMISSION_BANK_VIEW,
                 self::PERMISSION_STOCK_VIEW,
                 self::PERMISSION_ASSET_VIEW,
+                // Everything the books report includes the documents filed
+                // beside them, so they are read here too. Filing one is a write
+                // and is absent.
+                self::PERMISSION_ATTACHMENT_VIEW,
             ],
         ];
     }

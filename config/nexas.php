@@ -75,6 +75,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Attachments
+    |--------------------------------------------------------------------------
+    |
+    | Documents filed against a record. The disk lives outside public and is
+    | handed back only through a short-lived signed route, exactly as a report
+    | export is.
+    |
+    | `allowed_extensions` selects, out of the vocabulary the shared validator
+    | knows, which file types this deployment accepts. The vocabulary itself —
+    | and, for each extension, the content types that extension is allowed to
+    | actually be — lives in the validator rather than here, because a file is
+    | accepted by what is inside it and not by what it is called, and that rule
+    | is the same on every deployment.
+    |
+    | `max_kilobytes` is the ceiling a single upload may reach. Deliberately
+    | generous: a scanned supplier invoice is a few hundred kilobytes and a
+    | photographed delivery note a few megabytes, so the limit is set where a
+    | file stops plausibly being a document rather than where it stops being
+    | convenient.
+    |
+    */
+
+    'attachments' => [
+        'disk' => env('NEXAS_ATTACHMENT_DISK', 'attachments'),
+        'max_kilobytes' => (int) env('NEXAS_ATTACHMENT_MAX_KILOBYTES', 10240),
+        'link_ttl_minutes' => (int) env('NEXAS_ATTACHMENT_LINK_TTL_MINUTES', 30),
+        'allowed_extensions' => ['pdf', 'png', 'jpg', 'jpeg', 'csv', 'xlsx'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Policy
     |--------------------------------------------------------------------------
     |

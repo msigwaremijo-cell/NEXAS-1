@@ -18,6 +18,7 @@ use App\Domain\Banking\Exceptions\DuplicateStatementException;
 use App\Domain\Banking\Exceptions\PaymentStateException;
 use App\Domain\Banking\Exceptions\ReconciliationStateException;
 use App\Domain\Banking\Exceptions\TransferStateException;
+use App\Domain\Files\Exceptions\FilesException;
 use App\Domain\Inventory\Exceptions\InventoryException;
 use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
@@ -140,6 +141,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 // the wrong type, a disposal that receives money without naming
                 // where it was received.
                 $exception instanceof AssetsException => 422,
+
+                // A file the caller can replace: the wrong kind, contents that
+                // contradict the name it was filed under, too large to keep.
+                // The base type is named rather than the upload refusal alone,
+                // so a store that would not take a file that passed every check
+                // reads as a refusal too rather than falling through to a blank.
+                $exception instanceof FilesException => 422,
 
                 default => 400,
             };

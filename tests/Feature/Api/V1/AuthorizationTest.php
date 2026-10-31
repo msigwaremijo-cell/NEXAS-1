@@ -223,6 +223,8 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_ASSET_VIEW,
                 AccessMatrix::PERMISSION_ASSET_MANAGE,
                 AccessMatrix::PERMISSION_ASSET_POST,
+                AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+                AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
                 // Deliberately not granted: PERMISSION_FISCAL_YEAR_CLOSE and
                 // PERMISSION_BILL_APPROVE. Closing a year is the Owner's alone,
                 // and approval is withheld from the role that enters bills.

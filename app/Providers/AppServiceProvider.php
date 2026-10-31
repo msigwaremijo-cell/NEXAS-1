@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Domain\Access\Totp;
+use App\Domain\Files\Contracts\VirusScanner;
+use App\Domain\Files\Support\NullVirusScanner;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -21,6 +23,13 @@ class AppServiceProvider extends ServiceProvider
         // from the configuration once per request rather than being rebuilt
         // with the hard-coded defaults every time a one-time code is checked.
         $this->app->singleton(Totp::class, fn (): Totp => Totp::fromConfig());
+
+        // The antivirus hook. This build installs no scanner, so the binding
+        // is the placeholder that honestly inspects nothing: see
+        // NullVirusScanner. A deployment that installs a real scanner rebinds
+        // this one line, and the validator — which already calls the interface
+        // on every upload — starts using it without any other change.
+        $this->app->bind(VirusScanner::class, NullVirusScanner::class);
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Domain\Banking\Actions;
 use App\Domain\Banking\DTOs\StatementUpload;
 use App\Domain\Banking\Exceptions\BankStatementException;
 use App\Domain\Banking\Services\CsvStatementReader;
+use App\Domain\Files\Services\UploadValidator;
 use App\Models\BankAccount;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -42,10 +43,27 @@ final class StoreStatementUpload
      */
     private const PREVIEW_ROWS = 5;
 
-    public function __construct(private readonly CsvStatementReader $reader) {}
+    /**
+     * The ceiling for one statement file. A year of a busy current account as
+     * CSV is a few hundred kilobytes, and anything far past this is not a
+     * statement file.
+     */
+    private const MAX_KILOBYTES = 5120;
+
+    public function __construct(
+        private readonly CsvStatementReader $reader,
+        private readonly UploadValidator $validator,
+    ) {}
 
     public function __invoke(int $companyId, BankAccount $bankAccount, UploadedFile $file): StatementUpload
     {
+        // The same gate every other upload passes through, narrowed to the one
+        // type a statement can be. Before this, the only thing standing between
+        // this endpoint and the store was a size check: any file at all could be
+        // written here so long as it was under five megabytes and the reader did
+        // not object to it. Now it has to actually be a CSV.
+        $this->validator->validate($file, 'statement file', ['csv'], self::MAX_KILOBYTES);
+
         $token = (string) Str::ulid();
         $path = self::pathFor($companyId, (int) $bankAccount->getKey(), $token);
 

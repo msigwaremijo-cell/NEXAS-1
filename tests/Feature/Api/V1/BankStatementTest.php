@@ -656,11 +656,15 @@ it('refuses a statement that is not a file at all', function () {
         ->assertStatus(422)
         ->assertJsonValidationErrors('file');
 
+    // An empty file never reaches the statement reader: the shared upload
+    // validator, which every upload passes through, refuses it first. What it
+    // names is the upload, not the statement.
     $this->postJson('/api/v1/bank-accounts/'.$this->bankAccountUlid.'/statement-uploads', [
         'file' => UploadedFile::fake()->createWithContent('statement.csv', ''),
     ])
         ->assertStatus(422)
-        ->assertJsonPath('error', 'BankStatementException');
+        ->assertJsonPath('error', 'UploadRefusedException')
+        ->assertJsonPath('message', fn (string $message): bool => str_contains($message, 'empty'));
 });
 
 /*

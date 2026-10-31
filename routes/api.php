@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AssetController;
+use App\Http\Controllers\Api\V1\AttachmentController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BankAccountController;
@@ -177,6 +178,28 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/exports/{export}/download', [ExportController::class, 'download'])
             ->middleware('signed:relative')
             ->name('api.v1.exports.download');
+
+        // Documents filed beside a record: a supplier's invoice, a delivery
+        // note, a signed receipt. One surface for every record type rather than
+        // one per resource, because a document is filed *against* something
+        // rather than *into* it — filing one changes nothing about the record it
+        // sits next to, which is what lets a receipt be added to a journal that
+        // has already been posted. The list and the upload are told which
+        // record they concern; the file is read only through the signed,
+        // expiring download route below, never as a public URL.
+        Route::get('/attachments', [AttachmentController::class, 'index'])->name('api.v1.attachments.index');
+        Route::post('/attachments', [AttachmentController::class, 'store'])->name('api.v1.attachments.store');
+        // Behind `signed:relative` as well as the group's authentication and
+        // company check: the link cannot be guessed and cannot be replayed once
+        // it has expired. The signature is checked before the policy is reached.
+        Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])
+            ->middleware('signed:relative')
+            ->name('api.v1.attachments.download');
+        // Withdrawing a document. The action decides whether the row is removed
+        // or merely marked withdrawn: a document filed against a posted record
+        // leaves its row behind, so the account of the document survives it.
+        Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])
+            ->name('api.v1.attachments.destroy');
 
         // Master data the sales and purchase screens pick from. Reading one
         // record and amending it are separate routes from listing, and both are
