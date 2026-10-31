@@ -10,6 +10,8 @@ use App\Domain\Accounting\Exceptions\FiscalYearStateException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Exceptions\InvalidJournalException;
 use App\Domain\Accounting\Exceptions\JournalStateException;
+use App\Domain\Assets\Exceptions\AssetsException;
+use App\Domain\Assets\Exceptions\AssetStateException;
 use App\Domain\Banking\Exceptions\BankingException;
 use App\Domain\Banking\Exceptions\DuplicateStatementException;
 use App\Domain\Banking\Exceptions\PaymentStateException;
@@ -108,7 +110,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 // that is not open. The request is well formed and no change to
                 // it would help, so it is a collision with the shape of the
                 // books rather than a bad request.
-                $exception instanceof ForecastUnavailableException => 409,
+                $exception instanceof ForecastUnavailableException,
+
+                // A fixed-asset request that collides with the state of the
+                // register or the calendar: a period already depreciated, an
+                // asset already disposed of, a status that only moves one way,
+                // nothing left to depreciate. Named before AssetsException
+                // below, since each of these is also a fixed-asset refusal.
+                $exception instanceof AssetStateException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.
@@ -120,7 +129,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof SalesException,
                 $exception instanceof PurchasesException,
                 $exception instanceof BankingException,
-                $exception instanceof InventoryException => 422,
+                $exception instanceof InventoryException,
+                // A fixed-asset request the caller can fix and resubmit: a
+                // salvage value above the cost, a category naming an account of
+                // the wrong type, a disposal that receives money without naming
+                // where it was received.
+                $exception instanceof AssetsException => 422,
 
                 default => 400,
             };

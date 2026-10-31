@@ -150,6 +150,38 @@ final class AccessMatrix
      */
     public const PERMISSION_BUDGET_MANAGE = 'budget.manage';
 
+    /**
+     * Reading the fixed-asset register: what the company holds, what it cost,
+     * what has been depreciated against it and what it is worth in the books.
+     *
+     * The register is part of what the books report, so this sits alongside the
+     * other `.view` rights rather than behind `report.view`: a member who may
+     * read the trial balance may read the assets it is made of.
+     */
+    public const PERMISSION_ASSET_VIEW = 'asset.view';
+
+    /**
+     * Keeping the register: the categories that decide where a class of assets
+     * posts, and the assets themselves.
+     *
+     * Separate from `asset.post` for the reason the other document rights are
+     * separate from journal rights: entering an asset is a decision about what
+     * the company holds, and depreciation is a posting. An asset enters service
+     * by posting its cost, but that posting is the consequence of the entry
+     * rather than a separate act, so it travels with `manage`.
+     */
+    public const PERMISSION_ASSET_MANAGE = 'asset.manage';
+
+    /**
+     * Charging depreciation and taking an asset out of the books.
+     *
+     * These are the two things that move the ledger on their own — a month's
+     * charge, and a disposal with its gain or loss — so they are their own right
+     * rather than inherited from being able to enter the asset. Deliberately not
+     * held by anyone who only reads the register.
+     */
+    public const PERMISSION_ASSET_POST = 'asset.post';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -174,7 +206,7 @@ final class AccessMatrix
     public const ROLE_AUDITOR = 'Auditor';
 
     /**
-     * Sees everything the books report and nothing more: the eight `.view`
+     * Sees everything the books report and nothing more: the nine `.view`
      * rights, without `audit.view`. Given to a member who must be able to look
      * but must not be trusted with the trail of who changed what.
      */
@@ -217,6 +249,9 @@ final class AccessMatrix
             self::PERMISSION_AUDIT_VIEW,
             self::PERMISSION_BUDGET_VIEW,
             self::PERMISSION_BUDGET_MANAGE,
+            self::PERMISSION_ASSET_VIEW,
+            self::PERMISSION_ASSET_MANAGE,
+            self::PERMISSION_ASSET_POST,
         ];
     }
 
@@ -283,6 +318,13 @@ final class AccessMatrix
                 // a posting: nothing in a budget reaches the ledger.
                 self::PERMISSION_BUDGET_VIEW,
                 self::PERMISSION_BUDGET_MANAGE,
+                // Fixed assets. The accountant keeps the register and charges
+                // the depreciation against it: entering an asset, running the
+                // month and disposing of one are all part of keeping the books,
+                // so the three rights are held together rather than split.
+                self::PERMISSION_ASSET_VIEW,
+                self::PERMISSION_ASSET_MANAGE,
+                self::PERMISSION_ASSET_POST,
                 // Deliberately absent: PERMISSION_FISCAL_YEAR_CLOSE. Closing
                 // the year turns a set of books into a historical fact and is
                 // reversible only by reopening it, so it is kept for the Owner
@@ -328,6 +370,12 @@ final class AccessMatrix
                 // not write it: the second pair of hands is on the approval,
                 // and the plan is the accountant's to set.
                 self::PERMISSION_BUDGET_VIEW,
+                // The fixed-asset rights the Accountant holds, for the same
+                // reason: this role keeps the general ledger beside the bills it
+                // clears, and the register and its depreciation are part of it.
+                self::PERMISSION_ASSET_VIEW,
+                self::PERMISSION_ASSET_MANAGE,
+                self::PERMISSION_ASSET_POST,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -348,6 +396,10 @@ final class AccessMatrix
                 // What is on the shelf behind the counter, so a cashier can
                 // answer a customer. Counting it in and out is not their job.
                 self::PERMISSION_STOCK_VIEW,
+                // What the company holds in the way of equipment, but not what
+                // it is worth this month and not the right to take one out of
+                // the books: both of those post, and a cashier does not.
+                self::PERMISSION_ASSET_VIEW,
             ],
 
             // Keeps the stock books rather than the financial ones: receives,
@@ -383,6 +435,10 @@ final class AccessMatrix
                 // the plan is not the same as reading the trail behind it,
                 // which is why the two rights are kept apart.
                 self::PERMISSION_BUDGET_VIEW,
+                // The register is part of what the books report, so an audit
+                // reads it. Nothing here writes to it: depreciation and
+                // disposals are postings, and an audit posts nothing.
+                self::PERMISSION_ASSET_VIEW,
             ],
 
             // Sees everything the books report and nothing more: the `.view`
@@ -399,6 +455,7 @@ final class AccessMatrix
                 self::PERMISSION_PAYMENT_VIEW,
                 self::PERMISSION_BANK_VIEW,
                 self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_ASSET_VIEW,
             ],
         ];
     }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BankAccountController;
@@ -279,6 +280,33 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/budgets', [BudgetController::class, 'index'])->name('api.v1.budgets.index');
         Route::get('/budgets/{budget}', [BudgetController::class, 'show'])->name('api.v1.budgets.show');
         Route::put('/budgets', [BudgetController::class, 'save'])->name('api.v1.budgets.save');
+
+        // Fixed assets: the register and the two things that move the ledger on
+        // its behalf. A category is the four accounts a class of asset posts
+        // to; an asset is what the company holds. Neither is deleted: an asset
+        // leaves by being disposed of, and a disposal is corrected by being
+        // reversed. The register totals are declared before the asset wildcard
+        // so `/assets/register` is not read as an asset named "register".
+        Route::get('/asset-categories', [AssetController::class, 'categories'])->name('api.v1.asset-categories.index');
+        Route::post('/asset-categories', [AssetController::class, 'storeCategory'])->name('api.v1.asset-categories.store');
+        Route::get('/asset-categories/{assetCategory}', [AssetController::class, 'showCategory'])->name('api.v1.asset-categories.show');
+        Route::patch('/asset-categories/{assetCategory}', [AssetController::class, 'updateCategory'])->name('api.v1.asset-categories.update');
+
+        Route::get('/assets', [AssetController::class, 'index'])->name('api.v1.assets.index');
+        Route::post('/assets', [AssetController::class, 'storeAsset'])->name('api.v1.assets.store');
+        Route::get('/assets/register', [AssetController::class, 'register'])->name('api.v1.assets.register');
+        Route::get('/assets/{asset}', [AssetController::class, 'showAsset'])->name('api.v1.assets.show');
+        Route::patch('/assets/{asset}', [AssetController::class, 'updateAsset'])->name('api.v1.assets.update');
+
+        // Depreciation is charged a period at a time, named by the fiscal period
+        // rather than by a list of assets, because a period's charge is a
+        // period's figure. A second run for the same period is refused, and the
+        // only correction is the reversal.
+        Route::post('/depreciation-runs', [AssetController::class, 'runDepreciation'])->name('api.v1.depreciation-runs.store');
+        Route::post('/depreciation-runs/reversal', [AssetController::class, 'reverseDepreciation'])->name('api.v1.depreciation-runs.reversal.store');
+
+        Route::post('/assets/{asset}/disposal', [AssetController::class, 'dispose'])->name('api.v1.assets.disposal.store');
+        Route::post('/assets/{asset}/disposal/reversal', [AssetController::class, 'reverseDisposal'])->name('api.v1.assets.disposal.reversal.store');
 
         // Administering the company's members. Every route here is a
         // `user.manage` route, which in the matrix means the Owner alone, and

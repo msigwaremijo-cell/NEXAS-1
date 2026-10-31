@@ -59,6 +59,38 @@ enum JournalType: string
      */
     case Stock = 'stock';
 
+    /**
+     * A period's depreciation charge on the fixed assets.
+     *
+     * Its own case rather than a general journal because it is written by the
+     * depreciation run and by nothing else, and the run has to be able to find
+     * the entry it wrote for a period in order to refuse a second one. It
+     * carries one line per asset, so a reader can see which assets the charge
+     * was made of.
+     */
+    case Depreciation = 'depreciation';
+
+    /**
+     * The purchase of a fixed asset: its cost debited to the category's asset
+     * account against whatever met the cost.
+     *
+     * Its own case rather than a purchase journal because a purchase journal
+     * belongs to a supplier bill, and an asset may just as well be bought for
+     * cash with no bill behind it. Keeping it apart is what lets the register's
+     * cost be found in the ledger without reading every purchase.
+     */
+    case Acquisition = 'acquisition';
+
+    /**
+     * The removal of a fixed asset: its cost and accumulated depreciation
+     * taken out of the books, and any gain or loss booked.
+     *
+     * Its own case so a disposal can be found and read on its own — what was
+     * removed, for how much, and which asset it was — rather than a general
+     * journal that has to be recognised by its account codes.
+     */
+    case Disposal = 'disposal';
+
     public function label(): string
     {
         return match ($this) {
@@ -74,6 +106,9 @@ enum JournalType: string
             self::Reversal => 'Reversal',
             self::Transfer => 'Transfer',
             self::Stock => 'Stock movement',
+            self::Depreciation => 'Depreciation',
+            self::Acquisition => 'Asset acquisition',
+            self::Disposal => 'Asset disposal',
         };
     }
 }

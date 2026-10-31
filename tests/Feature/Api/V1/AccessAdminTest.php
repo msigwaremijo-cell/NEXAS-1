@@ -163,6 +163,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_AUDIT_VIEW,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
+        AccessMatrix::PERMISSION_ASSET_MANAGE,
+        AccessMatrix::PERMISSION_ASSET_POST,
     ]],
 
     AccessMatrix::ROLE_ACCOUNTANT => [AccessMatrix::ROLE_ACCOUNTANT, [
@@ -191,6 +194,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_COMPANY_MANAGE,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
+        AccessMatrix::PERMISSION_ASSET_MANAGE,
+        AccessMatrix::PERMISSION_ASSET_POST,
     ]],
 
     AccessMatrix::ROLE_FINANCE_OFFICER => [AccessMatrix::ROLE_FINANCE_OFFICER, [
@@ -217,6 +223,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_STOCK_MANAGE,
         AccessMatrix::PERMISSION_STOCK_POST,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
+        AccessMatrix::PERMISSION_ASSET_MANAGE,
+        AccessMatrix::PERMISSION_ASSET_POST,
     ]],
 
     AccessMatrix::ROLE_CASHIER => [AccessMatrix::ROLE_CASHIER, [
@@ -229,6 +238,7 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_PAYMENT_RECORD,
         AccessMatrix::PERMISSION_BANK_VIEW,
         AccessMatrix::PERMISSION_STOCK_VIEW,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
     ]],
 
     AccessMatrix::ROLE_INVENTORY_MANAGER => [AccessMatrix::ROLE_INVENTORY_MANAGER, [
@@ -250,6 +260,7 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_STOCK_VIEW,
         AccessMatrix::PERMISSION_AUDIT_VIEW,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
     ]],
 
     AccessMatrix::ROLE_READ_ONLY => [AccessMatrix::ROLE_READ_ONLY, [
@@ -261,6 +272,7 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_PAYMENT_VIEW,
         AccessMatrix::PERMISSION_BANK_VIEW,
         AccessMatrix::PERMISSION_STOCK_VIEW,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
     ]],
 ]);
 
