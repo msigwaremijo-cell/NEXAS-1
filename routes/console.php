@@ -15,6 +15,13 @@ Artisan::command('inspire', function () {
 // nightly work, so a failure here is not lost in another job's noise.
 Schedule::command('ledger:verify')->dailyAt('02:30');
 
+// The audit trail is only evidence while every link still hashes to what it
+// claims, so it is rechecked nightly, just after the ledger. A break writes an
+// outbox alert and returns a non-zero exit code, because a tampered trail is
+// the one failure that must never pass silently. Offset from the ledger check
+// so the two failures are not reported in the same minute.
+Schedule::command('audit:verify')->dailyAt('02:45');
+
 // Exported report files live outside public and are only readable through a
 // signed, expiring link. Hourly rather than daily, and offset from the ledger
 // check, so a file is removed within the hour of its 24-hour window closing

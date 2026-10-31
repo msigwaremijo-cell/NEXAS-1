@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\AlertAuditChainBreak;
 use App\Support\AuditChain;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -9,6 +10,11 @@ use Illuminate\Support\Facades\DB;
 /**
  * Recomputes the audit hash chain and reports the first row that does not
  * agree with it. Every check is read-only: nothing is repaired.
+ *
+ * A break is also written to the outbox as an alert, so a nightly run nobody
+ * watched still leaves a durable trace for whoever consumes it rather than
+ * only a line of console output that scrolled away. The exit code is what the
+ * scheduler reports on.
  */
 class VerifyAuditChain extends Command
 {
@@ -59,39 +65,31 @@ class VerifyAuditChain extends Command
         $head = DB::selectOne('SELECT last_hash, last_id, chain_length FROM audit_chain_head WHERE id = 1');
 
         if ($head === null) {
-            $this->error('FAIL: audit_chain_head has no row, so the chain cannot be trusted.');
-
-            return self::FAILURE;
+            return $this->failAndAlert(null, 'audit_chain_head has no row, so the chain cannot be trusted.');
         }
 
         if ((int) $head->chain_length !== $checked) {
-            $this->error(sprintf(
-                'FAIL: audit_chain_head reports %d links but audit_logs holds %d rows.',
+            return $this->failAndAlert(null, sprintf(
+                'audit_chain_head reports %d links but audit_logs holds %d rows.',
                 $head->chain_length,
                 $checked
             ));
-
-            return self::FAILURE;
         }
 
         if ((string) $head->last_hash !== (string) $lastHash) {
-            $this->error(sprintf(
-                'FAIL: audit_chain_head last_hash is %s but the newest audit row is %s.',
+            return $this->failAndAlert(null, sprintf(
+                'audit_chain_head last_hash is %s but the newest audit row is %s.',
                 $this->show($head->last_hash),
                 $this->show($lastHash)
             ));
-
-            return self::FAILURE;
         }
 
         if ($head->last_id !== null && $head->last_id != $lastId) {
-            $this->error(sprintf(
-                'FAIL: audit_chain_head last_id is %s but the newest audit row is %s.',
+            return $this->failAndAlert(null, sprintf(
+                'audit_chain_head last_id is %s but the newest audit row is %s.',
                 $head->last_id,
                 $lastId
             ));
-
-            return self::FAILURE;
         }
 
         $this->info(sprintf('OK: audit chain intact, %d row(s) verified, head %s.', $checked, $this->show($lastHash)));
@@ -101,7 +99,31 @@ class VerifyAuditChain extends Command
 
     private function reportBroken(object $row, string $reason): int
     {
-        $this->error(sprintf('FAIL: audit chain broken at audit_logs.id = %s (%s).', $row->id, $reason));
+        // A row written outside any company has a null company_id, and casting
+        // that to int would name company 0 — which is no company at all and
+        // fails the outbox foreign key, losing the very alarm this raises.
+        $companyId = $row->company_id === null ? null : (int) $row->company_id;
+
+        return $this->failAndAlert($companyId, sprintf(
+            'audit chain broken at audit_logs.id = %s (%s).',
+            $row->id,
+            $reason
+        ), (int) $row->id);
+    }
+
+    /**
+     * Print the failure, write it to the outbox so an unwatched run is still
+     * visible, and answer with a non-zero exit code for the scheduler.
+     */
+    private function failAndAlert(?int $companyId, string $reason, ?int $auditLogId = null): int
+    {
+        $this->error('FAIL: '.$reason);
+
+        (new AlertAuditChainBreak($companyId, [
+            'reason' => $reason,
+            'audit_log_id' => $auditLogId,
+            'company_id' => $companyId,
+        ]))->handle();
 
         return self::FAILURE;
     }

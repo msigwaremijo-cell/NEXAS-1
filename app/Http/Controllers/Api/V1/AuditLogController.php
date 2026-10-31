@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Support\AuditChain;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,6 +21,12 @@ use Illuminate\Http\Request;
  * trail. The list is scoped to the caller's company, because the chain is
  * written per company and naming another company's entries would be an
  * existence oracle.
+ *
+ * The page is also checked against the hash chain as it is read, so what is
+ * shown is shown as verified or broken rather than merely listed. That check
+ * is deliberately page-scoped and cheap: `php artisan audit:verify` is the
+ * authoritative check of the whole chain, and a page cannot pretend to have
+ * run it.
  */
 class AuditLogController extends Controller
 {
@@ -57,24 +64,112 @@ class AuditLogController extends Controller
             ->orderByDesc('id')
             ->paginate($this->perPage($request));
 
+        $rows = $entries->items();
+        $chain = $this->verifyChain($rows);
+
         return response()->json([
             'data' => array_map(
-                fn (AuditLog $entry): array => $this->present($entry),
-                $entries->items()
+                fn (AuditLog $entry): array => $this->present($entry, $chain['valid']),
+                $rows
             ),
             'meta' => [
                 'current_page' => $entries->currentPage(),
                 'per_page' => $entries->perPage(),
                 'total' => $entries->total(),
                 'last_page' => $entries->lastPage(),
+                'chain' => $chain['summary'],
             ],
         ]);
     }
 
     /**
+     * Check the rows on this page against the hash chain.
+     *
+     * Two questions are asked of each row: does its stored hash recompute from
+     * its own content, and does its previous_hash name the row before it. The
+     * link into the page's oldest row is off-page — the row it names is not
+     * loaded — so it is left unchecked rather than assumed, which is why the
+     * summary reports what it did check rather than a bare "intact".
+     *
+     * @param  list<AuditLog>  $entries  the page, newest first
+     * @return array{valid: array<int, bool>, summary: array<string, mixed>}
+     */
+    private function verifyChain(array $entries): array
+    {
+        $valid = [];
+        $broken = [];
+
+        // Oldest first, so a row can be held against the one written before it.
+        $ascending = array_reverse($entries);
+
+        $expectedPrevious = null;
+        $linkKnown = false;
+        $linksChecked = 0;
+        $linksIntact = true;
+
+        foreach ($ascending as $entry) {
+            $row = $this->chainRow($entry);
+            $id = (int) $entry->getKey();
+
+            $contentOk = hash_equals(AuditChain::hash($row), (string) $row->hash);
+            $valid[$id] = $contentOk;
+
+            if (! $contentOk) {
+                $broken[] = $id;
+            }
+
+            if ($linkKnown && (string) ($row->previous_hash ?? '') !== (string) $expectedPrevious) {
+                $linksIntact = false;
+                $broken[] = $id;
+            }
+
+            if ($linkKnown) {
+                $linksChecked++;
+            }
+
+            $expectedPrevious = $row->hash;
+            $linkKnown = true;
+        }
+
+        return [
+            'valid' => $valid,
+            'summary' => [
+                'scope' => 'page',
+                'checked' => count($ascending),
+                'links_checked' => $linksChecked,
+                'intact' => $broken === [],
+                'broken_ids' => array_values(array_unique($broken)),
+            ],
+        ];
+    }
+
+    /**
+     * The row as the hashing trigger saw it: the raw stored text of the JSON
+     * columns, not the arrays Eloquent casts them to.
+     */
+    private function chainRow(AuditLog $entry): object
+    {
+        return (object) [
+            'company_id' => $entry->company_id,
+            'user_id' => $entry->user_id,
+            'action' => $entry->action,
+            'auditable_type' => $entry->auditable_type,
+            'auditable_id' => $entry->auditable_id,
+            'ip_address' => $entry->ip_address,
+            'user_agent' => $entry->user_agent,
+            'before' => $entry->getRawOriginal('before'),
+            'after' => $entry->getRawOriginal('after'),
+            'meta' => $entry->getRawOriginal('meta'),
+            'previous_hash' => $entry->previous_hash,
+            'hash' => $entry->hash,
+        ];
+    }
+
+    /**
+     * @param  array<int, bool>  $valid
      * @return array<string, mixed>
      */
-    private function present(AuditLog $entry): array
+    private function present(AuditLog $entry, array $valid = []): array
     {
         return [
             'id' => (int) $entry->getKey(),
@@ -90,6 +185,7 @@ class AuditLogController extends Controller
             'after' => $entry->after,
             'ip_address' => $entry->ip_address,
             'created_at' => $entry->created_at?->toIso8601String(),
+            'chain_valid' => $valid[(int) $entry->getKey()] ?? null,
         ];
     }
 
