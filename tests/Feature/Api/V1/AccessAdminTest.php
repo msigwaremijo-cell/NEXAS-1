@@ -160,6 +160,7 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_STOCK_POST,
         AccessMatrix::PERMISSION_COMPANY_MANAGE,
         AccessMatrix::PERMISSION_FISCAL_YEAR_CLOSE,
+        AccessMatrix::PERMISSION_FISCAL_PERIOD_REOPEN,
         AccessMatrix::PERMISSION_AUDIT_VIEW,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_BUDGET_MANAGE,

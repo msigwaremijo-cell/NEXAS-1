@@ -114,6 +114,21 @@ final class AccessMatrix
     public const PERMISSION_FISCAL_YEAR_CLOSE = 'fiscal_year.close';
 
     /**
+     * Reopening a closed fiscal period so a correction can be posted into it.
+     *
+     * The undo of the close above, and the more dangerous half of it: a reopen
+     * puts a period that has already been reported back into the books. It is
+     * granted to the Owner alone, like the close it reverses, and every reopen
+     * has to name a reason, so the trail says why a reported period was opened
+     * again rather than merely that it was.
+     *
+     * A separate key from `fiscal_year.close` on purpose, even though the same
+     * person holds both today: the two are granted independently, so handing
+     * somebody the close never hands them the reopen by inheritance.
+     */
+    public const PERMISSION_FISCAL_PERIOD_REOPEN = 'fiscal_period.reopen';
+
+    /**
      * Reading the audit chain: what was changed, by whom, and when.
      *
      * This is deliberately its own right rather than part of `report.view`.
@@ -246,6 +261,7 @@ final class AccessMatrix
             self::PERMISSION_STOCK_POST,
             self::PERMISSION_COMPANY_MANAGE,
             self::PERMISSION_FISCAL_YEAR_CLOSE,
+            self::PERMISSION_FISCAL_PERIOD_REOPEN,
             self::PERMISSION_AUDIT_VIEW,
             self::PERMISSION_BUDGET_VIEW,
             self::PERMISSION_BUDGET_MANAGE,
@@ -330,6 +346,10 @@ final class AccessMatrix
                 // reversible only by reopening it, so it is kept for the Owner
                 // alone. An accountant may post any number of ordinary journals
                 // without being the person who declares the year finished.
+                // PERMISSION_FISCAL_PERIOD_REOPEN is absent for the same
+                // reason: reopening a reported period is the Owner undoing the
+                // Owner's own act, not a correction an accountant makes by
+                // posting another journal.
             ],
 
             // The second pair of hands on a supplier bill. They may read a bill,
@@ -337,8 +357,8 @@ final class AccessMatrix
             // keeps approval independent of the member who entered the document.
             // They keep the general ledger beside it, so they hold the journal,
             // payment, bank and stock rights the Accountant does; what they do
-            // not hold is PERMISSION_BILL_MANAGE, PERMISSION_USER_MANAGE and
-            // PERMISSION_FISCAL_YEAR_CLOSE.
+            // not hold is PERMISSION_BILL_MANAGE, PERMISSION_USER_MANAGE,
+            // PERMISSION_FISCAL_YEAR_CLOSE and PERMISSION_FISCAL_PERIOD_REOPEN.
             self::ROLE_FINANCE_OFFICER => [
                 self::PERMISSION_JOURNAL_VIEW,
                 self::PERMISSION_JOURNAL_CREATE,

@@ -6,6 +6,7 @@ use App\Domain\Accounting\Exceptions\AccountingException;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Exceptions\DocumentLineException;
 use App\Domain\Accounting\Exceptions\FiscalPeriodNotOpenException;
+use App\Domain\Accounting\Exceptions\FiscalPeriodStateException;
 use App\Domain\Accounting\Exceptions\FiscalYearStateException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Exceptions\InvalidJournalException;
@@ -76,6 +77,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 // or a chart of accounts with nowhere to put the result. Named
                 // before the base class below, since it is also one.
                 $exception instanceof FiscalYearStateException,
+                // The same for a period reopen: a period that is already open,
+                // or one whose year has been locked for good. Well formed, and
+                // no change to the request would help.
+                $exception instanceof FiscalPeriodStateException,
                 $exception instanceof PaymentStateException,
                 $exception instanceof TransferStateException,
                 // A reconciliation asked for against the state the books are

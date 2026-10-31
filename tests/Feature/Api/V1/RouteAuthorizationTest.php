@@ -73,6 +73,10 @@ function nxRoutePermissions(): array
         'api.v1.journals.post' => AccessMatrix::PERMISSION_JOURNAL_POST,
         'api.v1.journals.reverse' => AccessMatrix::PERMISSION_JOURNAL_REVERSE,
         'api.v1.fiscal-years.close' => AccessMatrix::PERMISSION_FISCAL_YEAR_CLOSE,
+        // The calendar behind that close: reading which periods are shut is
+        // reading the books, and reopening one is the Owner's own right.
+        'api.v1.fiscal-periods.index' => AccessMatrix::PERMISSION_REPORT_VIEW,
+        'api.v1.fiscal-periods.reopen' => AccessMatrix::PERMISSION_FISCAL_PERIOD_REOPEN,
 
         // The chart of accounts, and the one decision made about it.
         'api.v1.accounts.index' => AccessMatrix::PERMISSION_REPORT_VIEW,

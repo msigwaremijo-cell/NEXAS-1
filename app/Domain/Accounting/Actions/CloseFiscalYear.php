@@ -82,6 +82,8 @@ final class CloseFiscalYear
             // it is dated the year's last day, and posting it is exactly what
             // the year has to accept before it is closed.
             if ($lines !== []) {
+                $this->openClosingPeriod($locked, $endsOn);
+
                 $journal = ($this->create)(new JournalEntryData(
                     companyId: $companyId,
                     postingDate: $endsOn,
@@ -144,6 +146,47 @@ final class CloseFiscalYear
                 ],
             ];
         });
+    }
+
+    /**
+     * The closing entry is dated the year's last day, so it lands in the year's
+     * final period, and a period has to be open to be posted into.
+     *
+     * On a first close that period is already open and this does nothing. On a
+     * second — the one that follows a reopen — the period that was reopened may
+     * be an earlier one, and the final period is still shut from the close
+     * before it. Writing the closing entry still has to be possible there, so
+     * the final period is opened here for the length of this transaction and
+     * shut again by the loop that follows, in the same transaction: nothing
+     * outside ever sees it open. A period that has been locked for good is left
+     * alone, and posting the closing entry then fails with the sentence that
+     * says so rather than being forced through.
+     *
+     * The year is locked before the period here, and the reopen action takes
+     * the same two rows in the same order, so a close and a reopen cannot
+     * deadlock against each other.
+     */
+    private function openClosingPeriod(FiscalYear $year, string $endsOn): void
+    {
+        $period = FiscalPeriod::query()
+            ->where('company_id', $year->company_id)
+            ->where('fiscal_year_id', $year->getKey())
+            ->where('starts_on', '<=', $endsOn)
+            ->where('ends_on', '>=', $endsOn)
+            ->orderBy('period_no')
+            ->lockForUpdate()
+            ->first();
+
+        if ($period === null || $period->status !== FiscalStatus::Closed) {
+            return;
+        }
+
+        $period->forceFill([
+            'status' => FiscalStatus::Open,
+            'closed_at' => null,
+            'closed_by_user_id' => null,
+            'row_version' => (int) $period->row_version + 1,
+        ])->save();
     }
 
     /**

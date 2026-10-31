@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\CreditNoteController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DebitNoteController;
 use App\Http\Controllers\Api\V1\ExportController;
+use App\Http\Controllers\Api\V1\FiscalPeriodController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -93,6 +94,17 @@ Route::prefix('v1')->group(function (): void {
         // what turns a set of books into a historical fact.
         Route::post('/fiscal-years/{fiscalYear}/close', [FiscalYearController::class, 'close'])
             ->name('api.v1.fiscal-years.close');
+
+        // The calendar those periods live in, and the undo of the close above.
+        // The list is what a reopen is read against — which periods are closed,
+        // and therefore which could still be reopened — so a period left open
+        // after a correction is not forgotten. The reopen itself is the Owner's
+        // alone, will not start without a reason, and reopens exactly the one
+        // period named; putting it back is the year-end close above.
+        Route::get('/fiscal-periods', [FiscalPeriodController::class, 'index'])
+            ->name('api.v1.fiscal-periods.index');
+        Route::post('/fiscal-periods/{fiscalPeriod}/reopen', [FiscalPeriodController::class, 'reopen'])
+            ->name('api.v1.fiscal-periods.reopen');
 
         // Read surface. Same middleware pair, so every report is scoped to the
         // company the caller proved membership of.
