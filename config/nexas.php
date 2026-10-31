@@ -73,4 +73,58 @@ return [
         'link_ttl_minutes' => (int) env('NEXAS_EXPORT_LINK_TTL_MINUTES', 60),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Policy
+    |--------------------------------------------------------------------------
+    |
+    | How hard it is to get in, how long an answer stays good, and what a
+    | password has to look like. Every figure is configuration rather than a
+    | constant so a deployment can tighten it without a code change — the
+    | defaults here are the floor this build ships with, not a ceiling.
+    |
+    | `login_max_attempts` counts failures per email-and-address pair rather
+    | than per address alone, so one noisy tenant cannot lock out a shared
+    | office connection, and a distributed guess against a single account is
+    | still counted where it lands.
+    |
+    */
+
+    'auth' => [
+        'login_max_attempts' => (int) env('NEXAS_LOGIN_MAX_ATTEMPTS', 5),
+        'login_decay_seconds' => (int) env('NEXAS_LOGIN_DECAY_SECONDS', 60),
+
+        // How long an issued API token stays usable. Null or zero means the
+        // token never expires on its own and lives until it is revoked; the
+        // shipped default is a working week, because a token that outlives the
+        // laptop it was minted on is a credential nobody is watching.
+        'token_lifetime_minutes' => (int) env('NEXAS_TOKEN_LIFETIME_MINUTES', 10080),
+
+        'password_min_length' => (int) env('NEXAS_PASSWORD_MIN_LENGTH', 12),
+
+        'two_factor' => [
+            // The digits a TOTP code is made of and how many 30-second steps
+            // either side of now are accepted. One step of drift forgives a
+            // slightly fast or slow clock without widening the guessing window
+            // beyond a minute.
+            'digits' => 6,
+            'period' => 30,
+            'window' => 1,
+
+            // How long the half-finished login a password alone produces stays
+            // exchangeable for a real token. Short, because it is a credential
+            // in flight and not a session.
+            'challenge_ttl_minutes' => (int) env('NEXAS_TWO_FACTOR_CHALLENGE_TTL_MINUTES', 5),
+
+            // How many code attempts a minute a caller gets, counted per
+            // member where there is one. Deliberately looser than the login
+            // limiter: a six-digit code guessed at this rate would take months
+            // to hit, while a caller fumbling the code off their own phone
+            // should not be locked out of their own account.
+            'max_attempts' => (int) env('NEXAS_TWO_FACTOR_MAX_ATTEMPTS', 10),
+
+            'recovery_code_count' => 8,
+        ],
+    ],
+
 ];

@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\TwoFactorController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\VersionController;
 use App\Http\Controllers\Api\V1\WarehouseController;
@@ -39,9 +40,20 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/version', VersionController::class)->name('api.v1.version');
 
     // Rate limited because it is the one unauthenticated write on the surface.
+    // The `login` limiter counts failures by address-and-caller pair, so a
+    // guess against one account costs something without one busy office
+    // exhausting the allowance for everyone behind a single address.
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware('throttle:20,1')
+        ->middleware('throttle:login')
         ->name('api.v1.auth.login');
+
+    // The second half of a login for an account carrying a second factor. Not
+    // authenticated — a challenge is not yet a session, and the encrypted
+    // ticket it hands back is what names the caller. Rate limited like the
+    // login above, because a six-digit code is worth guessing.
+    Route::post('/auth/two-factor/challenge', [AuthController::class, 'twoFactorChallenge'])
+        ->middleware('throttle:two-factor')
+        ->name('api.v1.auth.two-factor.challenge');
 
     // auth:sanctum identifies the member; company then pins which set of books
     // the request works in and rejects a company the member does not belong to.
@@ -49,6 +61,25 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware(['auth:sanctum', 'company'])->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
+        // Every device, not just this one: the answer to a token on a machine
+        // the member is no longer holding.
+        Route::post('/auth/logout-all', [AuthController::class, 'logoutAll'])->name('api.v1.auth.logout-all');
+
+        // The caller's own second factor. Self-service rather than a right in
+        // the matrix, and every route re-proves the password: a leaked bearer
+        // token must not be enough to take a second factor off an account.
+        Route::post('/auth/two-factor/enable', [TwoFactorController::class, 'enable'])
+            ->middleware('throttle:two-factor')
+            ->name('api.v1.auth.two-factor.enable');
+        Route::post('/auth/two-factor/confirm', [TwoFactorController::class, 'confirm'])
+            ->middleware('throttle:two-factor')
+            ->name('api.v1.auth.two-factor.confirm');
+        Route::post('/auth/two-factor/disable', [TwoFactorController::class, 'disable'])
+            ->middleware('throttle:two-factor')
+            ->name('api.v1.auth.two-factor.disable');
+        Route::post('/auth/two-factor/recovery-codes', [TwoFactorController::class, 'regenerateRecoveryCodes'])
+            ->middleware('throttle:two-factor')
+            ->name('api.v1.auth.two-factor.recovery-codes');
 
         Route::get('/journals', [JournalController::class, 'index'])->name('api.v1.journals.index');
         Route::post('/journals', [JournalController::class, 'store'])->name('api.v1.journals.store');

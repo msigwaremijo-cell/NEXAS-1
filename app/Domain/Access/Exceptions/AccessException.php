@@ -45,4 +45,35 @@ class AccessException extends AccountingException
             $role
         ));
     }
+
+    /**
+     * A confirmation was sent for an enrolment that was never started.
+     *
+     * The caller can fix this by beginning the enrolment again, so it is a 422
+     * rather than a state collision.
+     */
+    public static function twoFactorNotStarted(): self
+    {
+        return new self('Two-factor enrolment has not been started for this account, so there is nothing to confirm.');
+    }
+
+    /**
+     * The one-time code did not match, or its window had already passed.
+     */
+    public static function twoFactorCodeRefused(): self
+    {
+        return new self('That one-time code is not valid. Check the code in your authenticator app and try again.');
+    }
+
+    /**
+     * The half-finished login could not be exchanged for a token.
+     *
+     * The ticket is a credential in flight: it is encrypted, short-lived, and
+     * refused rather than explained when it is tampered with, replayed after
+     * its window, or presented for an account that is no longer active.
+     */
+    public static function twoFactorChallengeInvalid(): self
+    {
+        return new self('This sign-in challenge is no longer valid. Sign in again to receive a new one.');
+    }
 }

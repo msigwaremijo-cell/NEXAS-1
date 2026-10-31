@@ -44,4 +44,25 @@ final class AccessStateException extends AccessException
             $member->name
         ));
     }
+
+    /**
+     * An enrolment was started for an account that already carries a live
+     * second factor.
+     *
+     * Nothing about the request is wrong, so resending it changes nothing: the
+     * account has to be switched off before it can be enrolled again.
+     */
+    public static function twoFactorAlreadyEnabled(): self
+    {
+        return new self('Two-factor authentication is already switched on for this account.');
+    }
+
+    /**
+     * A recovery-code or disable request against an account with no second
+     * factor to act on.
+     */
+    public static function twoFactorNotEnabled(): self
+    {
+        return new self('Two-factor authentication is not switched on for this account.');
+    }
 }

@@ -51,6 +51,12 @@ class User extends Authenticatable
     /**
      * Get the attributes that should be cast.
      *
+     * The two-factor columns are cast as encrypted, so the secret and the
+     * recovery codes only ever exist in plaintext inside this process. They are
+     * deliberately absent from #[Fillable] above: they are written through
+     * forceFill by App\Domain\Access\TwoFactor and by nothing else, so no
+     * request payload can ever reach them by mass assignment.
+     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -60,6 +66,9 @@ class User extends Authenticatable
             'password' => 'hashed',
             'row_version' => 'integer',
             'last_login_at' => 'datetime',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
     }
 

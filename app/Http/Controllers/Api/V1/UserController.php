@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -100,11 +101,16 @@ class UserController extends Controller
             // account. Somebody who already has one — because they are a member
             // of another company — keeps it, because the Owner is adding a
             // membership here and not taking the account over.
+            //
+            // What the password has to look like is the application-wide policy
+            // registered in AppServiceProvider, not a rule written out here, so
+            // the length and variety asked for at an invitation and at any
+            // future password change are the same answer.
             'password' => [
                 Rule::requiredIf(fn (): bool => ! User::query()
                     ->where('email', $request->input('email'))
                     ->exists()),
-                'nullable', 'string', 'min:8', 'max:255',
+                'nullable', 'string', 'max:255', Password::defaults(),
             ],
             'job_title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
