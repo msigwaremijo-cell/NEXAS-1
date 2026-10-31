@@ -37,6 +37,12 @@ class ReportController extends Controller
 {
     public function generalLedger(Request $request, LedgerQuery $ledger): JsonResponse
     {
+        // Asked before the request is read, like every other route. A member
+        // without report.view is refused because of that, rather than because
+        // of the shape of a request they were never entitled to make, and no
+        // input is parsed and no account is looked up on their behalf.
+        $this->authorize('viewAny', Account::class);
+
         $filters = $request->validate([
             'account_id' => ['required', 'integer', 'min:1'],
             'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
