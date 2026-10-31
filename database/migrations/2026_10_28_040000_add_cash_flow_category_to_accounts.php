@@ -32,7 +32,7 @@ return new class extends Migration
 
         DB::statement(
             'ALTER TABLE `accounts` ADD CONSTRAINT `chk_accounts_cash_flow_category`'
-            ." CHECK (`cash_flow_category` IS NULL OR `cash_flow_category` IN"
+            .' CHECK (`cash_flow_category` IS NULL OR `cash_flow_category` IN'
             ." ('operating','investing','financing','internal_transfer'))"
         );
     }

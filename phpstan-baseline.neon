@@ -1,0 +1,2593 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Empty array passed to foreach\.$#'
+			identifier: foreach.emptyArray
+			count: 1
+			path: app/Domain/Access/TwoFactor.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 4
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Cannot call method acceptsPostings\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Parameter \#1 \$callback of static method Illuminate\\Database\\Connection\:\:transaction\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Accounting\\Enums\\FiscalStatus\:\:Closed will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Domain/Accounting/Actions/CloseFiscalYear.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Cannot call method isReplayable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Parameter \#1 \$period of method App\\Domain\\Accounting\\Services\\FiscalCalendar\:\:lockOpen\(\) expects App\\Models\\FiscalPeriod, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:Failed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:InProgress will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Accounting/Actions/PostJournal.php
+
+		-
+			message: '#^Anonymous function has an unused use \$reopenedByUserId\.$#'
+			identifier: closure.unusedUse
+			count: 1
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 5
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Cannot call method acceptsPostings\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Cannot call method canBeReopened\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Parameter \#1 \$callback of static method Illuminate\\Database\\Connection\:\:transaction\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\FiscalStatus\:\:Locked will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: App\\Domain\\Accounting\\DTOs\\JournalLineData, Closure\(App\\Models\\JournalLine\)\: App\\Domain\\Accounting\\DTOs\\JournalLineData given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalEntryData constructor expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalLineData constructor expects string\|null, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Parameter \$partyType of class App\\Domain\\Accounting\\DTOs\\JournalLineData constructor expects App\\Domain\\Accounting\\Enums\\PartyType\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\JournalType\:\:Reversal will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Accounting/Actions/ReverseJournal.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Account\:\:\$cash_flow_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Accounting/Actions/SetCashFlowCategory.php
+
+		-
+			message: '#^Instanceof between App\\Domain\\Accounting\\DTOs\\JournalLineData and App\\Domain\\Accounting\\DTOs\\JournalLineData will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Domain/Accounting/DTOs/JournalEntryData.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalPeriodNotOpenException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalPeriodNotOpenException.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalPeriodStateException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalPeriodStateException.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalYearStateException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Accounting/Exceptions/FiscalYearStateException.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Domain/Accounting/Exceptions/JournalStateException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Accounting/Exceptions/JournalStateException.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Accounting/Services/DocumentLineCalculator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Accounting/Services/FiscalCalendar.php
+
+		-
+			message: '#^Cannot call method acceptsPostings\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Accounting/Services/FiscalCalendar.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>credit" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Accounting/Services/LedgerBalanceCalculator.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>debit" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Accounting/Services/LedgerBalanceCalculator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$accumulated_depreciation_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$asset_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$disposal_account_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Cannot call method greaterThanOrEqualTo\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Cannot call method isDisposable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Domain/Assets/Actions/DisposeAsset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ends_on\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Assets/Actions/ReverseDepreciation.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Domain/Assets/Actions/ReverseDepreciation.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Actions/ReverseDisposal.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$accumulated_depreciation_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Assets/Actions/RunDepreciation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$depreciation_expense_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Assets/Actions/RunDepreciation.php
+
+		-
+			message: '#^Cannot call method greaterThanOrEqualTo\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Actions/RunDepreciation.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Assets/Actions/RunDepreciation.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Assets/Actions/RunDepreciation.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Domain/Assets/Actions/SaveAsset.php
+
+		-
+			message: '#^Cannot call method acceptsNewAssets\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Assets/Actions/SaveAsset.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Domain/Assets/Actions/SaveAsset.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 5
+			path: app/Domain/Assets/Actions/SaveAsset.php
+
+		-
+			message: '#^Parameter \#1 \$status of method App\\Domain\\Assets\\Actions\\SaveAsset\:\:rank\(\) expects App\\Domain\\Assets\\Enums\\AssetStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Assets/Actions/SaveAsset.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Domain/Assets/Actions/SaveAssetCategory.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: app/Domain/Assets/Actions/SaveAssetCategory.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Asset will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Assets/Actions/SaveAssetCategory.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Accounting\\Enums\\NormalBalance\:\:Debit will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Assets/Actions/SaveAssetCategory.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Domain/Assets/Actions/SaveAssetCategory.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 5
+			path: app/Domain/Assets/Exceptions/AssetStateException.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Exceptions/AssetStateException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 5
+			path: app/Domain/Assets/Exceptions/AssetStateException.php
+
+		-
+			message: '#^Cannot call method isDepreciable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Assets/Services/DepreciationSchedule.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Domain/Assets/Services/DepreciationSchedule.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Domain/Assets/Services/DepreciationSchedule.php
+
+		-
+			message: '#^Cannot call method greaterThan\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Backups/Actions/PruneBackups.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<string, string\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Domain/Backups/Services/MysqlClient.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Banking/Actions/AutoMatchStatementLines.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Banking/Actions/AutoMatchStatementLines.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BankStatementLine\:\:\$ignored_reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Banking/Actions/IgnoreStatementLine.php
+
+		-
+			message: '#^Property App\\Models\\BankStatementLine\:\:\$status \(string\) does not accept App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Ignored\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/IgnoreStatementLine.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Ignored will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Actions/IgnoreStatementLine.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Method App\\Domain\\Banking\\Actions\\MatchStatementLine\:\:assertNotIgnored\(\) returns void but does not have any side effects\.$#'
+			identifier: void.pure
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Property App\\Models\\BankStatementLine\:\:\$status \(string\) does not accept App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Matched\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Matched will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Ignored will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Actions/MatchStatementLine.php
+
+		-
+			message: '#^Property App\\Models\\BankAccount\:\:\$opening_balance \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/OpenBankAccount.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Cannot call method acceptsNewEntries\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Cannot call method isOpen\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Banking\\Exceptions\\PaymentStateException\:\:bankAccountNotOpen\(\) expects App\\Domain\\Banking\\Enums\\BankAccountStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$status \(string\) does not accept App\\Domain\\Purchases\\Enums\\BillStatus\:\:Paid\|App\\Domain\\Purchases\\Enums\\BillStatus\:\:PartiallyPaid\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$status \(string\) does not accept App\\Domain\\Sales\\Enums\\InvoiceStatus\:\:Paid\|App\\Domain\\Sales\\Enums\\InvoiceStatus\:\:PartiallyPaid\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Payment\:\:\$allocated_amount \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\Payment\:\:\$unapplied_amount \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/RecordPayment.php
+
+		-
+			message: '#^Property App\\Models\\BankStatementLine\:\:\$status \(string\) does not accept App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Unmatched\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Banking/Actions/ReleaseMatch.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Actions/ReleaseMatch.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Matched will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Actions/ReleaseMatch.php
+
+		-
+			message: '#^Cannot call method acceptsNewEntries\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Banking/Actions/TransferBetweenAccounts.php
+
+		-
+			message: '#^Parameter \#3 \$status of static method App\\Domain\\Banking\\Exceptions\\TransferStateException\:\:accountNotOpen\(\) expects App\\Domain\\Banking\\Enums\\BankAccountStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Banking/Actions/TransferBetweenAccounts.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between non\-empty\-list\<string\> and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Services/CsvStatementReader.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Banking/Services/ReconciliationSummary.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Banking\\Enums\\BankStatementLineStatus\:\:Ignored will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Banking/Services/ReconciliationSummary.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Banking/Services/StatementMatcher.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Banking/Services/StatementMatcher.php
+
+		-
+			message: '#^Method App\\Domain\\Banking\\Services\\StatementMatcher\:\:candidates\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\JournalLine\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Domain/Banking/Services/StatementMatcher.php
+
+		-
+			message: '#^Parameter \#1 \$left of method App\\Domain\\Banking\\Services\\StatementMatcher\:\:daysApart\(\) expects DateTimeInterface, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Banking/Services/StatementMatcher.php
+
+		-
+			message: '#^Parameter \#2 \$right of method App\\Domain\\Banking\\Services\\StatementMatcher\:\:daysApart\(\) expects DateTimeInterface, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Banking/Services/StatementMatcher.php
+
+		-
+			message: '#^Cannot call method isEditable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Files/AttachmentTargets.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Banking\\Enums\\PaymentStatus\:\:Posted will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Files/AttachmentTargets.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StockMovement\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Cannot call method isTransfer\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Cannot call method reversed\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Parameter \#1 \$journal of callable App\\Domain\\Accounting\\Actions\\ReverseJournal expects App\\Models\\Journal, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Parameter \#1 \$type of static method App\\Domain\\Inventory\\Exceptions\\StockStateException\:\:alreadyReversed\(\) expects App\\Domain\\Inventory\\Enums\\StockMovementType, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Inventory/Actions/ReverseStockMovement.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Inventory/Exceptions/StockStateException.php
+
+		-
+			message: '#^Cannot call method acceptsNewMovements\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Inventory/Services/StockMovementRecorder.php
+
+		-
+			message: '#^Call to function is_numeric\(\) with null will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Call to function is_string\(\) with null will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Method App\\Domain\\Inventory\\Services\\StockPolicy\:\:accountSetting\(\) never returns int so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Offset ''allow_negative_stock'' on array\{\}\|string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Offset ''inventory_costing'' on array\{\}\|string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Offset string on array\{\}\|string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Domain/Inventory/Services/StockPolicy.php
+
+		-
+			message: '#^Anonymous function has an unused use \$approverId\.$#'
+			identifier: closure.unusedUse
+			count: 1
+			path: app/Domain/Purchases/Actions/ApproveBill.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Purchases\\Exceptions\\BillStateException\:\:notAwaitingApproval\(\) expects App\\Domain\\Purchases\\Enums\\BillStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/ApproveBill.php
+
+		-
+			message: '#^Property App\\Domain\\Purchases\\Actions\\ApproveBill\:\:\$audit is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Domain/Purchases/Actions/ApproveBill.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Purchases\\Enums\\BillStatus\:\:PendingApproval will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Purchases/Actions/ApproveBill.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Domain/Purchases/Actions/ApproveBill.php
+
+		-
+			message: '#^Cannot call method acceptsNewDocuments\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$discount_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$subtotal \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$tax_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateBill.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$discount_rate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$expense_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tax_code_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$unit_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$keyBy of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:keyBy\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: int\)\|list\<Closure\|string\>\|string, Closure\(App\\Models\\BillLine\)\: int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$discount_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$subtotal \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$tax_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Property App\\Models\\Bill\:\:\$total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between float\|int\|numeric\-string and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Purchases\\Enums\\BillStatus\:\:Void will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Purchases/Actions/CreateDebitNote.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Cannot call method isPostable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Bill given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Purchases\\Exceptions\\BillStateException\:\:notApproved\(\) expects App\\Domain\\Purchases\\Enums\\BillStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Parameter \#3 \$lines of method App\\Domain\\Purchases\\Actions\\PostBill\:\:journalLines\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\BillLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalEntryData constructor expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostBill.php
+
+		-
+			message: '#^Cannot call method isEditable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Bill given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \#2 \$lines of method App\\Domain\\Purchases\\Actions\\PostDebitNote\:\:planReturns\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\BillLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Purchases\\Exceptions\\BillStateException\:\:notDraft\(\) expects App\\Domain\\Purchases\\Enums\\BillStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \#3 \$lines of method App\\Domain\\Purchases\\Actions\\PostDebitNote\:\:journalLines\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\BillLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalEntryData constructor expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/PostDebitNote.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Cannot call method isOpen\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$journal of callable App\\Domain\\Accounting\\Actions\\ReverseJournal expects App\\Models\\Journal, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Bill given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Purchases\\Exceptions\\BillStateException\:\:notReversible\(\) expects App\\Domain\\Purchases\\Enums\\BillStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Purchases\\Enums\\BillStatus\:\:Reversed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Purchases/Actions/ReverseDebitNote.php
+
+		-
+			message: '#^Cannot call method isEditable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Actions/SubmitBillForApproval.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Bill given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/SubmitBillForApproval.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Purchases\\Exceptions\\BillStateException\:\:notDraft\(\) expects App\\Domain\\Purchases\\Enums\\BillStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Purchases/Actions/SubmitBillForApproval.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Purchases/Exceptions/BillStateException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Reporting/Actions/SaveBudgetPlan.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Reporting/Exceptions/ForecastUnavailableException.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Reporting/Exceptions/ForecastUnavailableException.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$document_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/AgeingQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_outstanding\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/AgeingQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Revenue will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>lines" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Reporting/Services/BudgetVarianceQuery.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Account\:\:\$cash_flow_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/CashFlowQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Domain/Reporting/Services/CashFlowQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Reporting/Services/CashFlowQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 4
+			path: app/Domain/Reporting/Services/FinancialStatementQuery.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Asset will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 2
+			path: app/Domain/Reporting/Services/FinancialStatementQuery.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Liability will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Reporting/Services/FinancialStatementQuery.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Revenue will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 2
+			path: app/Domain/Reporting/Services/FinancialStatementQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 11
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType\:\:Revenue will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>lines" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Using nullsafe property access on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Reporting/Services/ForecastQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$credit\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$debit\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$journal\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$journal_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$posting_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 4
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Parameter \#1 \$array of function usort contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Parameter \#2 \$callback of function usort contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerQuery.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Domain/Reporting/Services/LedgerVerification.php
+
+		-
+			message: '#^Parameter \#1 \$cached of method App\\Domain\\Reporting\\Services\\LedgerVerification\:\:sameMoney\(\) expects string\|null, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerVerification.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between float and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Reporting/Services/LedgerVerification.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Reporting/Services/PeriodComparison.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Reporting/Services/VatReturnQuery.php
+
+		-
+			message: '#^Method App\\Domain\\Reporting\\Services\\VatReturnQuery\:\:movements\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Domain/Reporting/Services/VatReturnQuery.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Accounting\\Enums\\TaxType\:\:Vat will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Domain/Reporting/Services/VatReturnQuery.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Domain/Reporting/Services/VatReturnQuery.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$discount_rate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$revenue_account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tax_code_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$unit_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Parameter \#1 \$keyBy of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:keyBy\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: int\)\|list\<Closure\|string\>\|string, Closure\(App\\Models\\InvoiceLine\)\: int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$discount_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$subtotal \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$tax_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between float\|int\|numeric\-string and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Sales\\Enums\\InvoiceStatus\:\:Void will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Sales/Actions/CreateCreditNote.php
+
+		-
+			message: '#^Cannot call method acceptsNewDocuments\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$amount_paid \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$discount_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$subtotal \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$tax_total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Property App\\Models\\Invoice\:\:\$total \(float\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Domain/Sales/Actions/CreateInvoice.php
+
+		-
+			message: '#^Cannot call method isEditable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Invoice given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \#2 \$lines of method App\\Domain\\Sales\\Actions\\IssueCreditNote\:\:returnGoods\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\InvoiceLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Sales\\Exceptions\\InvoiceStateException\:\:notDraft\(\) expects App\\Domain\\Sales\\Enums\\InvoiceStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \#3 \$lines of method App\\Domain\\Sales\\Actions\\IssueCreditNote\:\:journalLines\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\InvoiceLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalEntryData constructor expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueCreditNote.php
+
+		-
+			message: '#^Cannot call method isEditable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \#1 \$journal of static method App\\Domain\\Accounting\\Exceptions\\ConcurrentModificationException\:\:journal\(\) expects App\\Models\\Journal, App\\Models\\Invoice given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \#2 \$lines of method App\\Domain\\Sales\\Actions\\IssueInvoice\:\:issueGoods\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\InvoiceLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \#2 \$status of static method App\\Domain\\Sales\\Exceptions\\InvoiceStateException\:\:notDraft\(\) expects App\\Domain\\Sales\\Enums\\InvoiceStatus, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \#3 \$lines of method App\\Domain\\Sales\\Actions\\IssueInvoice\:\:journalLines\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\InvoiceLine\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Parameter \$exchangeRate of class App\\Domain\\Accounting\\DTOs\\JournalEntryData constructor expects string, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Domain/Sales/Actions/IssueInvoice.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Sales/Exceptions/InvoiceStateException.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Account\:\:\$cash_flow_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/AccountController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 4
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Parameter \#1 \$account of method App\\Http\\Controllers\\Api\\V1\\AssetController\:\:presentAccount\(\) expects App\\Models\\Account\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\AssetDepreciationLine\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/AssetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/AuditLogController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Carbon\\Carbon\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/AuditLogController.php
+
+		-
+			message: '#^Instanceof between Laravel\\Sanctum\\PersonalAccessToken and Laravel\\Sanctum\\PersonalAccessToken will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/Api/V1/AuthController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>password" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/AuthController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankAccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankAccountController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/BankAccountController.php
+
+		-
+			message: '#^Parameter \#2 \$account of method App\\Domain\\Reporting\\Services\\LedgerQuery\:\:generalLedger\(\) expects App\\Models\\Account, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankAccountController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankStatementController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankStatementController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankStatementController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/BankTransferController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankTransferController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\JournalLine\)\: array\{line_no\: int\<0, max\>, account_id\: int\<0, max\>, debit\: float, credit\: float, description\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankTransferController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/BankTransferController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/BillController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/BillController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/BillController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\BillLine\)\: array\{id\: int, line_no\: int\<0, max\>, description\: string, quantity\: float, unit_price\: float, discount_amount\: float, tax_code_id\: int\<0, max\>\|null, tax_rate\: float, tax_amount\: float, line_subtotal\: float, line_total\: float, expense_account_id\: int\<0, max\>\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/BillController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/BillController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ends_on\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$period_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$starts_on\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\BudgetLine\)\: array\{account_id\: int\<0, max\>, account_ulid\: mixed, account_code\: mixed, cost_center_id\: int\<0, max\>\|null, cost_center_ulid\: mixed, amount\: numeric\-string&uppercase\-string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/BudgetController.php
+
+		-
+			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Http/Controllers/Api/V1/CompanyController.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/Api/V1/CompanyController.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and App\\Domain\\Accounting\\Enums\\AccountType will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/Api/V1/CompanyController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/CostCenterController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/CreditNoteController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/CreditNoteController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/CreditNoteController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\InvoiceLine\)\: array\{id\: int, line_no\: int\<0, max\>, description\: string, quantity\: float, unit_price\: float, discount_amount\: float, tax_code_id\: int\<0, max\>\|null, tax_rate\: float, tax_amount\: float, line_subtotal\: float, line_total\: float, revenue_account_id\: int\<0, max\>\|null, credit_note_for_line_id\: int\<0, max\>\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/CreditNoteController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/CreditNoteController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/CustomerController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/DebitNoteController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/DebitNoteController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\BillLine\)\: array\{id\: int, line_no\: int\<0, max\>, description\: string, quantity\: float, unit_price\: float, discount_amount\: float, tax_code_id\: int\<0, max\>\|null, tax_rate\: float, tax_amount\: float, line_subtotal\: float, line_total\: float, expense_account_id\: int\<0, max\>\|null, debit_note_for_line_id\: int\<0, max\>\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/DebitNoteController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/DebitNoteController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ExportController.php
+
+		-
+			message: '#^Cannot call method mimeType\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/ExportController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ExportController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type App\\Models\\User\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/ExportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Cannot call method canBeReopened\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\FiscalStatus\:\:Closed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\FiscalStatus\:\:Locked will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\FiscalStatus\:\:Open will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/FiscalPeriodController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/InvoiceController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/InvoiceController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/InvoiceController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\InvoiceLine\)\: array\{id\: int, line_no\: int\<0, max\>, description\: string, quantity\: float, unit_price\: float, discount_amount\: float, tax_code_id\: int\<0, max\>\|null, tax_rate\: float, tax_amount\: float, line_subtotal\: float, line_total\: float, revenue_account_id\: int\<0, max\>\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/InvoiceController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Api/V1/InvoiceController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/JournalController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/JournalController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/JournalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\JournalLine\)\: array\{id\: mixed, line_no\: int\<0, max\>, account_id\: int\<0, max\>, description\: string\|null, debit\: float, credit\: float\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/JournalController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/JournalController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 4
+			path: app/Http/Controllers/Api/V1/PaymentController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/PaymentController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/PaymentController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|null, Closure\(App\\Models\\PaymentAllocation\)\: array\{id\: int, document_type\: string, document_id\: int\<0, max\>, amount\: float, journal_line_id\: int\<0, max\>\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/PaymentController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/PaymentController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ProductController.php
+
+		-
+			message: '#^Parameter \#2 \$fallback of method App\\Http\\Controllers\\Api\\V1\\ProductController\:\:requestedType\(\) expects App\\Domain\\Inventory\\Enums\\ProductType, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/ProductController.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Domain\\Inventory\\Enums\\ProductType and string will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/Api/V1/ProductController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BankStatementLine\:\:\$ignored_reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Cannot call method toDateTimeString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,App\\Models\\Reconciliation\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/ReconciliationController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Http/Controllers/Api/V1/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StockMovement\:\:\$reverses_movement_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StockMovement\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sku\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Api\\V1\\StockMovementController\:\:accountRule\(\) should return array\<string, array\<int, mixed\>\> but returns array\<int, Illuminate\\Validation\\Rules\\Exists\|string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Api\\V1\\StockMovementController\:\:positiveQuantityRule\(\) should return array\<string, array\<int, mixed\>\> but returns array\<int, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Api\\V1\\StockMovementController\:\:productRule\(\) should return array\<string, array\<int, mixed\>\> but returns array\<int, Illuminate\\Validation\\Rules\\Exists\|string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Api\\V1\\StockMovementController\:\:warehouseRule\(\) should return array\<string, array\<int, mixed\>\> but returns array\<int, Illuminate\\Validation\\Rules\\Exists\|string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/StockMovementController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/SupplierController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/UserController.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/WarehouseController.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Reporting\\Enums\\ExportFormat\:\:Pdf will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Jobs/GenerateExport.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Jobs/RefreshLedgerBalances.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Account.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Asset.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 5
+			path: app/Models/Asset.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Assets\\Enums\\AssetStatus\:\:Disposed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/Asset.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Assets\\Enums\\AssetStatus\:\:Draft will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/Asset.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Assets\\Enums\\AssetStatus\:\:InService will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/Asset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/AssetCategory.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/AssetDepreciationLine.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Attachment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Backup.php
+
+		-
+			message: '#^Cannot call method isRestorable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Backup.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/BankAccount.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/BankStatementLine.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Bill.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Models/Bill.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Branch.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Budget.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Company.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/CostCenter.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Customer.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Export.php
+
+		-
+			message: '#^Cannot call method extension\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Models/Export.php
+
+		-
+			message: '#^Cannot call method isDownloadable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Export.php
+
+		-
+			message: '#^Cannot call method isPast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Export.php
+
+		-
+			message: '#^Offset ''as_of'' on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Models/Export.php
+
+		-
+			message: '#^Offset ''to'' on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Models/Export.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/FiscalPeriod.php
+
+		-
+			message: '#^Cannot call method acceptsPostings\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/FiscalPeriod.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Models/FiscalPeriod.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/FiscalYear.php
+
+		-
+			message: '#^Cannot call method acceptsPostings\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/FiscalYear.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Invoice.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Models/Invoice.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Journal.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Models/Journal.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\JournalStatus\:\:Draft will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/Journal.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Domain\\Accounting\\Enums\\JournalStatus\:\:Posted will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/Journal.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Models/JournalLine.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/OutboxEvent.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Payment.php
+
+		-
+			message: '#^Parameter \#1 \$amount of static method App\\Support\\Money\:\:of\(\) expects App\\Support\\Money\|int\|string, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Models/Payment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Product.php
+
+		-
+			message: '#^Cannot call method holdsStock\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Product.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StockMovement\:\:\$reverses_movement_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/StockMovement.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StockMovement\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/StockMovement.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/StockMovement.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Supplier.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/TaxCode.php
+
+		-
+			message: '#^Method App\\Models\\TaxCode\:\:rateOn\(\) should return App\\Models\\TaxRate\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/TaxCode.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/User.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Warehouse.php
+
+		-
+			message: '#^Call to function is_float\(\) with int\|string will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Support/Quantity.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Support/Quantity.php
+
+		-
+			message: '#^Offset 3 does not exist on array\{string, string, string\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: database/migrations/2026_10_27_020200_add_integrity_triggers.php
+
+		-
+			message: '#^Offset 3 does not exist on array\{string, string, string\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: database/migrations/2026_10_28_050100_add_stock_integrity_triggers.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: database/seeders/ChartOfAccountsSeeder.php

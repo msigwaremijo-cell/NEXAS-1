@@ -2,7 +2,6 @@
 
 use App\Domain\Access\AccessMatrix;
 use App\Domain\Inventory\Enums\InventoryCosting;
-use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Inventory\Services\StockPolicy;
 use App\Models\Company;
 use App\Models\Product;

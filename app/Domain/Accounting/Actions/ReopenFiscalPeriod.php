@@ -39,7 +39,7 @@ final class ReopenFiscalPeriod
      */
     public function __invoke(FiscalPeriod $period, string $reason, ?int $reopenedByUserId = null): array
     {
-        return DB::transaction(function () use ($period, $reason, $reopenedByUserId): array {
+        return DB::transaction(function () use ($period, $reason): array {
             // The year is locked before the period, and the year-end close takes
             // the same two rows in the same order, so a close and a reopen
             // cannot deadlock against each other.

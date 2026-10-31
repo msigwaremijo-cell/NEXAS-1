@@ -11,6 +11,7 @@ use App\Models\Reconciliation;
 use App\Support\Money;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Illuminate\Support\Collection;
 
 /**
  * Proposes which ledger entry a statement line is the same movement as.
@@ -177,10 +178,10 @@ final class StatementMatcher
      * journal_lines from the moment the draft is written, and a statement
      * cannot be reconciled against something the books have not posted.
      *
-     * @param  \Illuminate\Support\Collection<int, BankStatementLine>  $open
-     * @return \Illuminate\Support\Collection<int, JournalLine>
+     * @param  Collection<int, BankStatementLine>  $open
+     * @return Collection<int, JournalLine>
      */
-    private function candidates(int $companyId, int $ledgerAccountId, $open, int $window): \Illuminate\Support\Collection
+    private function candidates(int $companyId, int $ledgerAccountId, $open, int $window): Collection
     {
         $dates = $open->map(fn (BankStatementLine $line): string => $line->value_date->toDateString())->sort()->values();
 
@@ -196,7 +197,7 @@ final class StatementMatcher
     /**
      * Every candidate for one statement line, best first.
      *
-     * @param  \Illuminate\Support\Collection<int, JournalLine>  $candidates
+     * @param  Collection<int, JournalLine>  $candidates
      * @return list<array{journal_line_id: int, score: int, reasons: list<string>}>
      */
     private function rank(BankStatementLine $line, $candidates, int $window): array

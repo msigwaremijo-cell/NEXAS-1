@@ -79,7 +79,7 @@ final class DocumentLineCalculator
      *
      * @param  iterable<object>  $lines  priced lines exposing tax_code_id and tax_amount
      * @return array<int, array{tax_code_id: int, tax_code: string, account_id: int, amount: Money}>
-     *                                   tax code id => what that code owes and where it goes
+     *                                                                                               tax code id => what that code owes and where it goes
      */
     public function taxByCode(int $companyId, iterable $lines, bool $purchase): array
     {

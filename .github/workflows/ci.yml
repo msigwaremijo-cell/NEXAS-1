@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+# A branch that is pushed twice does not need two full runs: the newer commit
+# supersedes the older one, and cancelling keeps the queue honest.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Style and static analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, dom, fileinfo, gd, intl, mbstring, pdo_mysql, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache the Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install the dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Larastan boots the application to read its container and configuration,
+      # so it needs a key to hand even though it touches no database.
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      # A dependency with a published advisory fails the build. The books are
+      # the point of this application; a known-vulnerable package is not
+      # something to find out about after a release.
+      - name: Audit the dependencies
+        run: composer audit --no-interaction
+
+      - name: Check the formatting
+        run: vendor/bin/pint --test
+
+      - name: Analyse the code
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+  tests:
+    name: Tests on MySQL 8.4
+    runs-on: ubuntu-latest
+
+    # MySQL rather than SQLite because the schema is not portable: the audit
+    # chain, the stock checks and the reconciliation locks are enforced by
+    # triggers and CHECK constraints that only exist on the real server. A
+    # suite that ran on SQLite would prove the wrong thing.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - '3306:3306'
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: nexas_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, dom, fileinfo, gd, intl, mbstring, pdo_mysql, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache the Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install the dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      # The suite migrates into this database itself. It only has to exist,
+      # and the connection has to be one that may create the throwaway
+      # nexas_restore_* database the backup drill loads into.
+      - name: Create the test database
+        run: |
+          php -r '$pdo = new PDO("mysql:host=127.0.0.1;port=3306", "root", "root"); $pdo->exec("CREATE DATABASE IF NOT EXISTS nexas_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");'
+
+      - name: Run the tests
+        run: php artisan test

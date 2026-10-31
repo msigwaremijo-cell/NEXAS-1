@@ -2,7 +2,6 @@
 
 namespace App\Domain\Access\Actions;
 
-use App\Domain\Access\Exceptions\AccessStateException;
 use App\Domain\Accounting\Services\AuditTrail;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
