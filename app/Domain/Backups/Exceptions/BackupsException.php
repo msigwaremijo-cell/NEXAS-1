@@ -29,7 +29,7 @@ class BackupsException extends AccountingException
             'No backup key is configured (NEXAS_BACKUP_KEY), so nothing was written. '
             .'A backup carries every company\'s books and must not be written in the clear. '
             .'Generate one with: php -r "echo \'base64:\'.base64_encode(random_bytes(32));" '
-            .'— and keep a second copy of it somewhere other than this server.'
+            .'— the server holds it to encrypt each night\'s backup, and the owner keeps a second copy of it off the server.'
         );
     }
 

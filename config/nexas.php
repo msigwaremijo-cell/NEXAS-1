@@ -198,10 +198,12 @@ return [
     | a backup at all, rather than writing the books out where anyone with
     | the disk can read them.
     |
-    | A second copy of that key must be kept somewhere other than this server.
-    | A backup and its key sitting on the same disk are one failure away from
-    | being nothing at all — see docs/backups.md for where the copy lives and
-    | the drill that proves it is the right one.
+    | The server holds this key, because the server is what encrypts each
+    | night's backup. What must not be true is that the key lives only here:
+    | the owner keeps a second copy off the server. A backup and its key
+    | sitting on the same disk are one failure away from being nothing at all
+    | — see docs/backups.md for where the copy lives and the drill that proves
+    | it is the right one.
     |
     | `retention_days` is how long a nightly file stays on the disk, and
     | `keep` is a floor beneath it as well as a ceiling: pruning never takes
