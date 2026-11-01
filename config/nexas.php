@@ -106,6 +106,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Migration Imports
+    |--------------------------------------------------------------------------
+    |
+    | The spreadsheets a company brings its opening data in on: a chart of
+    | accounts, a party list, a product list, opening stock and opening
+    | balances. The disk lives outside public, exactly as a statement or an
+    | attachment does, because until a file is committed it is a draft of the
+    | books that nobody has agreed to yet.
+    |
+    | `max_kilobytes` is the ceiling one import file may reach. Larger than the
+    | statement ceiling, because a chart of accounts and a product catalogue
+    | are both longer than a year of a busy bank account as CSV.
+    |
+    */
+
+    'imports' => [
+        'disk' => env('NEXAS_IMPORT_DISK', 'imports'),
+        'max_kilobytes' => (int) env('NEXAS_IMPORT_MAX_KILOBYTES', 10240),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Policy
     |--------------------------------------------------------------------------
     |

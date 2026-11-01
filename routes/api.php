@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\FiscalPeriodController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\JournalController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -416,5 +417,20 @@ Route::prefix('v1')->group(function (): void {
         // Auditor alone — a member trusted to read the books is not
         // automatically trusted to read the trail behind them.
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('api.v1.audit-logs.index');
+
+        // Bringing a company's existing books in as a file, one dataset at a
+        // time. Two routes per dataset, because the middle step cannot be
+        // guessed: a file exported from another system names its own columns,
+        // so the upload hands back what is really in the file and the run is
+        // told what each column is. The dataset is in the path rather than the
+        // body, because which dataset is being imported is what decides which
+        // rights the caller must hold — importing opening balances posts a
+        // journal, and importing opening stock is checked against that journal.
+        // A dry run is the run route with `dry_run`, so the report an operator
+        // approves is the report the commit obeys rather than a second opinion.
+        Route::post('/imports/{dataset}/uploads', [ImportController::class, 'storeUpload'])
+            ->name('api.v1.imports.uploads.store');
+        Route::post('/imports/{dataset}/runs', [ImportController::class, 'run'])
+            ->name('api.v1.imports.runs.store');
     });
 });

@@ -116,6 +116,19 @@ function nxRoutePermissions(): array
         'api.v1.attachments.download' => AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
         'api.v1.attachments.destroy' => AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
 
+        // Migration files, brought in one dataset at a time. Which rights a
+        // dataset needs is the dataset's own answer rather than this surface's
+        // — importing a chart of accounts is maintaining the chart of accounts,
+        // importing opening balances posts a journal — so no single right is
+        // the whole of it. What is recorded here is the one right every role
+        // able to import anything holds, which is the right to keep the stock
+        // books: the four roles that hold it are exactly the four that may
+        // import at least one dataset. ImportController checks the dataset's
+        // own rights on top, and that is what keeps a Cashier, an Auditor and
+        // the Read-only role out of every one of these surfaces.
+        'api.v1.imports.uploads.store' => AccessMatrix::PERMISSION_STOCK_MANAGE,
+        'api.v1.imports.runs.store' => AccessMatrix::PERMISSION_STOCK_MANAGE,
+
         // Parties.
         'api.v1.customers.index' => AccessMatrix::PERMISSION_PARTY_VIEW,
         'api.v1.customers.store' => AccessMatrix::PERMISSION_PARTY_MANAGE,

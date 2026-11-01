@@ -19,6 +19,8 @@ use App\Domain\Banking\Exceptions\PaymentStateException;
 use App\Domain\Banking\Exceptions\ReconciliationStateException;
 use App\Domain\Banking\Exceptions\TransferStateException;
 use App\Domain\Files\Exceptions\FilesException;
+use App\Domain\Importing\Exceptions\DuplicateImportException;
+use App\Domain\Importing\Exceptions\ImportingException;
 use App\Domain\Inventory\Exceptions\InventoryException;
 use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
@@ -118,6 +120,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 // books rather than a bad request.
                 $exception instanceof ForecastUnavailableException,
 
+                // A migration file whose exact bytes have already been taken
+                // into these books for this company and dataset. The file is
+                // well formed and the mapping is right, so no change to the
+                // request would help — it is the same file, and it is imported
+                // once. Named before ImportingException below, since a repeat
+                // is also an import refusal.
+                $exception instanceof DuplicateImportException,
+
                 // A fixed-asset request that collides with the state of the
                 // register or the calendar: a period already depreciated, an
                 // asset already disposed of, a status that only moves one way,
@@ -136,6 +146,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 $exception instanceof PurchasesException,
                 $exception instanceof BankingException,
                 $exception instanceof InventoryException,
+                // A migration file the caller can fix and resend: a mapping that
+                // names a column the file does not carry or leaves a required
+                // one unmapped, an amount that will not read, a row naming an
+                // account or a SKU the books do not hold, an opening balance set
+                // that does not agree with itself or with the stock already
+                // imported.
+                $exception instanceof ImportingException,
                 // A fixed-asset request the caller can fix and resubmit: a
                 // salvage value above the cost, a category naming an account of
                 // the wrong type, a disposal that receives money without naming

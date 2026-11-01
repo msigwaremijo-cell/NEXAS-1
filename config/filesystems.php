@@ -114,6 +114,24 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Migration spreadsheets: a chart of accounts, a party list, a product
+         | list, opening stock or opening balances, exported from whatever the
+         | company used before and uploaded here. Kept off the public disk for
+         | the same reason a bank statement is: the file is the company's books
+         | in a spreadsheet, and until it is committed it may hold figures that
+         | were never meant to leave the office. The root sits under
+         | storage/app/private, which storage/app/.gitignore excludes, so an
+         | uploaded import is never committed either.
+         */
+        'imports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/imports'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
