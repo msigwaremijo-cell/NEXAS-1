@@ -56,19 +56,25 @@ month's backups unreadable.
 
 ### Where the second copy lives
 
-A backup and its key sitting on the same disk are one failure away from being
-nothing at all — a backup without its key cannot be restored. **A second copy of
-the key must be kept somewhere other than this server**, and that is a manual
-step: it cannot be automated from this repository, and it is not proven by any
-test here.
+The server holds `NEXAS_BACKUP_KEY` in its own `.env`, because the server is
+what encrypts each night's backup — a run without the key on the machine writes
+nothing at all, which is the refusal described above. That is the key doing its
+daily job, and it is meant to be there.
+
+What must not be true is that the key exists **only** there. A backup and its
+key sitting on the same disk are one failure away from being nothing at all: a
+copy of the books with no way to open them. So the owner keeps a **second copy
+off the server** — not a replacement for the server's copy, but a copy of the
+same key, held where the server cannot reach it. That is a manual step: it
+cannot be automated from this repository, and it is not proven by any test here.
 
 Record where the copy is held:
 
 | Field | Value |
 | --- | --- |
-| Second copy held by | _to be completed by the operator_ |
-| Where (e.g. password manager entry, sealed offline copy) | _to be completed by the operator_ |
-| Date recorded | _to be completed by the operator_ |
+| Second copy held by (the owner) | _to be completed by the owner_ |
+| Where (e.g. password manager entry, sealed offline copy) | _to be completed by the owner_ |
+| Date recorded | _to be completed by the owner_ |
 | Drill that proves the copy is the right one | `php artisan backups:restore` — run with the key copy, not the server's |
 
 Until that table is filled in, the second copy is **not verified**. The check

@@ -206,11 +206,14 @@ both have to exist:
 
 - `APP_KEY` encrypts cookies and anything the framework encrypts. Losing it
   logs everyone out.
-- `NEXAS_BACKUP_KEY` is the whole of the safety of every backup file. It must
-  never be generated on the server and left there, and **a copy must be kept
-  somewhere other than this machine** — see
+- `NEXAS_BACKUP_KEY` is the whole of the safety of every backup file. The
+  server holds it, because the server is what encrypts each night's backup —
+  this `.env` is where the key does that job, and a run without it writes
+  nothing. What must not happen is the key living **only** here: **the owner
+  keeps a second copy off this machine** — see
   [backups.md](backups.md#where-the-second-copy-lives). A backup without its
-  key cannot be restored, so the two travelling together defeats the point.
+  key cannot be restored, so a key kept only beside the backups is one failure
+  from being no key at all.
 
 ## First deploy
 
