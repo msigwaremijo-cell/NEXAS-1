@@ -91,12 +91,6 @@ parameters:
 			path: app/Domain/Accounting/Actions/PostJournal.php
 
 		-
-			message: '#^Anonymous function has an unused use \$reopenedByUserId\.$#'
-			identifier: closure.unusedUse
-			count: 1
-			path: app/Domain/Accounting/Actions/ReopenFiscalPeriod.php
-
-		-
 			message: '#^Cannot access property \$value on string\.$#'
 			identifier: property.nonObject
 			count: 5
