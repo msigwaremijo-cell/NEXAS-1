@@ -11,6 +11,8 @@ use App\Domain\Accounting\Exceptions\FiscalYearStateException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Exceptions\InvalidJournalException;
 use App\Domain\Accounting\Exceptions\JournalStateException;
+use App\Domain\Approvals\Exceptions\ApprovalsException;
+use App\Domain\Approvals\Exceptions\ApprovalStateException;
 use App\Domain\Assets\Exceptions\AssetsException;
 use App\Domain\Assets\Exceptions\AssetStateException;
 use App\Domain\Banking\Exceptions\BankingException;
@@ -105,6 +107,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 // since it is also an access refusal.
                 $exception instanceof AccessStateException,
 
+                // A decision that collides with the state of the queue: a
+                // request the member is deciding that they themselves raised,
+                // or one that already carries a decision. The request is well
+                // formed and no change to it would help — the second attempt
+                // will meet the same answer. Named before ApprovalsException
+                // below, since it is also an approvals refusal.
+                $exception instanceof ApprovalStateException,
+
                 // A movement asked for against the stock the books currently
                 // hold rather than against the request itself: more than is on
                 // hand while the policy forbids negatives, a movement already
@@ -142,6 +152,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 // A member change the caller can fix and resubmit: deactivating
                 // their own account, removing a role the member does not hold.
                 $exception instanceof AccessException,
+                // An approvals refusal the caller can fix and resubmit: a
+                // document that cannot be found in this company, a rejection
+                // that carries no reason, a decision that carries no
+                // idempotency key.
+                $exception instanceof ApprovalsException,
                 $exception instanceof SalesException,
                 $exception instanceof PurchasesException,
                 $exception instanceof BankingException,

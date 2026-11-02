@@ -118,7 +118,7 @@ function nxAdminJournalBody(int $debitAccountId, int $creditAccountId, string $a
 |--------------------------------------------------------------------------
 */
 
-it('grants each of the seven roles exactly the rights the matrix allows', function (string $role, array $expected) {
+it('grants each of the eight roles exactly the rights the matrix allows', function (string $role, array $expected) {
     Sanctum::actingAs(nxAdminMember($this->companyId, $role));
 
     $this->getJson('/api/v1/auth/me')
@@ -169,6 +169,11 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_ASSET_POST,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
+        // The queue, both halves: the Owner raises documents and reads what
+        // became of them. `approval.decide` is the one right the shorthand
+        // above does not hand back, so it is deliberately absent here.
+        AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        AccessMatrix::PERMISSION_APPROVAL_REQUEST,
     ]],
 
     AccessMatrix::ROLE_ACCOUNTANT => [AccessMatrix::ROLE_ACCOUNTANT, [
@@ -202,6 +207,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_ASSET_POST,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
+        // Raises the documents they keep and reads the outcome; never decides.
+        AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        AccessMatrix::PERMISSION_APPROVAL_REQUEST,
     ]],
 
     AccessMatrix::ROLE_FINANCE_OFFICER => [AccessMatrix::ROLE_FINANCE_OFFICER, [
@@ -233,6 +241,10 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_ASSET_POST,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
+        // Reads the queue and raises the bills it clears; deciding is not
+        // theirs — the decision belongs to the Financial Manager.
+        AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        AccessMatrix::PERMISSION_APPROVAL_REQUEST,
     ]],
 
     AccessMatrix::ROLE_CASHIER => [AccessMatrix::ROLE_CASHIER, [
@@ -247,6 +259,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_STOCK_VIEW,
         AccessMatrix::PERMISSION_ASSET_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+        // Takes money in, so raises a receipt for a decision — but does not
+        // read the company's whole queue.
+        AccessMatrix::PERMISSION_APPROVAL_REQUEST,
     ]],
 
     AccessMatrix::ROLE_INVENTORY_MANAGER => [AccessMatrix::ROLE_INVENTORY_MANAGER, [
@@ -271,6 +286,9 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_ASSET_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+        // The queue is evidence: an audit reads who raised what and what was
+        // decided, and never joins it.
+        AccessMatrix::PERMISSION_APPROVAL_VIEW,
     ]],
 
     AccessMatrix::ROLE_READ_ONLY => [AccessMatrix::ROLE_READ_ONLY, [
@@ -285,14 +303,41 @@ it('grants each of the seven roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_ASSET_VIEW,
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
     ]],
+
+    // The second pair of eyes: holds the one right nobody else does
+    // (`approval.decide`), reads every part of the books and the trail behind
+    // them, keeps the plan and the calendar — and writes nothing. `user.manage`
+    // and `company.manage` are absent, which is the whole of "cannot manage
+    // users or system settings".
+    AccessMatrix::ROLE_FINANCIAL_MANAGER => [AccessMatrix::ROLE_FINANCIAL_MANAGER, [
+        AccessMatrix::PERMISSION_JOURNAL_VIEW,
+        AccessMatrix::PERMISSION_REPORT_VIEW,
+        AccessMatrix::PERMISSION_PARTY_VIEW,
+        AccessMatrix::PERMISSION_INVOICE_VIEW,
+        AccessMatrix::PERMISSION_BILL_VIEW,
+        AccessMatrix::PERMISSION_PAYMENT_VIEW,
+        AccessMatrix::PERMISSION_BANK_VIEW,
+        AccessMatrix::PERMISSION_STOCK_VIEW,
+        AccessMatrix::PERMISSION_ASSET_VIEW,
+        AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
+        AccessMatrix::PERMISSION_BUDGET_VIEW,
+        AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        AccessMatrix::PERMISSION_FISCAL_YEAR_CLOSE,
+        AccessMatrix::PERMISSION_FISCAL_PERIOD_REOPEN,
+        AccessMatrix::PERMISSION_BANK_RECONCILE,
+        AccessMatrix::PERMISSION_AUDIT_VIEW,
+        AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+        AccessMatrix::PERMISSION_APPROVAL_DECIDE,
+    ]],
 ]);
 
-it('lists the seven roles and what each grants, to the Owner alone', function () {
+it('lists the eight roles and what each grants, to the Owner alone', function () {
     Sanctum::actingAs(nxAdminMember($this->companyId, AccessMatrix::ROLE_OWNER));
 
     $this->getJson('/api/v1/roles')
         ->assertOk()
-        ->assertJsonCount(7, 'data')
+        ->assertJsonCount(8, 'data')
         ->assertJsonPath('data.0.name', AccessMatrix::ROLE_OWNER)
         ->assertJsonPath('data.0.is_default', false)
         // Least privilege is the default a fresh invite starts on.

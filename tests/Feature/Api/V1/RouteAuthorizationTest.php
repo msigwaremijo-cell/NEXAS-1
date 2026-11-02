@@ -238,6 +238,18 @@ function nxRoutePermissions(): array
         'api.v1.users.activate' => AccessMatrix::PERMISSION_USER_MANAGE,
         'api.v1.roles.index' => AccessMatrix::PERMISSION_USER_MANAGE,
         'api.v1.audit-logs.index' => AccessMatrix::PERMISSION_AUDIT_VIEW,
+
+        // The approvals queue. Reading the line and raising a document into it
+        // are the two halves a member who keeps the books may hold; answering
+        // what waits there is the decision, held by the Financial Manager
+        // alone. The sign-in the portal arrives through is not in this map: it
+        // sits outside authentication, like the main login, because a login is
+        // about the caller rather than about the company's books.
+        'api.v1.approval-requests.index' => AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        'api.v1.approval-requests.store' => AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+        'api.v1.approval-requests.show' => AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        'api.v1.approval-requests.approve' => AccessMatrix::PERMISSION_APPROVAL_DECIDE,
+        'api.v1.approval-requests.reject' => AccessMatrix::PERMISSION_APPROVAL_DECIDE,
     ];
 }
 

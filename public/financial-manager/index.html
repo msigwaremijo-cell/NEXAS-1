@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-theme="system" data-accent="cyan" data-glass="on" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Nexas &middot; Financial Manager</title>
+<link rel="stylesheet" href="/financial-manager/styles.css">
+<script>
+// Applied before the first paint so the portal never flashes the wrong theme.
+(function () {
+  try {
+    var root = document.documentElement;
+    root.setAttribute('data-theme', localStorage.getItem('nexas.fm.theme') || 'system');
+    root.setAttribute('data-accent', localStorage.getItem('nexas.fm.accent') || 'cyan');
+    root.setAttribute('data-glass', localStorage.getItem('nexas.fm.glass') || 'on');
+    if (localStorage.getItem('nexas.fm.motion') === 'reduce') {
+      root.setAttribute('data-motion', 'reduce');
+    }
+  } catch (e) { /* private mode: fall back to the defaults above */ }
+})();
+</script>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true">
+  <span class="ambient__glow ambient__glow--a"></span>
+  <span class="ambient__glow ambient__glow--b"></span>
+  <span class="ambient__grid"></span>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Sign-in. The only screen a caller sees before the token exists.     -->
+<!-- ------------------------------------------------------------------ -->
+<div class="login" id="login-screen">
+  <div class="login__panel glass">
+    <div class="login__brand">
+      <span class="mark" aria-hidden="true">N</span>
+      <div>
+        <strong>Nexas</strong>
+        <small>Financial Manager</small>
+      </div>
+    </div>
+
+    <h1 class="login__title">Sign in to the approval desk</h1>
+    <p class="login__lede">
+      This window decides journals, bills, payments, notes and asset disposals,
+      keeps the fiscal calendar and reads the books. It is for Financial
+      Managers only, and the server is what enforces that.
+    </p>
+
+    <form id="login-form" novalidate>
+      <label class="field">
+        <span class="field__label">Work email</span>
+        <input id="login-email" name="email" type="email" autocomplete="username"
+               inputmode="email" spellcheck="false" placeholder="finance.manager@nexas.co.tz" required>
+        <em class="field__error" data-error="email"></em>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Password</span>
+        <span class="field__with-action">
+          <input id="login-password" name="password" type="password"
+                 autocomplete="current-password" placeholder="Your password" required>
+          <button type="button" class="ghost-icon" id="login-reveal" aria-label="Show password">Show</button>
+        </span>
+        <em class="field__error" data-error="password"></em>
+      </label>
+
+      <em class="field__error" data-error="login" hidden></em>
+
+      <button class="btn btn--primary btn--block" type="submit" id="login-submit">
+        <span class="btn__label">Sign in</span>
+        <span class="spinner" hidden></span>
+      </button>
+    </form>
+
+    <p class="login__note">
+      Fifteen minutes of inactivity signs this window out on its own, and the
+      token it was holding is revoked.
+    </p>
+  </div>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- The portal.                                                         -->
+<!-- ------------------------------------------------------------------ -->
+<div class="app" id="app-screen" hidden>
+
+  <div class="scrim" id="scrim" hidden></div>
+
+  <aside class="sidebar glass" id="sidebar" aria-label="Sections">
+    <div class="sidebar__brand">
+      <span class="mark" aria-hidden="true">N</span>
+      <div>
+        <strong>Nexas</strong>
+        <small>Financial Manager</small>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav__item" data-screen="dashboard">
+        <span class="nav__glyph" aria-hidden="true">&#9635;</span> Dashboard
+      </button>
+      <button class="nav__item" data-screen="approvals">
+        <span class="nav__glyph" aria-hidden="true">&#10003;</span> Approvals
+        <span class="pill" id="nav-approvals-count" hidden>0</span>
+      </button>
+      <button class="nav__item" data-screen="forecast">
+        <span class="nav__glyph" aria-hidden="true">&#8599;</span> Forecast
+      </button>
+      <button class="nav__item" data-screen="budgets">
+        <span class="nav__glyph" aria-hidden="true">&#9776;</span> Budgets
+      </button>
+      <button class="nav__item" data-screen="reports">
+        <span class="nav__glyph" aria-hidden="true">&#9636;</span> Reports
+      </button>
+      <button class="nav__item" data-screen="periods">
+        <span class="nav__glyph" aria-hidden="true">&#9719;</span> Period close
+      </button>
+      <button class="nav__item" data-screen="audit">
+        <span class="nav__glyph" aria-hidden="true">&#9998;</span> Audit log
+      </button>
+    </nav>
+
+    <div class="sidebar__foot">
+      <div class="who">
+        <span class="who__avatar" id="who-avatar" aria-hidden="true">FM</span>
+        <div class="who__text">
+          <strong id="who-name">&mdash;</strong>
+          <small id="who-role">&mdash;</small>
+        </div>
+      </div>
+      <p class="idle" id="idle-note">Signing out when idle</p>
+      <button class="btn btn--quiet btn--block" id="signout">Sign out</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar glass">
+      <button class="ghost-icon topbar__menu" id="menu" aria-label="Open the section list"
+              aria-expanded="false" aria-controls="sidebar">&#9776;</button>
+
+      <div class="topbar__title">
+        <h2 id="screen-title">Dashboard</h2>
+        <p id="screen-sub">Where the books stand right now</p>
+      </div>
+
+      <div class="topbar__tools">
+        <div class="seg" role="group" aria-label="Colour mode">
+          <button class="seg__btn" data-theme-set="light" title="Light">Light</button>
+          <button class="seg__btn" data-theme-set="dark" title="Dark">Dark</button>
+          <button class="seg__btn" data-theme-set="system" title="Follow this device">System</button>
+        </div>
+
+        <div class="accents" role="group" aria-label="Accent colour">
+          <button class="accent" data-accent-set="cyan" title="Electric cyan" style="--dot:#06b6d4"></button>
+          <button class="accent" data-accent-set="violet" title="Violet" style="--dot:#7c3aed"></button>
+          <button class="accent" data-accent-set="emerald" title="Emerald" style="--dot:#059669"></button>
+          <button class="accent" data-accent-set="amber" title="Amber" style="--dot:#d97706"></button>
+        </div>
+
+        <button class="ghost-icon" data-glass-toggle title="Glass surfaces">Glass</button>
+      </div>
+    </header>
+
+    <main class="view" id="view" tabindex="-1"></main>
+
+    <footer class="footbar">
+      <span id="foot-status">Ready</span>
+      <span id="foot-company"></span>
+    </footer>
+  </div>
+</div>
+
+<!-- Reusable dialog: reject reasons, reopen reasons, year close, exports. -->
+<div class="modal" id="modal" hidden>
+  <div class="modal__card glass" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title">Confirm</h3>
+    <div class="modal__body" id="modal-body"></div>
+    <div class="modal__foot">
+      <button class="btn btn--quiet" id="modal-cancel">Cancel</button>
+      <button class="btn btn--primary" id="modal-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script src="/financial-manager/app.js"></script>
+</body>
+</html>

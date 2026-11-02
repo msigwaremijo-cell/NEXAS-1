@@ -225,9 +225,14 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_ASSET_POST,
                 AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
                 AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
-                // Deliberately not granted: PERMISSION_FISCAL_YEAR_CLOSE and
-                // PERMISSION_BILL_APPROVE. Closing a year is the Owner's alone,
-                // and approval is withheld from the role that enters bills.
+                AccessMatrix::PERMISSION_APPROVAL_VIEW,
+                AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+                // Deliberately not granted: PERMISSION_FISCAL_YEAR_CLOSE,
+                // PERMISSION_FISCAL_PERIOD_REOPEN, PERMISSION_BILL_APPROVE and
+                // PERMISSION_APPROVAL_DECIDE. Closing a year is the Financial
+                // Manager's and the Owner's, approval is withheld from the role
+                // that enters bills, and deciding the queue is the Financial
+                // Manager's alone.
             ])->sort()->values()->all()
         );
 });

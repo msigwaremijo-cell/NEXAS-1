@@ -169,17 +169,20 @@ it('stores tax rates as dated rows and resolves them by document date', function
         ->and($withholding->tax_type->isDeducted())->toBeTrue();
 });
 
-it('seeds a demo operator attached to the demo company', function () {
+it('seeds a demo operator and a financial manager attached to the demo company', function () {
     $company = DB::table('companies')->sole();
-    $user = DB::table('users')->sole();
+    $admin = DB::table('users')->where('email', 'admin@nexas.co.tz')->sole();
+    $manager = DB::table('users')->where('email', 'finance.manager@nexas.co.tz')->sole();
 
-    expect($user->email)->toBe('admin@nexas.co.tz')
-        ->and($user->status)->toBe('active')
-        ->and($user->ulid)->not->toBeNull()
-        ->and(DB::table('company_user')->where('company_id', $company->id)->where('user_id', $user->id)->where('is_default', true)->exists())->toBeTrue();
+    expect($admin->status)->toBe('active')
+        ->and($admin->ulid)->not->toBeNull()
+        ->and($manager->status)->toBe('active')
+        ->and($manager->ulid)->not->toBeNull()
+        ->and(DB::table('company_user')->where('company_id', $company->id)->where('user_id', $admin->id)->where('is_default', true)->exists())->toBeTrue()
+        ->and(DB::table('company_user')->where('company_id', $company->id)->where('user_id', $manager->id)->where('is_default', true)->exists())->toBeTrue();
 });
 
-it('is idempotent: seeding twice leaves one of every row', function () {
+it('is idempotent: seeding twice leaves one of every master row', function () {
     $this->seed();
 
     expect(DB::table('companies')->count())->toBe(1)
@@ -189,6 +192,6 @@ it('is idempotent: seeding twice leaves one of every row', function () {
         ->and(DB::table('document_sequences')->count())->toBe(5)
         ->and(DB::table('tax_codes')->count())->toBe(4)
         ->and(DB::table('tax_rates')->count())->toBe(4)
-        ->and(DB::table('users')->count())->toBe(1)
-        ->and(DB::table('company_user')->count())->toBe(1);
+        ->and(DB::table('users')->count())->toBe(2)
+        ->and(DB::table('company_user')->count())->toBe(2);
 });

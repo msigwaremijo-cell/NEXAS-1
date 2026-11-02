@@ -12,6 +12,10 @@ namespace App\Domain\Access;
  *
  * Owner is the only role that may manage other members, and Auditor may read
  * but never write: an audit that can post its own journals is not an audit.
+ *
+ * The Financial Manager is the only role that may decide an approval, and the
+ * Owner — who otherwise holds every right — is deliberately not among them, so
+ * the decision is always a second pair of hands.
  */
 final class AccessMatrix
 {
@@ -118,9 +122,9 @@ final class AccessMatrix
      *
      * The undo of the close above, and the more dangerous half of it: a reopen
      * puts a period that has already been reported back into the books. It is
-     * granted to the Owner alone, like the close it reverses, and every reopen
-     * has to name a reason, so the trail says why a reported period was opened
-     * again rather than merely that it was.
+     * granted to the Owner and the Financial Manager, like the close it
+     * reverses, and every reopen has to name a reason, so the trail says why a
+     * reported period was opened again rather than merely that it was.
      *
      * A separate key from `fiscal_year.close` on purpose, even though the same
      * person holds both today: the two are granted independently, so handing
@@ -222,6 +226,43 @@ final class AccessMatrix
      */
     public const PERMISSION_ATTACHMENT_MANAGE = 'attachment.manage';
 
+    /**
+     * Reading the approvals queue: which documents are waiting on a decision,
+     * who raised them and what became of the ones already decided.
+     *
+     * Its own right rather than part of the `.view` right of whichever document
+     * a request happens to name, because the queue is one shelf: a journal, a
+     * bill, a payment, a credit or debit note and an asset disposal all wait in
+     * the same line, and the person who watches that line is decided once
+     * rather than once per document type.
+     */
+    public const PERMISSION_APPROVAL_VIEW = 'approval.view';
+
+    /**
+     * Raising a document for a decision: putting it in the queue.
+     *
+     * This is not a posting and not an approval. It is the member who keeps the
+     * books saying "this one is ready for the second pair of eyes", which is
+     * why it is held by the roles that write the documents rather than by the
+     * role that decides them. Raising a request that the raiser then approves
+     * is refused by the no-self-approval rule, not by this right.
+     */
+    public const PERMISSION_APPROVAL_REQUEST = 'approval.request';
+
+    /**
+     * Deciding an approval: accepting or rejecting what is in the queue.
+     *
+     * The one right the Financial Manager holds that nobody else does. It is
+     * deliberately withheld from the Owner, who already holds every other
+     * right: an approval that the person holding every other grant can give
+     * themselves is not a control, and the point of the queue is that the
+     * decision is made by a second pair of hands. It is withheld from the
+     * Accountant for the same reason a supplier bill's approval is: the
+     * accountant is the person who enters the documents, so they are the
+     * person most able to enter a fictitious one.
+     */
+    public const PERMISSION_APPROVAL_DECIDE = 'approval.decide';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -251,6 +292,26 @@ final class AccessMatrix
      * but must not be trusted with the trail of who changed what.
      */
     public const ROLE_READ_ONLY = 'Read-only';
+
+    /**
+     * The second pair of eyes on the financial books: the member who decides
+     * the approvals queue, closes and reopens the calendar, signs off bank
+     * reconciliations, keeps the plan and reads every report and the audit
+     * trail.
+     *
+     * The role exists so that the decision on a document is made by somebody
+     * other than the member who entered it — which is why it holds the one
+     * right the Owner does not (`approval.decide`) and none of the writer's
+     * rights: it never posts a journal, records a payment or moves stock. It
+     * cannot administer the company's members (`user.manage`) or change the
+     * policy the books are kept under (`company.manage`), which is the whole of
+     * "cannot manage users or system settings".
+     *
+     * It is a separate portal as well as a separate grant, because a role that
+     * signs off every number in the books should arrive at a screen built to do
+     * nothing else.
+     */
+    public const ROLE_FINANCIAL_MANAGER = 'Financial Manager';
 
     /**
      * Every permission the application knows about.
@@ -295,6 +356,9 @@ final class AccessMatrix
             self::PERMISSION_ASSET_POST,
             self::PERMISSION_ATTACHMENT_VIEW,
             self::PERMISSION_ATTACHMENT_MANAGE,
+            self::PERMISSION_APPROVAL_VIEW,
+            self::PERMISSION_APPROVAL_REQUEST,
+            self::PERMISSION_APPROVAL_DECIDE,
         ];
     }
 
@@ -306,7 +370,18 @@ final class AccessMatrix
     public static function grants(): array
     {
         return [
-            self::ROLE_OWNER => self::permissions(),
+            // The Owner holds every right the matrix knows, with one deliberate
+            // exception: `approval.decide`. The Owner's grant is shorthand for
+            // "everything", and an approval right that the shorthand hands back
+            // is an approval the person who already holds every other right can
+            // give themselves — which is exactly the second signature the queue
+            // exists to prevent. The decision is therefore excluded here rather
+            // than added to every other role, so a new right arrives at the
+            // Owner automatically and this one has to be argued for.
+            self::ROLE_OWNER => array_values(array_diff(
+                self::permissions(),
+                [self::PERMISSION_APPROVAL_DECIDE],
+            )),
 
             self::ROLE_ACCOUNTANT => [
                 self::PERMISSION_JOURNAL_VIEW,
@@ -373,15 +448,25 @@ final class AccessMatrix
                 // rather than with any one posting right.
                 self::PERMISSION_ATTACHMENT_VIEW,
                 self::PERMISSION_ATTACHMENT_MANAGE,
+                // The approvals queue, both halves the accountant may hold. They
+                // raise the documents that wait in it and read what became of
+                // them, because a member who entered a journal needs to know
+                // whether it has been accepted. What they do not hold is
+                // `approval.decide`: approving their own entry is the second
+                // signature the queue exists to prevent, and it is refused to
+                // them at the queue rather than left to their discretion.
+                self::PERMISSION_APPROVAL_VIEW,
+                self::PERMISSION_APPROVAL_REQUEST,
                 // Deliberately absent: PERMISSION_FISCAL_YEAR_CLOSE. Closing
                 // the year turns a set of books into a historical fact and is
-                // reversible only by reopening it, so it is kept for the Owner
-                // alone. An accountant may post any number of ordinary journals
-                // without being the person who declares the year finished.
+                // reversible only by reopening it, so it is kept for the
+                // Financial Manager and the Owner rather than for the member
+                // who posts the journals. An accountant may post any number of
+                // ordinary journals without being the person who declares the
+                // year finished.
                 // PERMISSION_FISCAL_PERIOD_REOPEN is absent for the same
-                // reason: reopening a reported period is the Owner undoing the
-                // Owner's own act, not a correction an accountant makes by
-                // posting another journal.
+                // reason: reopening a reported period is undoing the close, not
+                // a correction an accountant makes by posting another journal.
             ],
 
             // The second pair of hands on a supplier bill. They may read a bill,
@@ -433,6 +518,13 @@ final class AccessMatrix
                 // account of the entry, and filing one touches nothing.
                 self::PERMISSION_ATTACHMENT_VIEW,
                 self::PERMISSION_ATTACHMENT_MANAGE,
+                // The queue they already work in: as the second pair of hands
+                // on a supplier bill they read what is waiting and raise the
+                // documents they keep for a decision. Deciding is absent — the
+                // decision belongs to the Financial Manager, and this role's
+                // own bill rights stop at its own bills.
+                self::PERMISSION_APPROVAL_VIEW,
+                self::PERMISSION_APPROVAL_REQUEST,
             ],
 
             // A cashier takes money over a counter: they must be able to look a
@@ -461,6 +553,11 @@ final class AccessMatrix
                 // them is part of reading the books; filing one is not, so the
                 // manage right is absent.
                 self::PERMISSION_ATTACHMENT_VIEW,
+                // A cashier takes money in, so a receipt is theirs to raise for
+                // a decision. Reading the queue is not: they raise one and are
+                // told its outcome, rather than reading every document in the
+                // company's line.
+                self::PERMISSION_APPROVAL_REQUEST,
             ],
 
             // Keeps the stock books rather than the financial ones: receives,
@@ -508,6 +605,10 @@ final class AccessMatrix
                 // them is exactly what an audit is for; filing or withdrawing
                 // one is not, and is absent.
                 self::PERMISSION_ATTACHMENT_VIEW,
+                // The queue is evidence: who raised what, who decided it and
+                // what reason was given. An audit reads it and never joins it —
+                // no raising and no deciding.
+                self::PERMISSION_APPROVAL_VIEW,
             ],
 
             // Sees everything the books report and nothing more: the `.view`
@@ -529,6 +630,60 @@ final class AccessMatrix
                 // beside them, so they are read here too. Filing one is a write
                 // and is absent.
                 self::PERMISSION_ATTACHMENT_VIEW,
+            ],
+
+            // The second pair of eyes on every number in the books, and the
+            // only role that may decide an approval.
+            //
+            // Read every part of the ledger and its documents, so the decision
+            // is made with the whole picture in view rather than from a summary
+            // of it. Write nothing to the ledger: the journal, payment, stock
+            // and asset rights here stop at reading, which is what keeps the
+            // approver out of the entries they approve.
+            self::ROLE_FINANCIAL_MANAGER => [
+                self::PERMISSION_JOURNAL_VIEW,
+                self::PERMISSION_REPORT_VIEW,
+                self::PERMISSION_PARTY_VIEW,
+                self::PERMISSION_INVOICE_VIEW,
+                self::PERMISSION_BILL_VIEW,
+                self::PERMISSION_PAYMENT_VIEW,
+                self::PERMISSION_BANK_VIEW,
+                self::PERMISSION_STOCK_VIEW,
+                self::PERMISSION_ASSET_VIEW,
+                self::PERMISSION_ATTACHMENT_VIEW,
+                // The plan, both halves: "sets budgets and runs forecasts" is
+                // writing the plan and reading the projection built from it.
+                // Neither reaches the ledger, so neither is a posting right the
+                // role has to be talked out of.
+                self::PERMISSION_BUDGET_VIEW,
+                self::PERMISSION_BUDGET_MANAGE,
+                // The calendar. Closing declares the year finished and reopening
+                // puts a reported period back into the books; both carry a
+                // mandatory reason, and both sit here because the member who
+                // signs off the year is the member who says when it ended.
+                self::PERMISSION_FISCAL_YEAR_CLOSE,
+                self::PERMISSION_FISCAL_PERIOD_REOPEN,
+                // Signing off a bank reconciliation. The books have already been
+                // matched by whoever keeps the cashbook — what is decided here
+                // is that the bank's file and the books agree — so it is the
+                // reconcile right rather than the manage right beside it.
+                self::PERMISSION_BANK_RECONCILE,
+                // The evidence behind every other number, so the approver can
+                // see who changed what as well as what it says now.
+                self::PERMISSION_AUDIT_VIEW,
+                // The queue itself. `approval.decide` is held by this role and
+                // by no other; `approval.request` is here so the role can put a
+                // document in front of a colleague, which is also what makes the
+                // no-self-approval rule visible rather than theoretical.
+                self::PERMISSION_APPROVAL_VIEW,
+                self::PERMISSION_APPROVAL_REQUEST,
+                self::PERMISSION_APPROVAL_DECIDE,
+                // Deliberately absent, and the whole of "cannot manage users or
+                // system settings": PERMISSION_USER_MANAGE and
+                // PERMISSION_COMPANY_MANAGE. Also absent are every right that
+                // writes to the ledger — create, post, reverse, record, issue,
+                // dispose — so an approver cannot be the author of what they
+                // approve even by accident.
             ],
         ];
     }

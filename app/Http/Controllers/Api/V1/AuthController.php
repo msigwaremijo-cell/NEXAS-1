@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Access\AccessMatrix;
 use App\Domain\Access\Exceptions\AccessException;
 use App\Domain\Access\TwoFactor;
 use App\Http\Controllers\Controller;
@@ -118,6 +119,80 @@ class AuthController extends Controller
         if (! $accepted) {
             throw ValidationException::withMessages([
                 'code' => [AccessException::twoFactorCodeRefused()->getMessage()],
+            ]);
+        }
+
+        return $this->issueToken($user, $companyId, $data['device_name'] ?? null, $twoFactor);
+    }
+
+    /**
+     * Sign-in for the Financial Manager portal.
+     *
+     * The same password check as the login above, with one more gate before a
+     * token is minted: the account must carry the Financial Manager role in
+     * the company it is signing into. The gate lives here rather than in the
+     * portal because a portal is a window, not a lock — what the browser draws
+     * cannot be the thing that decides who may sign in, so the role is read
+     * from the database and a member without it is refused a token.
+     *
+     * Roles are per company, so the team is settled before the role is read at
+     * all: without it Spatie would look for the role under a null team and
+     * find nothing, refusing every member including the one this portal is for.
+     */
+    public function financialManagerLogin(Request $request, TwoFactor $twoFactor): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
+            'device_name' => ['sometimes', 'string', 'max:255'],
+            'company_id' => ['sometimes', 'integer'],
+        ]);
+
+        $user = User::query()->where('email', $data['email'])->first();
+
+        // Hash::check is still called when the user is missing, so a wrong
+        // address and a wrong password take the same time to answer and the
+        // endpoint does not become a way to enumerate accounts.
+        if (! Hash::check($data['password'], $user?->password ?? '')) {
+            throw ValidationException::withMessages([
+                'email' => [__('auth.failed')],
+            ]);
+        }
+
+        if ($user->status !== 'active') {
+            throw ValidationException::withMessages([
+                'email' => ['This account is not active.'],
+            ]);
+        }
+
+        $companyId = $data['company_id'] ?? $user->defaultCompanyId();
+
+        if ($companyId === null || ! $user->belongsToCompany($companyId)) {
+            throw ValidationException::withMessages([
+                'company_id' => ['You do not have access to this company.'],
+            ]);
+        }
+
+        setPermissionsTeamId($companyId);
+
+        // Refused as a validation error rather than a bare 403, so the sign-in
+        // form shows it beside the field like every other reason a login was
+        // turned away, and the member is not left guessing which of the two it
+        // was.
+        if (! $user->hasRole(AccessMatrix::ROLE_FINANCIAL_MANAGER)) {
+            throw ValidationException::withMessages([
+                'email' => ['This portal is for Financial Managers only.'],
+            ]);
+        }
+
+        // An account carrying a second factor is still not signed in by its
+        // password alone — the role gate above has been passed, so the
+        // challenge is only ever handed to a Financial Manager.
+        if ($twoFactor->enabledFor($user)) {
+            return response()->json([
+                'two_factor' => true,
+                'challenge_token' => $twoFactor->issueChallenge($user, $companyId),
+                'expires_in' => $twoFactor->challengeTtlMinutes() * 60,
             ]);
         }
 

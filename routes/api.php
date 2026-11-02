@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\ApprovalRequestController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AttachmentController;
 use App\Http\Controllers\Api\V1\AuditLogController;
@@ -57,6 +58,14 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/two-factor/challenge', [AuthController::class, 'twoFactorChallenge'])
         ->middleware('throttle:two-factor')
         ->name('api.v1.auth.two-factor.challenge');
+
+    // The separate sign-in the Financial Manager portal arrives through. The
+    // same credentials as the login above, with one more gate: the account has
+    // to carry the Financial Manager role in the company it names. Rate limited
+    // like the login, because it is the same password being tried.
+    Route::post('/auth/financial-manager/login', [AuthController::class, 'financialManagerLogin'])
+        ->middleware('throttle:login')
+        ->name('api.v1.auth.financial-manager.login');
 
     // auth:sanctum identifies the member; company then pins which set of books
     // the request works in and rejects a company the member does not belong to.
@@ -417,6 +426,25 @@ Route::prefix('v1')->group(function (): void {
         // Auditor alone — a member trusted to read the books is not
         // automatically trusted to read the trail behind them.
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('api.v1.audit-logs.index');
+
+        // The approvals queue: one line on which a journal, a supplier bill, a
+        // payment, a credit or debit note and an asset disposal all wait for a
+        // decision. Raising a document puts it in the line and reading the line
+        // are separate rights from answering it, which is what lets the matrix
+        // withhold the decision from the member who raised the document. The
+        // decision itself is final — there is no update and no delete — and
+        // each one carries an idempotency key and writes a link into the audit
+        // chain beside it.
+        Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])
+            ->name('api.v1.approval-requests.index');
+        Route::post('/approval-requests', [ApprovalRequestController::class, 'store'])
+            ->name('api.v1.approval-requests.store');
+        Route::get('/approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])
+            ->name('api.v1.approval-requests.show');
+        Route::post('/approval-requests/{approvalRequest}/approve', [ApprovalRequestController::class, 'approve'])
+            ->name('api.v1.approval-requests.approve');
+        Route::post('/approval-requests/{approvalRequest}/reject', [ApprovalRequestController::class, 'reject'])
+            ->name('api.v1.approval-requests.reject');
 
         // Bringing a company's existing books in as a file, one dataset at a
         // time. Two routes per dataset, because the middle step cannot be
