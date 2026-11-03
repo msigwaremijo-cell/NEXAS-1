@@ -246,4 +246,30 @@ return [
         'mysql' => env('NEXAS_MYSQL_BINARY', 'mysql'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Approvals
+    |--------------------------------------------------------------------------
+    |
+    | The two ceilings the approvals queue works under, both configuration
+    | rather than constants so a deployment can set them without a code change.
+    |
+    | `normal_threshold` is the value above which a document is flagged for a
+    | second look. It is a warning and not a gate: the Financial Manager still
+    | decides an amount beyond it, because a ceiling the queue cannot cross
+    | would only move the decision somewhere it is not recorded.
+    |
+    | `bulk_limit` is the most value one bulk approval may carry in total, and
+    | `bulk_max_items` the most documents it may name. Both are enforced on the
+    | server against the documents themselves, so a caller cannot raise either
+    | by changing what the screen sends.
+    |
+    */
+
+    'approvals' => [
+        'normal_threshold' => (float) env('NEXAS_APPROVAL_THRESHOLD', 10000000),
+        'bulk_limit' => (float) env('NEXAS_APPROVAL_BULK_LIMIT', 50000000),
+        'bulk_max_items' => (int) env('NEXAS_APPROVAL_BULK_MAX_ITEMS', 50),
+    ],
+
 ];

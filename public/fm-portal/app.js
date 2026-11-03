@@ -1329,113 +1329,706 @@
 
   /* --------------------------------------------------- screen: approvals */
 
-  const approvalFilters = { status: 'pending', document_type: '', page: 1 };
+  // What the screen is looking at, in one object rather than scattered
+  // globals: a saved view is a snapshot of it, and restoring a view is
+  // replacing it.
+  const EMPTY_APPROVAL_FILTERS = () => ({
+    document_type: '', preparer_id: '', amount_min: '', amount_max: '',
+    date_from: '', date_to: '', age_min: '', search: ''
+  });
+
+  const approvalState = {
+    tab: 'pending',
+    filters: EMPTY_APPROVAL_FILTERS(),
+    sort: 'age',
+    direction: 'asc',
+    page: 1,
+    view: 'pending',
+    selected: null,   // the ULID of the row open beside the line
+    detail: null,     // the detail payload for `selected`
+    checked: {},      // ULID -> true, the rows gathered for a bulk approval
+    rows: [],         // the page as it was read, so a batch can be valued
+    meta: null,       // the last answer's meta, so a redraw costs no round trip
+    config: { normal_threshold: null, bulk_limit: null, bulk_max_items: null }
+  };
+
+  // The views the portal ships with. A view is a starting point rather than a
+  // mode: the filters under it stay editable, and "Save view" keeps one of the
+  // reader's own beside them.
+  const APPROVAL_VIEWS = [
+    { key: 'pending', label: 'Waiting for a decision', tab: 'pending', sort: 'age', direction: 'asc', filters: {} },
+    { key: 'stale', label: 'Waiting over a week', tab: 'pending', sort: 'age', direction: 'asc', filters: { age_min: '7' } },
+    { key: 'journals', label: 'Journals only', tab: 'pending', sort: 'age', direction: 'asc', filters: { document_type: 'journal' } },
+    { key: 'approved', label: 'Approved', tab: 'approved', sort: 'age', direction: 'desc', filters: {} },
+    { key: 'rejected', label: 'Rejected', tab: 'rejected', sort: 'age', direction: 'desc', filters: {} }
+  ];
+
+  const APPROVAL_VIEWS_KEY = 'nexas.fm.approval.views';
+
+  function savedApprovalViews() {
+    try {
+      const raw = localStorage.getItem(APPROVAL_VIEWS_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+  }
+
+  function writeApprovalViews(list) {
+    try { localStorage.setItem(APPROVAL_VIEWS_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+  }
+
+  function allApprovalViews() {
+    return APPROVAL_VIEWS.concat(savedApprovalViews().map(v => Object.assign({ saved: true }, v)));
+  }
+
+  function applyApprovalView(key) {
+    const view = allApprovalViews().find(v => v.key === key);
+    if (!view) return;
+    approvalState.tab = view.tab || 'pending';
+    approvalState.sort = view.sort || 'age';
+    approvalState.direction = view.direction || 'asc';
+    approvalState.filters = Object.assign(EMPTY_APPROVAL_FILTERS(), view.filters || {});
+    approvalState.page = 1;
+    approvalState.view = key;
+    approvalState.selected = null;
+    approvalState.detail = null;
+    approvalState.checked = {};
+  }
+
+  /**
+   * The query the line is read with. Every filter is answered by the server, so
+   * the page on screen is a page of the set the reader asked for.
+   */
+  function approvalQuery() {
+    const q = new URLSearchParams();
+    if (approvalState.tab !== 'all') q.set('status', approvalState.tab);
+
+    const f = approvalState.filters;
+
+    if (f.document_type) q.set('document_type', f.document_type);
+    if (f.preparer_id) q.set('preparer_id', f.preparer_id);
+    if (f.amount_min) q.set('amount_min', f.amount_min);
+    if (f.amount_max) q.set('amount_max', f.amount_max);
+    if (f.date_from) q.set('date_from', f.date_from);
+    if (f.date_to) q.set('date_to', f.date_to);
+    if (f.age_min) q.set('age_min', f.age_min);
+    if (f.search) q.set('search', f.search);
+
+    q.set('sort', approvalState.sort);
+    q.set('direction', approvalState.direction);
+    q.set('page', String(approvalState.page));
+    q.set('per_page', '20');
+
+    return q;
+  }
+
+  const approvalWarningTone = level =>
+    ({ bad: 'critical', warn: 'warning', info: 'info' }[level] || 'info');
 
   async function drawApprovals(container) {
     setStatus('Reading the queue');
-    await load(container, async () => {
-      const query = new URLSearchParams();
-      if (approvalFilters.status) query.set('status', approvalFilters.status);
-      if (approvalFilters.document_type) query.set('document_type', approvalFilters.document_type);
-      query.set('page', String(approvalFilters.page));
-      query.set('per_page', '15');
 
-      const payload = await api('/approval-requests?' + query.toString());
+    await load(container, async () => {
+      const payload = await api('/approval-requests?' + approvalQuery().toString());
       const rows = (payload && payload.data) || [];
       const meta = (payload && payload.meta) || {};
 
-      const toolbar = `
-        <div class="toolbar">
-          <label class="field"><span class="field__label">Status</span>
-            <select data-act="approval-filter" data-name="status">
-              ${['pending', 'approved', 'rejected', ''].map(v =>
-                `<option value="${v}"${approvalFilters.status === v ? ' selected' : ''}>${v === '' ? 'Every decision' : v.charAt(0).toUpperCase() + v.slice(1)}</option>`
-              ).join('')}
-            </select></label>
-          <label class="field"><span class="field__label">Document</span>
-            <select data-act="approval-filter" data-name="document_type">
-              ${[['', 'Every kind'], ['journal', 'Journal'], ['bill', 'Supplier bill'], ['payment', 'Payment'],
-                 ['credit_note', 'Credit note'], ['debit_note', 'Debit note'], ['asset_disposal', 'Asset disposal']]
-                .map(([v, label]) => `<option value="${v}"${approvalFilters.document_type === v ? ' selected' : ''}>${label}</option>`).join('')}
-            </select></label>
-          <span class="spacer"></span>
-          <span class="muted" style="color:var(--mut);font-size:12.5px">${esc(meta.total || 0)} in the line</span>
-        </div>`;
+      approvalState.rows = rows;
+      approvalState.meta = meta;
+      if (meta.config) approvalState.config = meta.config;
 
-      const table = rows.length
-        ? `<div class="table-wrap"><table class="data">
-            <thead><tr><th>Document</th><th>Reference</th><th>Raised by</th><th>Raised</th><th>Status</th><th>Decision</th><th></th></tr></thead>
-            <tbody>` + rows.map(r => `
-              <tr>
-                <td>${esc(r.document_type_label)}</td>
-                <td>${esc(r.document_reference || '\u2014')}<div class="muted" style="color:var(--mut);font-size:11.5px">${esc(r.document_ulid)}</div></td>
-                <td>${r.requested_by_user_id === null ? '\u2014' : 'User #' + esc(r.requested_by_user_id)}</td>
-                <td>${esc(fmtDateTime(r.created_at))}</td>
-                <td>${statusBadge(r.status)}</td>
-                <td>${r.decision_reason ? esc(r.decision_reason) : '<span class="muted">\u2014</span>'}</td>
-                <td class="num">${r.status === 'pending' ? `
-                  <button class="btn btn--ok btn--sm" data-act="approve" data-ulid="${esc(r.ulid)}"
-                    data-ref="${esc(r.document_type_label + ' ' + (r.document_reference || r.document_ulid))}">Approve</button>
-                  <button class="btn btn--bad btn--sm" data-act="reject" data-ulid="${esc(r.ulid)}"
-                    data-ref="${esc(r.document_type_label + ' ' + (r.document_reference || r.document_ulid))}">Reject</button>
-                ` : badge('muted', 'Decided')}</td>
-              </tr>`).join('') + `</tbody></table></div>`
-        : emptyState('\u2714', 'Nothing in this view',
-            approvalFilters.status === 'pending'
-              ? 'No document is waiting for a decision.'
-              : 'No decision matches this filter.');
+      // A row that has left the page takes its detail with it, so the panel on
+      // the right is never describing something the line no longer holds.
+      if (approvalState.selected && !rows.some(r => r.ulid === approvalState.selected)) {
+        approvalState.selected = null;
+        approvalState.detail = null;
+      }
 
-      const pager = (meta.last_page || 1) > 1
-        ? `<div class="toolbar" style="margin-top:12px">
-            <button class="btn btn--quiet btn--sm" data-act="approval-page" data-page="${Math.max(1, approvalFilters.page - 1)}"
-              ${approvalFilters.page <= 1 ? 'disabled' : ''}>Previous</button>
-            <span style="color:var(--mut);font-size:12.5px">Page ${esc(meta.current_page || 1)} of ${esc(meta.last_page || 1)}</span>
-            <button class="btn btn--quiet btn--sm" data-act="approval-page" data-page="${Math.min(meta.last_page || 1, approvalFilters.page + 1)}"
-              ${approvalFilters.page >= (meta.last_page || 1) ? 'disabled' : ''}>Next</button>
-           </div>`
-        : '';
-
-      const raise = `
-        <div class="toolbar">
-          <label class="field"><span class="field__label">Document kind</span>
-            <select id="raise-type">
-              <option value="journal">Journal</option>
-              <option value="bill">Supplier bill</option>
-              <option value="payment">Payment</option>
-              <option value="credit_note">Credit note</option>
-              <option value="debit_note">Debit note</option>
-              <option value="asset_disposal">Asset disposal</option>
-            </select></label>
-          <label class="field" style="min-width:320px"><span class="field__label">Document ULID</span>
-            <input id="raise-ulid" maxlength="26" placeholder="01Jxxxxxxxxxxxxxxxxxxxxxxx"></label>
-          <button class="btn btn--primary" data-act="raise">Put it in the queue</button>
-        </div>
-        <div class="note" style="margin-top:12px">
-          The queue is what makes a decision a second pair of hands. Raising a document here and then
-          approving it is refused — the same person may not be both signatures — and that refusal is
-          what the portal will show you.
-        </div>`;
+      if (approvalState.selected) {
+        await readApprovalDetail(approvalState.selected);
+      }
 
       setStatus('Ready');
-      return card('The queue', 'Deciding accepts or turns down what somebody else entered', toolbar + table + pager) +
-        card('Raise a document', 'Put a journal, bill, payment or note in the line for a decision', raise);
+      return approvalMarkup();
     });
   }
 
-  async function runApprovalFilter(event) {
-    const sel = event.target;
-    approvalFilters[sel.dataset.name] = sel.value;
-    approvalFilters.page = 1;
+  /**
+   * Redraw from what is already in hand. Choosing a row or ticking a box
+   * changes nothing about the query, so neither should cost a round trip.
+   */
+  function renderApprovals() {
+    const view = $('#view');
+    if (!view || S.screen !== 'approvals') return;
+    const scroll = window.scrollY;
+    view.innerHTML = approvalMarkup();
+    window.scrollTo(0, scroll);
+  }
+
+  function approvalMarkup() {
+    const meta = approvalState.meta || {};
+    return approvalHeader(meta) + approvalToolbar(meta) + approvalFiltersCard(meta) +
+      approvalBody(meta) + approvalRaiseCard();
+  }
+
+  /* ---- what the header states ---- */
+
+  function approvalHeader(meta) {
+    const s = (meta && meta.summary) || {};
+    const config = (meta && meta.config) || approvalState.config || {};
+    const oldest = s.oldest_pending_days;
+
+    return card('The queue at a glance', 'Read over the whole company rather than over the page',
+      `<div class="grid grid--metrics">
+        <div><div class="metric__label">Waiting</div>
+          <div class="metric__value">${esc(s.pending_count || 0)}</div>
+          <p class="metric__note">Document(s) in the line right now</p></div>
+        <div><div class="metric__label">Value waiting</div>
+          <div class="metric__value" style="font-size:19px">${esc(fmtMoney(s.pending_value))}</div>
+          <p class="metric__note">The documents' own totals &mdash; nothing here is posted</p></div>
+        <div><div class="metric__label">Oldest</div>
+          <div class="metric__value">${oldest === null || oldest === undefined ? '\u2014' : esc(oldest) + 'd'}</div>
+          <p class="metric__note">The longest any one document has waited</p></div>
+        <div><div class="metric__label">Review threshold</div>
+          <div class="metric__value" style="font-size:19px">${esc(fmtMoney(config.normal_threshold))}</div>
+          <p class="metric__note">A batch may carry ${esc(fmtMoney(config.bulk_limit))} across ${esc(config.bulk_max_items)} items</p></div>
+      </div>`);
+  }
+
+  /* ---- the toolbar: tabs, sorting, refresh ---- */
+
+  const APPROVAL_TABS = [
+    { key: 'pending', label: 'Waiting' },
+    { key: 'approved', label: 'Approved' },
+    { key: 'rejected', label: 'Rejected' },
+    { key: 'all', label: 'Every decision' }
+  ];
+
+  const APPROVAL_SORTS = [
+    { key: 'age', label: 'Age' },
+    { key: 'amount', label: 'Amount' },
+    { key: 'reference', label: 'Reference' },
+    { key: 'type', label: 'Kind' }
+  ];
+
+  function approvalToolbar(meta) {
+    const total = (meta && meta.total) || 0;
+
+    const tabs = APPROVAL_TABS.map(t =>
+      `<button class="seg__btn${approvalState.tab === t.key ? ' is-active' : ''}" role="tab"
+        aria-selected="${approvalState.tab === t.key ? 'true' : 'false'}"
+        data-act="approval-tab" data-tab="${esc(t.key)}">${esc(t.label)}</button>`).join('');
+
+    const sorts = APPROVAL_SORTS.map(s =>
+      `<button class="btn btn--quiet btn--sm${approvalState.sort === s.key ? ' is-active' : ''}"
+        data-act="approval-sort" data-sort="${esc(s.key)}">${esc(s.label)}${
+          approvalState.sort === s.key ? (approvalState.direction === 'asc' ? ' \u2191' : ' \u2193') : ''
+        }</button>`).join('');
+
+    return `<div class="toolbar approval-bar">
+      <div class="seg" role="tablist">${tabs}</div>
+      <span class="spacer"></span>
+      <span class="approval-bar__count">${esc(total)} in this view</span>
+      <span class="approval-bar__sorts">${sorts}</span>
+      <button class="btn btn--quiet btn--sm" data-act="approval-refresh">Refresh</button>
+    </div>`;
+  }
+
+  /* ---- saved views and the filters under them ---- */
+
+  function approvalFiltersCard(meta) {
+    const f = approvalState.filters;
+    const preparers = (meta && meta.preparers) || [];
+    const types = (meta && meta.document_types) || [];
+
+    const chips = allApprovalViews().map(v => {
+      const active = approvalState.view === v.key ? ' is-active' : '';
+      return v.saved
+        ? `<span class="chip chip--saved${active}">
+             <button class="chip__label" data-act="approval-view" data-key="${esc(v.key)}">${esc(v.label)}</button>
+             <button class="chip__x" data-act="approval-view-delete" data-key="${esc(v.key)}"
+               title="Forget this view" aria-label="Forget this view">\u00d7</button>
+           </span>`
+        : `<button class="chip${active}" data-act="approval-view" data-key="${esc(v.key)}">${esc(v.label)}</button>`;
+    }).join('');
+
+    const field = (label, control) =>
+      `<label class="field"><span class="field__label">${esc(label)}</span>${control}</label>`;
+
+    return card('Narrow the line', 'Every filter is answered by the server, so a page is a page of the set you asked for',
+      `<div class="chips">${chips}
+        <button class="chip chip--add" data-act="approval-view-save">+ Save this view</button></div>
+       <div class="toolbar" style="margin-top:12px">
+         ${field('Document kind',
+           `<select data-act="approval-filter" data-name="document_type">
+              <option value="">Every kind</option>
+              ${types.map(t => `<option value="${esc(t.value)}"${f.document_type === t.value ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}
+            </select>`)}
+         ${field('Raised by',
+           `<select data-act="approval-filter" data-name="preparer_id">
+              <option value="">Anyone</option>
+              ${preparers.map(p => `<option value="${esc(p.id)}"${String(f.preparer_id) === String(p.id) ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+            </select>`)}
+         ${field('Amount from',
+           `<input type="number" min="0" step="0.01" value="${esc(f.amount_min)}" data-act="approval-filter" data-name="amount_min" placeholder="0.00">`)}
+         ${field('Amount to',
+           `<input type="number" min="0" step="0.01" value="${esc(f.amount_max)}" data-act="approval-filter" data-name="amount_max" placeholder="Any">`)}
+         ${field('Raised from',
+           `<input type="date" value="${esc(f.date_from)}" data-act="approval-filter" data-name="date_from">`)}
+         ${field('Raised to',
+           `<input type="date" value="${esc(f.date_to)}" data-act="approval-filter" data-name="date_to">`)}
+         ${field('Waited at least',
+           `<input type="number" min="0" step="1" value="${esc(f.age_min)}" data-act="approval-filter" data-name="age_min" placeholder="Days">`)}
+         ${field('Search',
+           `<input type="search" value="${esc(f.search)}" data-act="approval-filter" data-name="search" placeholder="Reference or party">`)}
+         <span class="spacer"></span>
+         <button class="btn btn--quiet btn--sm" data-act="approval-clear">Clear filters</button>
+       </div>`);
+  }
+
+  /* ---- the line on the left, the detail on the right ---- */
+
+  function approvalBody(meta) {
+    const rows = approvalState.rows || [];
+
+    const listCard = card('The line', `${esc((meta && meta.total) || 0)} in this view`,
+      approvalTable(rows) + approvalPager(meta),
+      `<button class="btn btn--quiet btn--sm" data-act="approval-check-page">${
+        approvalsAllChecked(rows) ? 'Untick the page' : 'Tick the page'}</button>`);
+
+    return `<div class="approval-split">
+      <div class="approval-split__list">${approvalBulkBar()}${listCard}</div>
+      <div class="approval-split__detail">${approvalDetailCard()}</div>
+    </div>`;
+  }
+
+  function approvalTable(rows) {
+    if (!rows.length) {
+      return emptyState('\u2714', 'Nothing in this view',
+        'No document matches what you asked for. Widen the filters, or clear them.');
+    }
+
+    return `<div class="table-wrap"><table class="data approval-table">
+      <thead><tr>
+        <th class="approval-check"><span class="approval-sr">Gather</span></th>
+        <th>Document</th><th>Party</th><th class="num">Amount</th>
+        <th>Raised by</th><th class="num">Waited</th><th>Status</th>
+      </tr></thead>
+      <tbody>` + rows.map(r => `
+        <tr class="approval-row${approvalState.selected === r.ulid ? ' is-selected' : ''}"
+            data-act="approval-select" data-ulid="${esc(r.ulid)}">
+          <td class="approval-check">
+            <input type="checkbox" data-act="approval-check" data-ulid="${esc(r.ulid)}"
+              ${approvalState.checked[r.ulid] ? 'checked' : ''}
+              aria-label="Gather this row for a bulk decision">
+          </td>
+          <td><strong>${esc(r.document_type_label)}</strong>
+            <div class="cell__sub">${esc(r.document_reference || r.ulid)}</div></td>
+          <td>${esc(r.party_name || '\u2014')}</td>
+          <td class="num">${esc(fmtMoney(r.amount))}</td>
+          <td>${esc(r.preparer_name || '\u2014')}</td>
+          <td class="num">${approvalAge(r.age_days)}</td>
+          <td>${statusBadge(r.status)}</td>
+        </tr>`).join('') + `</tbody></table></div>`;
+  }
+
+  const approvalAge = days =>
+    days === null || days === undefined ? '\u2014' : esc(days) + 'd';
+
+  function approvalsAllChecked(rows) {
+    return rows.length > 0 && rows.every(r => approvalState.checked[r.ulid]);
+  }
+
+  function approvalPager(meta) {
+    const last = (meta && meta.last_page) || 1;
+    const current = (meta && meta.current_page) || 1;
+    if (last <= 1) return '';
+
+    return `<div class="toolbar approval-pager">
+      <button class="btn btn--quiet btn--sm" data-act="approval-page" data-page="${Math.max(1, current - 1)}"
+        ${current <= 1 ? 'disabled' : ''}>Previous</button>
+      <span class="approval-pager__text">Page ${esc(current)} of ${esc(last)}</span>
+      <button class="btn btn--quiet btn--sm" data-act="approval-page" data-page="${Math.min(last, current + 1)}"
+        ${current >= last ? 'disabled' : ''}>Next</button>
+    </div>`;
+  }
+
+  /**
+   * The value of what has been gathered. Summed over the rows on this page,
+   * because those are the only ones whose amount the screen holds — the server
+   * values the whole batch again before it decides anything, so this figure is
+   * a courtesy and never the gate.
+   */
+  function approvalCheckedValue() {
+    const rows = approvalState.rows || [];
+    let total = 0;
+    rows.forEach(r => {
+      if (approvalState.checked[r.ulid] && r.amount !== null && r.amount !== undefined) {
+        const n = Number(r.amount);
+        if (isFinite(n)) total += n;
+      }
+    });
+    return total;
+  }
+
+  function approvalBulkBar() {
+    const ulids = Object.keys(approvalState.checked);
+    if (!ulids.length) return '';
+
+    const config = approvalState.config || {};
+    const value = approvalCheckedValue();
+    const overLimit = config.bulk_limit != null && Number(value) > Number(config.bulk_limit);
+    const tooMany = config.bulk_max_items != null && ulids.length > Number(config.bulk_max_items);
+
+    const refusal = tooMany
+      ? 'A batch may name at most ' + esc(config.bulk_max_items) + ' documents. Untick a few.'
+      : 'A batch may carry at most ' + esc(fmtMoney(config.bulk_limit)) + '. Untick a few.';
+
+    return `<div class="approval-bulk">
+      <div>
+        <strong>${esc(ulids.length)} gathered</strong>
+        <span class="approval-bulk__value">${esc(fmtMoney(value))}</span>
+        <span class="approval-bulk__limit">measured on this page</span>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn btn--ok" data-act="approval-bulk-approve" ${(overLimit || tooMany) ? 'disabled' : ''}>Approve the batch</button>
+      <button class="btn btn--quiet btn--sm" data-act="approval-bulk-clear">Untick all</button>
+      ${(overLimit || tooMany) ? `<p class="note note--bad">${refusal}</p>` : ''}
+    </div>`;
+  }
+
+  function approvalDetailCard() {
+    if (!approvalState.selected) {
+      return card('The detail', 'Pick a row and it opens here',
+        emptyState('\u25CB', 'Nothing chosen',
+          'Choose a document in the line to read what it says, what it is worth and how it got here.'));
+    }
+
+    const detail = approvalState.detail;
+
+    if (!detail) {
+      return card('The detail', 'Reading\u2026', skeleton(4));
+    }
+
+    if (detail.error) {
+      return card('The detail', 'That could not be read',
+        `<div class="note note--bad">${esc(detail.error)}</div>`);
+    }
+
+    const s = detail.summary || {};
+    const title = [s.document_type_label, s.document_reference].filter(Boolean).join(' ') || 'The detail';
+
+    return card(title, `${esc(s.status_label || '')} \u00b7 raised ${esc(fmtDateTime(s.created_at))}`,
+      approvalWarnings(detail.warnings || []) +
+      approvalSummaryFacts(s) +
+      approvalImpact(detail.financial_impact) +
+      approvalPreview(detail.preview) +
+      approvalAttachments(detail.attachments || []) +
+      approvalTimeline(detail.timeline || []) +
+      approvalDetailActions(s),
+      `<button class="btn btn--quiet btn--sm" data-act="approval-detail-close">Close</button>`);
+  }
+
+  const APPROVAL_WARNING_TITLES = {
+    document_missing: 'The document is missing',
+    self_approval: 'You raised this yourself',
+    already_decided: 'Already decided',
+    over_threshold: 'Over the review threshold',
+    unbalanced: 'The journal does not balance',
+    stale: 'Waiting a long time'
+  };
+
+  function approvalWarnings(warnings) {
+    const body = warnings.length
+      ? warnings.map(w => `<div class="alert alert--${esc(approvalWarningTone(w.level))}">
+          <strong>${esc(APPROVAL_WARNING_TITLES[w.code] || 'Worth knowing')}</strong>
+          <span>${esc(w.message)}</span></div>`).join('')
+      : `<div class="alert alert--ok"><strong>Nothing to flag</strong>
+          <span>No warning is raised on this document.</span></div>`;
+
+    return `<section class="approval-block"><h4>Before you decide</h4>${body}</section>`;
+  }
+
+  function approvalSummaryFacts(s) {
+    const facts = [
+      ['Reference', s.document_reference || s.document_ulid],
+      ['Status', s.status_label],
+      ['Raised by', s.preparer_name || '\u2014'],
+      ['Raised', fmtDateTime(s.created_at)],
+      ['Waited', s.age_days === null || s.age_days === undefined ? '\u2014' : s.age_days + ' days'],
+      ['Decided by', s.decided_by_name || '\u2014'],
+      ['Decided', s.decided_at ? fmtDateTime(s.decided_at) : '\u2014']
+    ];
+
+    if (s.decision_reason) facts.push(['Why', s.decision_reason]);
+
+    return `<section class="approval-block"><h4>The request</h4>${approvalFactGrid(facts)}</section>`;
+  }
+
+  function approvalFactGrid(rows) {
+    return `<div class="approval-facts">` + rows.map(([label, value]) =>
+      `<div class="approval-facts__row"><span class="approval-facts__label">${esc(label)}</span>
+        <span class="approval-facts__value">${esc(value === null || value === undefined || value === '' ? '\u2014' : value)}</span></div>`
+    ).join('') + `</div>`;
+  }
+
+  function approvalImpact(impact) {
+    if (!impact) return '';
+
+    const rows = [
+      ['Amount', impact.amount === null || impact.amount === undefined
+        ? '\u2014'
+        : fmtMoney(impact.amount) + ' ' + (impact.currency_code || '')],
+      ['Direction', impact.direction
+        ? (impact.direction === 'debit' ? 'Debit to the books' : 'Credit to the books')
+        : '\u2014'],
+      ['Party', impact.party_name || '\u2014']
+    ];
+
+    if (impact.debit_total !== null && impact.debit_total !== undefined) {
+      rows.push(['Total debits', fmtMoney(impact.debit_total)]);
+      rows.push(['Total credits', fmtMoney(impact.credit_total)]);
+      rows.push(['Balanced', impact.balanced ? 'Yes' : 'No']);
+    }
+    if (impact.subtotal !== null && impact.subtotal !== undefined) {
+      rows.push(['Subtotal', fmtMoney(impact.subtotal)]);
+      rows.push(['Tax', fmtMoney(impact.tax_total)]);
+    }
+    if (impact.net_book_value !== null && impact.net_book_value !== undefined) {
+      rows.push(['Net book value', fmtMoney(impact.net_book_value)]);
+      rows.push(['Gain on disposal', fmtMoney(impact.gain_on_disposal)]);
+    }
+
+    rows.push(['Review threshold',
+      fmtMoney(impact.threshold) + (impact.exceeds_threshold ? ' \u2014 exceeded' : '')]);
+
+    return `<section class="approval-block"><h4>Financial impact</h4>${approvalFactGrid(rows)}
+      <p class="metric__note">${esc(impact.note || '')}</p></section>`;
+  }
+
+  const approvalNumericColumn = name =>
+    /(debit|credit|total|price|quantity|amount)/i.test(String(name));
+
+  function approvalPreview(preview) {
+    if (!preview) return '';
+
+    const fields = (preview.fields || [])
+      .filter(f => f.value !== '' && f.value !== null && f.value !== undefined);
+    const lines = preview.lines || [];
+
+    const fieldsHtml = fields.length
+      ? approvalFactGrid(fields.map(f => [f.label, f.value]))
+      : '<p class="metric__note">This document carries no header fields to read.</p>';
+
+    let linesHtml = '';
+    if (lines.length) {
+      const cols = Object.keys(lines[0]);
+      linesHtml = `<div class="table-wrap" style="margin-top:12px"><table class="data">
+        <thead><tr>` + cols.map(c =>
+          `<th class="${approvalNumericColumn(c) ? 'num' : ''}">${esc(c)}</th>`).join('') +
+        `</tr></thead><tbody>` + lines.map(line =>
+          `<tr>` + cols.map(c =>
+            `<td class="${approvalNumericColumn(c) ? 'num' : ''}">${esc(line[c])}</td>`).join('') + `</tr>`).join('') +
+        `</tbody></table></div>`;
+    }
+
+    return `<section class="approval-block"><h4>${esc(preview.title || 'The document')}</h4>
+      ${fieldsHtml}${linesHtml}</section>`;
+  }
+
+  function approvalAttachments(files) {
+    const body = files.length
+      ? `<ul class="approval-files">` + files.map(f => `
+          <li><span class="approval-files__name">${esc(f.file_name)}</span>
+            <span class="approval-files__meta">${esc(f.mime_type || 'file')} \u00b7
+              ${esc(fmtQty(f.size_bytes))} bytes \u00b7 ${esc(fmtDate(f.created_at))}</span></li>`).join('') + `</ul>`
+      : `<p class="metric__note">No file is filed beside this document.</p>`;
+
+    return `<section class="approval-block"><h4>Filed alongside</h4>${body}</section>`;
+  }
+
+  function approvalTimeline(events) {
+    const body = events.length
+      ? `<ol class="timeline">` + events.map(e => `
+          <li class="timeline__item">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <div class="timeline__body">
+              <strong>${esc(e.label || e.action)}</strong>
+              <span class="timeline__meta">${esc(e.user_name || 'System')} \u00b7 ${esc(fmtDateTime(e.at))}</span>
+              ${e.detail ? `<p>${esc(e.detail)}</p>` : ''}
+            </div>
+          </li>`).join('') + `</ol>`
+      : `<p class="metric__note">No trail is recorded for this request yet.</p>`;
+
+    return `<section class="approval-block"><h4>How it got here</h4>${body}</section>`;
+  }
+
+  function approvalDetailActions(s) {
+    if (s.can_decide === true) {
+      const ref = [(s.document_type_label || 'Document'),
+        (s.document_reference || s.document_ulid)].join(' ').trim();
+      return `<div class="approval-actions">
+        <button class="btn btn--ok" data-act="approve" data-ulid="${esc(s.ulid)}" data-ref="${esc(ref)}">Approve</button>
+        <button class="btn btn--bad" data-act="reject" data-ulid="${esc(s.ulid)}" data-ref="${esc(ref)}">Reject</button>
+      </div>`;
+    }
+
+    const line = s.is_pending === true
+      ? (s.raised_by_reader === true
+          ? 'You raised this document, and nobody may approve their own entry. Another approver has to decide it.'
+          : 'This document is not yours to decide.')
+      : 'This request already carries a decision, and a decision is final. A correction is raised as a new request.';
+
+    return `<div class="note">${esc(line)}</div>`;
+  }
+
+  function approvalRaiseCard() {
+    const types = (approvalState.meta && approvalState.meta.document_types) || [
+      { value: 'journal', label: 'Journal' },
+      { value: 'bill', label: 'Supplier bill' },
+      { value: 'payment', label: 'Payment' },
+      { value: 'credit_note', label: 'Credit note' },
+      { value: 'debit_note', label: 'Debit note' },
+      { value: 'asset_disposal', label: 'Asset disposal' }
+    ];
+
+    return card('Raise a document', 'Put a journal, bill, payment or note in the line for a second pair of hands',
+      `<div class="toolbar">
+        <label class="field"><span class="field__label">Document kind</span>
+          <select id="raise-type">
+            ${types.map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}
+          </select></label>
+        <label class="field" style="min-width:320px"><span class="field__label">Document ULID</span>
+          <input id="raise-ulid" maxlength="26" placeholder="01Jxxxxxxxxxxxxxxxxxxxxxxx"></label>
+        <button class="btn btn--primary" data-act="raise">Put it in the queue</button>
+      </div>
+      <div class="note" style="margin-top:12px">
+        The queue is what makes a decision a second pair of hands. Raising a document here and then
+        approving it is refused &mdash; the same person may not be both signatures &mdash; and that
+        refusal is what the portal will show you.
+      </div>`);
+  }
+
+  /* ---- the actions ---- */
+
+  async function readApprovalDetail(ulid) {
+    try {
+      const payload = await api('/approval-requests/' + encodeURIComponent(ulid) + '/detail');
+      approvalState.detail = (payload && payload.data) || null;
+    } catch (error) {
+      approvalState.detail = { error: (error && error.message) || 'The detail could not be read.' };
+    }
+  }
+
+  function approvalSelect(ulid) {
+    approvalState.selected = approvalState.selected === ulid ? null : ulid;
+    approvalState.detail = null;
+    renderApprovals();
+    if (!approvalState.selected) return;
+    readApprovalDetail(approvalState.selected).then(renderApprovals);
+  }
+
+  function approvalCheck(ulid, checked) {
+    if (checked) approvalState.checked[ulid] = true;
+    else delete approvalState.checked[ulid];
+    renderApprovals();
+  }
+
+  function approvalCheckPage(rows) {
+    const all = approvalsAllChecked(rows);
+    rows.forEach(r => {
+      if (all) delete approvalState.checked[r.ulid];
+      else approvalState.checked[r.ulid] = true;
+    });
+    renderApprovals();
+  }
+
+  function approvalTab(tab) {
+    approvalState.tab = tab;
+    approvalState.page = 1;
+    approvalState.view = '';
+    approvalState.selected = null;
+    approvalState.detail = null;
+    approvalState.checked = {};
     go('approvals');
   }
 
+  function approvalSort(key) {
+    if (approvalState.sort === key) {
+      approvalState.direction = approvalState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      approvalState.sort = key;
+      approvalState.direction = key === 'age' ? 'asc' : 'desc';
+    }
+    approvalState.page = 1;
+    go('approvals');
+  }
+
+  function approvalFilterChange(event) {
+    const sel = event.target;
+    if (!sel.dataset.name) return;
+    approvalState.filters[sel.dataset.name] = sel.value;
+    approvalState.page = 1;
+    approvalState.view = '';
+    go('approvals');
+  }
+
+  function approvalClearFilters() {
+    approvalState.filters = EMPTY_APPROVAL_FILTERS();
+    approvalState.page = 1;
+    approvalState.view = '';
+    go('approvals');
+  }
+
+  function approvalViewApply(key) {
+    applyApprovalView(key);
+    go('approvals');
+  }
+
+  function approvalViewSave() {
+    promptModal({
+      title: 'Save this view',
+      label: 'What to call it',
+      hint: 'The name is kept in this browser only, beside the views the portal ships.',
+      minLength: 2,
+      maxLength: 40,
+      okLabel: 'Save the view'
+    }).then(name => {
+      if (typeof name !== 'string' || !name) return;
+      const list = savedApprovalViews();
+      const key = 'saved-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+      list.push({
+        key: key,
+        label: name,
+        tab: approvalState.tab,
+        sort: approvalState.sort,
+        direction: approvalState.direction,
+        filters: Object.assign({}, approvalState.filters)
+      });
+      writeApprovalViews(list.slice(-12));
+      approvalState.view = key;
+      toast('ok', 'View saved', 'It sits beside the views the portal ships.');
+      renderApprovals();
+    });
+  }
+
+  function approvalViewDelete(key) {
+    writeApprovalViews(savedApprovalViews().filter(v => v.key !== key));
+    if (approvalState.view === key) approvalState.view = '';
+    toast('info', 'View forgotten', 'It no longer sits beside the shipped views.');
+    renderApprovals();
+  }
+
   async function raiseRequest() {
-    const type = $('#raise-type').value;
-    const ulid = $('#raise-ulid').value.trim();
-    if (ulid.length !== 26) { toast('bad', 'A document ULID is 26 characters.', 'Check the identifier and try again.'); return; }
+    const type = ($('#raise-type') || {}).value || 'journal';
+    const ulid = (($('#raise-ulid') || {}).value || '').trim();
+    if (ulid.length !== 26) {
+      toast('bad', 'A document ULID is 26 characters.', 'Check the identifier and try again.');
+      return;
+    }
 
     const button = $('[data-act="raise"]');
-    button.disabled = true;
+    if (button) button.disabled = true;
     try {
       await api('/approval-requests', {
         method: 'POST',
@@ -1443,16 +2036,17 @@
         body: { document_type: type, document_ulid: ulid }
       });
       toast('ok', 'In the queue', 'The document now waits for a decision.');
-      approvalFilters.status = 'pending';
-      approvalFilters.page = 1;
-      cache.periods = cache.periods; // untouched; only the queue changed
+      approvalState.tab = 'pending';
+      approvalState.page = 1;
+      approvalState.selected = null;
+      approvalState.detail = null;
       go('approvals');
       pollApprovals();
     } catch (error) {
       toast('bad', error.message, 'The document was not queued.');
       if (error.status === 409) { go('approvals'); pollApprovals(); }
     } finally {
-      button.disabled = false;
+      if (button) button.disabled = false;
     }
   }
 
@@ -1466,8 +2060,9 @@
     }).then(async confirmed => {
       if (!confirmed) return;
       try {
-        const payload = await api(`/approval-requests/${ulid}/approve`, { method: 'POST', key: newKey() });
-        toast('ok', 'Approved', 'Decided at ' + fmtDateTime(payload && payload.data && payload.data.decided_at) + '.');
+        await api('/approval-requests/' + encodeURIComponent(ulid) + '/approve', { method: 'POST', key: newKey() });
+        toast('ok', 'Approved', 'The decision is recorded with your name on it.');
+        approvalState.checked = {};
         go('approvals');
         pollApprovals();
       } catch (error) {
@@ -1486,13 +2081,13 @@
       maxLength: 500,
       okLabel: 'Reject'
     }).then(async reason => {
-      if (reason === null) return;
+      if (typeof reason !== 'string' || !reason) return;
       try {
-        const payload = await api(`/approval-requests/${ulid}/reject`, {
-          method: 'POST', key: newKey(), body: { reason }
+        await api('/approval-requests/' + encodeURIComponent(ulid) + '/reject', {
+          method: 'POST', key: newKey(), body: { reason: reason }
         });
         toast('ok', 'Rejected', 'The reason was recorded with the decision.');
-        void payload;
+        approvalState.checked = {};
         go('approvals');
         pollApprovals();
       } catch (error) {
@@ -1500,6 +2095,65 @@
         go('approvals');
       }
     });
+  }
+
+  function bulkApproveRequest() {
+    const ulids = Object.keys(approvalState.checked);
+    if (!ulids.length) {
+      toast('info', 'Nothing gathered', 'Tick the rows you want to decide in one batch.');
+      return;
+    }
+
+    const config = approvalState.config || {};
+    const value = approvalCheckedValue();
+    const overLimit = config.bulk_limit != null && Number(value) > Number(config.bulk_limit);
+    const tooMany = config.bulk_max_items != null && ulids.length > Number(config.bulk_max_items);
+
+    confirmModal({
+      title: 'Approve ' + ulids.length + ' document(s)?',
+      body: `<p>This batch carries <strong>${esc(fmtMoney(value))}</strong> across ${esc(ulids.length)} document(s).</p>` +
+        (tooMany
+          ? `<p class="note note--bad">A batch may name at most ${esc(config.bulk_max_items)} documents; the server would refuse this one whole.</p>`
+          : '') +
+        (overLimit
+          ? `<p class="note note--bad">A batch may carry at most ${esc(fmtMoney(config.bulk_limit))}; the server would refuse this one whole.</p>`
+          : '') +
+        '<p>Each document is decided on its own, and a refusal is reported per document rather than discarding the batch.</p>',
+      okLabel: 'Approve the batch',
+      tone: 'primary'
+    }).then(async confirmed => {
+      if (!confirmed) return;
+      try {
+        const payload = await api('/approval-requests/bulk-approve', {
+          method: 'POST', key: newKey(), body: { ulids: ulids }
+        });
+        const result = (payload && payload.data) || {};
+        const failed = result.failed || 0;
+        toast(failed ? 'bad' : 'ok',
+          (result.approved || 0) + ' approved' + (failed ? ', ' + failed + ' refused' : ''),
+          'The batch carried ' + fmtMoney(result.value) + '.');
+        if (failed) showBulkRefusals(result);
+        approvalState.checked = {};
+        go('approvals');
+        pollApprovals();
+      } catch (error) {
+        toast('bad', error.message, 'The batch was not decided.');
+        go('approvals');
+      }
+    });
+  }
+
+  function showBulkRefusals(result) {
+    const refused = (result.results || []).filter(r => r.status !== 'approved');
+    if (!refused.length) return;
+
+    const body = '<p>These were not approved, and the reason is the server\'s own:</p>' +
+      '<div class="table-wrap"><table class="data"><thead><tr><th>Document</th><th>Reason</th></tr></thead><tbody>' +
+      refused.map(r => `<tr><td>${esc([r.document_type_label, r.document_reference].filter(Boolean).join(' ') || r.ulid)}</td>
+        <td>${esc(r.message || '\u2014')}</td></tr>`).join('') +
+      '</tbody></table></div>';
+
+    openModal('Some documents were refused', body, 'Close', 'quiet');
   }
 
   /* ---------------------------------------------------- screen: forecast */
@@ -2360,6 +3014,10 @@
     const ok = $('#modal-ok');
     ok.textContent = okLabel || 'Confirm';
     ok.className = 'btn ' + (tone === 'primary' ? 'btn--primary' : 'btn--quiet');
+    // The plain question the dialog asks is answered by "yes"; promptModal
+    // replaces this with a handler that validates its textarea first, and
+    // Cancel clears it. Without this the promise below would never settle.
+    ok.onclick = () => { ok.onclick = null; closeModal(true); };
     $('#modal').hidden = false;
     return new Promise(resolve => { modalResolve = resolve; });
   }
@@ -2418,7 +3076,29 @@
       if (act === 'approve') { approveRequest(trigger.dataset.ulid, trigger.dataset.ref); return; }
       if (act === 'reject') { rejectRequest(trigger.dataset.ulid, trigger.dataset.ref); return; }
       if (act === 'raise') { raiseRequest(); return; }
-      if (act === 'approval-page') { approvalFilters.page = Number(trigger.dataset.page); go('approvals'); return; }
+
+      // Approvals. Ticking a row arrives as a `change`, not a click, so the
+      // checkbox is deliberately absent here; everything else on the screen
+      // is a click. Selecting a row and ticking a box both redraw from what is
+      // already held, so neither costs a round trip.
+      if (act === 'approval-tab') { approvalTab(trigger.dataset.tab); return; }
+      if (act === 'approval-sort') { approvalSort(trigger.dataset.sort); return; }
+      if (act === 'approval-refresh') { go('approvals'); return; }
+      if (act === 'approval-select') { approvalSelect(trigger.dataset.ulid); return; }
+      if (act === 'approval-check-page') { approvalCheckPage(approvalState.rows || []); return; }
+      if (act === 'approval-page') { approvalState.page = Number(trigger.dataset.page); go('approvals'); return; }
+      if (act === 'approval-clear') { approvalClearFilters(); return; }
+      if (act === 'approval-view') { approvalViewApply(trigger.dataset.key); return; }
+      if (act === 'approval-view-save') { approvalViewSave(); return; }
+      if (act === 'approval-view-delete') { approvalViewDelete(trigger.dataset.key); return; }
+      if (act === 'approval-detail-close') {
+        approvalState.selected = null;
+        approvalState.detail = null;
+        renderApprovals();
+        return;
+      }
+      if (act === 'approval-bulk-approve') { bulkApproveRequest(); return; }
+      if (act === 'approval-bulk-clear') { approvalState.checked = {}; renderApprovals(); return; }
       if (act === 'run-report') { runReport(REPORT_DEFS.find(d => d.key === reportState.key)); return; }
       if (act === 'export') { startExport(); return; }
       if (act === 'budget-load' || act === 'budget-period') { budgetState.loaded = false; go('budgets'); return; }
@@ -2462,7 +3142,11 @@
     $('#view').addEventListener('change', event => {
       const target = event.target;
 
-      if (target.dataset.act === 'approval-filter') { runApprovalFilter(event); return; }
+      if (target.dataset.act === 'approval-filter') { approvalFilterChange(event); return; }
+      if (target.dataset.act === 'approval-check') {
+        approvalCheck(target.dataset.ulid, target.checked);
+        return;
+      }
       if (target.dataset.act === 'report-select') {
         reportState.key = target.value;
         reportState.params = {};

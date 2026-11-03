@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Approvals\Actions\BulkDecideApprovalRequests;
 use App\Domain\Approvals\Actions\DecideApprovalRequest;
 use App\Domain\Approvals\Actions\SubmitApprovalRequest;
 use App\Domain\Approvals\Enums\ApprovalDocumentType;
 use App\Domain\Approvals\Enums\ApprovalStatus;
 use App\Domain\Approvals\Exceptions\ApprovalsException;
+use App\Domain\Approvals\Services\ApprovalDetailQuery;
+use App\Domain\Approvals\Services\ApprovalQueueQuery;
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalRequest;
 use Illuminate\Http\JsonResponse;
@@ -30,44 +33,31 @@ use Illuminate\Validation\Rule;
  */
 class ApprovalRequestController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ApprovalQueueQuery $queue): JsonResponse
     {
         $this->authorize('viewAny', ApprovalRequest::class);
 
+        // The whole of what the line may be asked for. The amount, age and
+        // date filters are answered in the database rather than in memory, so
+        // the page a reader is shown is a page of the set they asked for.
         $filters = $request->validate([
             'status' => ['sometimes', 'nullable', Rule::enum(ApprovalStatus::class)],
             'document_type' => ['sometimes', 'nullable', Rule::enum(ApprovalDocumentType::class)],
+            'preparer_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'amount_min' => ['sometimes', 'nullable', 'numeric'],
+            'amount_max' => ['sometimes', 'nullable', 'numeric'],
+            'date_from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'age_min' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'age_max' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'sort' => ['sometimes', 'nullable', Rule::in(['age', 'amount', 'reference', 'type'])],
+            'direction' => ['sometimes', 'nullable', Rule::in(['asc', 'desc'])],
+            'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $requests = ApprovalRequest::query()
-            ->where('company_id', $this->companyId($request))
-            ->when(
-                filled($filters['status'] ?? null),
-                fn ($query) => $query->where('status', $filters['status'])
-            )
-            ->when(
-                filled($filters['document_type'] ?? null),
-                fn ($query) => $query->where('document_type', $filters['document_type'])
-            )
-            // Oldest first: the queue is worked from the front, unlike the
-            // document lists beside it which read newest first.
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->paginate(min(max($request->integer('per_page', 25), 1), 100));
-
-        return response()->json([
-            'data' => array_map(
-                fn (ApprovalRequest $approval): array => $this->present($approval),
-                $requests->items()
-            ),
-            'meta' => [
-                'current_page' => $requests->currentPage(),
-                'per_page' => $requests->perPage(),
-                'total' => $requests->total(),
-                'last_page' => $requests->lastPage(),
-            ],
-        ]);
+        return response()->json($queue->queue($this->companyId($request), $filters));
     }
 
     public function show(Request $request, string $approvalRequest): JsonResponse
@@ -77,6 +67,55 @@ class ApprovalRequestController extends Controller
         $this->authorize('view', $record);
 
         return response()->json(['data' => $this->present($record)]);
+    }
+
+    /**
+     * The whole of one queued document, gathered for the screen that decides it.
+     *
+     * A read behind the same right as the queue itself: the detail names the
+     * document's lines, what it is worth and what is filed beside it, none of
+     * which is more than reading the line already shows.
+     */
+    public function detail(
+        Request $request,
+        string $approvalRequest,
+        ApprovalDetailQuery $detail,
+    ): JsonResponse {
+        $record = $this->findByUlid($request, $approvalRequest);
+
+        $this->authorize('view', $record);
+
+        return response()->json([
+            'data' => $detail->detail($record, $request->user()->getKey()),
+        ]);
+    }
+
+    /**
+     * Decides several queued documents in one answer.
+     *
+     * The two ceilings — how many documents and how much value — are enforced
+     * by the action against the documents the batch really names, so neither
+     * can be raised by editing what is sent. A document the server refuses is
+     * reported as that item's answer, so one refusal does not discard the rest
+     * of the batch.
+     */
+    public function bulkApprove(Request $request, BulkDecideApprovalRequests $bulk): JsonResponse
+    {
+        $this->authorize('decideAny', ApprovalRequest::class);
+
+        $data = $request->validate([
+            'ulids' => ['required', 'array', 'min:1', 'max:200'],
+            'ulids.*' => ['required', 'string', 'size:26'],
+        ]);
+
+        $results = $bulk->approve(
+            $this->companyId($request),
+            array_values($data['ulids']),
+            $request->user()->getKey(),
+            $this->requireIdempotencyKey($request),
+        );
+
+        return response()->json(['data' => $results]);
     }
 
     public function store(Request $request, SubmitApprovalRequest $submit): JsonResponse

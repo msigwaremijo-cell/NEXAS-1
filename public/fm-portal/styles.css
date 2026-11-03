@@ -623,6 +623,146 @@ table.data td.age--overdue { color: var(--bad); font-weight: 660; }
   border-radius: 999px; padding: 4px 12px;
 }
 
+/* --------------------------------------------------------------- approvals */
+
+/* Master and detail stand side by side, so a decision is made without losing
+   the line that raised it: the list is the wider of the two and the detail
+   sticks while the line is scrolled past it. */
+.approval-split {
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px; align-items: start; margin-top: 16px;
+}
+.approval-split__list, .approval-split__detail { min-width: 0; }
+.approval-split__detail .card { position: sticky; top: 12px; }
+
+/* The bar above the line: tabs on the left, the count and the sorting on the
+   right. It reuses .toolbar's wrapping so a narrow window stacks rather than
+   clipping. */
+.approval-bar { margin-top: 16px; align-items: center; }
+.approval-bar__count { color: var(--mut); font-size: 12.5px; }
+.approval-bar__sorts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+
+/* A control that is the sorting in force reads as chosen rather than merely
+   present. */
+.btn.is-active {
+  border-color: color-mix(in srgb, var(--acc) 45%, transparent);
+  background: var(--info-bg); color: var(--acc); font-weight: 640;
+}
+
+/* Shipped views and the reader's own sit in one row of chips. A saved view
+   carries its own forget button, so it is a span holding two buttons rather
+   than a button holding a span. */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--bd); border-radius: 999px;
+  background: var(--glass-2); color: var(--tx);
+  font: inherit; font-size: 12.5px; padding: 6px 12px; cursor: pointer;
+}
+.chip:hover { border-color: var(--bd-strong); }
+.chip.is-active {
+  background: var(--info-bg); font-weight: 640; color: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 45%, transparent);
+}
+.chip--saved { padding: 0; overflow: hidden; }
+.chip--saved .chip__label {
+  border: 0; background: none; color: inherit; font: inherit;
+  cursor: pointer; padding: 6px 4px 6px 12px;
+}
+.chip--saved .chip__x {
+  border: 0; background: none; color: var(--mut); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 6px 10px 6px 4px;
+}
+.chip--saved .chip__x:hover { color: var(--bad); }
+.chip--add { border-style: dashed; color: var(--mut); }
+.chip--add:hover { color: var(--tx); }
+
+/* The line itself. A chosen row is tinted on every column so the reader can
+   see at once which document the panel on the right is describing. */
+.approval-table td { vertical-align: top; }
+.approval-row { cursor: pointer; }
+.approval-row.is-selected { background: var(--info-bg); }
+.approval-row.is-selected td {
+  border-bottom-color: color-mix(in srgb, var(--acc) 30%, transparent);
+}
+table.data th.approval-check, table.data td.approval-check {
+  width: 34px; padding-left: 0; padding-right: 0; text-align: center;
+}
+table.data .approval-check input { cursor: pointer; }
+/* A header for a column that holds only a checkbox: present to a reader, gone
+   to the eye. */
+.approval-sr {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.approval-pager { margin-top: 12px; align-items: center; }
+.approval-pager__text { color: var(--mut); font-size: 12.5px; }
+
+/* What has been gathered for a batch, and what the server will make of it. It
+   sits above the line so the ceiling stays visible while rows are ticked. */
+.approval-bulk {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent);
+  border-radius: var(--radius-sm); background: var(--info-bg);
+}
+.approval-bulk strong { font-size: 13.5px; }
+.approval-bulk__value { font-variant-numeric: tabular-nums; font-weight: 700; margin-left: 8px; }
+.approval-bulk__limit { color: var(--mut); font-size: 12px; margin-left: 8px; }
+.approval-bulk .spacer { margin-left: auto; }
+/* A refusal occupies its own line, under the buttons it explains. */
+.approval-bulk .note { flex-basis: 100%; margin: 0; }
+
+/* A section of the detail card: a small heading over a block of facts. */
+.approval-block + .approval-block { margin-top: 16px; }
+.approval-block h4 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--mut); margin-bottom: 8px;
+}
+.approval-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+/* Facts read as a label and a value on one line, and the value takes what is
+   left so a long reference wraps rather than pushing the label off. */
+.approval-facts { display: grid; gap: 6px; }
+.approval-facts__row { display: flex; gap: 12px; align-items: baseline; font-size: 13px; }
+.approval-facts__label { color: var(--mut); flex: 0 0 38%; min-width: 0; }
+.approval-facts__value {
+  flex: 1; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums;
+}
+
+.approval-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.approval-files li {
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 12px;
+  border: 1px solid var(--bd); border-radius: var(--radius-sm); background: var(--glass-2);
+}
+.approval-files__name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.approval-files__meta { color: var(--mut); font-size: 11.5px; }
+
+/* How the request got here: a rail of dots down the left, joined into a
+   timeline so the order reads without numbering. */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 4px; display: grid; gap: 12px; }
+.timeline__item { position: relative; display: flex; gap: 12px; }
+.timeline__item:not(:last-child)::before {
+  content: ''; position: absolute; left: 4px; top: 14px; bottom: -12px;
+  width: 1px; background: var(--bd-strong);
+}
+.timeline__dot {
+  flex: 0 0 auto; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%;
+  background: var(--acc); box-shadow: 0 0 0 3px var(--info-bg);
+}
+.timeline__body { min-width: 0; }
+.timeline__body strong { display: block; font-size: 13px; }
+.timeline__meta { color: var(--mut); font-size: 11.5px; }
+.timeline__body p { margin: 4px 0 0; font-size: 12.5px; overflow-wrap: anywhere; }
+
+@media (max-width: 1080px) {
+  /* Two columns squeeze the facts past reading below this width, so the
+     detail drops under the line rather than staying beside it. */
+  .approval-split { grid-template-columns: 1fr; }
+  .approval-split__detail .card { position: static; }
+}
+
 /* ------------------------------------------------------------ responsive */
 
 @media (max-width: 1080px) {

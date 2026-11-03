@@ -449,8 +449,15 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.approval-requests.index');
         Route::post('/approval-requests', [ApprovalRequestController::class, 'store'])
             ->name('api.v1.approval-requests.store');
+        // Declared before the {approvalRequest} routes so the literal segment is
+        // matched first: the batch names its documents in the body rather than
+        // in the path, and must not be read as one of them.
+        Route::post('/approval-requests/bulk-approve', [ApprovalRequestController::class, 'bulkApprove'])
+            ->name('api.v1.approval-requests.bulk-approve');
         Route::get('/approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])
             ->name('api.v1.approval-requests.show');
+        Route::get('/approval-requests/{approvalRequest}/detail', [ApprovalRequestController::class, 'detail'])
+            ->name('api.v1.approval-requests.detail');
         Route::post('/approval-requests/{approvalRequest}/approve', [ApprovalRequestController::class, 'approve'])
             ->name('api.v1.approval-requests.approve');
         Route::post('/approval-requests/{approvalRequest}/reject', [ApprovalRequestController::class, 'reject'])

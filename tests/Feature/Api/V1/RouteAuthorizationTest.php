@@ -251,8 +251,10 @@ function nxRoutePermissions(): array
         'api.v1.approval-requests.index' => AccessMatrix::PERMISSION_APPROVAL_VIEW,
         'api.v1.approval-requests.store' => AccessMatrix::PERMISSION_APPROVAL_REQUEST,
         'api.v1.approval-requests.show' => AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        'api.v1.approval-requests.detail' => AccessMatrix::PERMISSION_APPROVAL_VIEW,
         'api.v1.approval-requests.approve' => AccessMatrix::PERMISSION_APPROVAL_DECIDE,
         'api.v1.approval-requests.reject' => AccessMatrix::PERMISSION_APPROVAL_DECIDE,
+        'api.v1.approval-requests.bulk-approve' => AccessMatrix::PERMISSION_APPROVAL_DECIDE,
     ];
 }
 

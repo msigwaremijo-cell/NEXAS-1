@@ -43,6 +43,21 @@ class ApprovalRequestPolicy
             && $user->can(AccessMatrix::PERMISSION_APPROVAL_DECIDE);
     }
 
+    /**
+     * Whether the member may decide documents in the queue at all, before any
+     * one document is named.
+     *
+     * A bulk approval names its documents in the body rather than the path, so
+     * there is no single row for `decide` to be measured against. This is the
+     * same grant, asked without a document: the per-document rule — that a
+     * member may not decide a request they raised themselves — is still applied
+     * to every item, inside the action, which is where a decision is reached.
+     */
+    public function decideAny(User $user): bool
+    {
+        return $user->can(AccessMatrix::PERMISSION_APPROVAL_DECIDE);
+    }
+
     private function worksFor(User $user, ApprovalRequest $request): bool
     {
         return $user->belongsToCompany((int) $request->company_id);
