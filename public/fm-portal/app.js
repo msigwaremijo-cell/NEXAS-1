@@ -283,7 +283,9 @@
     $('#who-role').textContent = (user.roles && user.roles.join(', ')) || 'Financial Manager';
     $('#who-avatar').textContent = (user.name || 'FM').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     $('#foot-company').textContent = S.companyId ? 'Company #' + S.companyId : '';
-    go('dashboard');
+    // The address the member arrived on decides the screen, so a bookmark to
+    // /financial-manager/dashboard opens the dashboard after signing in.
+    go(screenFromLocation(), { replace: true });
   }
 
   function sessionExpired() {
@@ -483,12 +485,34 @@
     audit: { title: 'Audit log', sub: 'Who changed what, and what it held before', draw: drawAudit }
   };
 
-  function go(name) {
+  /**
+   * The portal navigates by URL rather than by hidden state, so each section
+   * has an address: the dashboard is /financial-manager/dashboard, and a
+   * reload, a bookmark or a click in the sidebar lands on the section it names.
+   * The page reads its own path — the server only decides which paths are real.
+   */
+  function screenFromLocation() {
+    const match = /^\/financial-manager\/([a-z-]+)\/?$/.exec(window.location.pathname);
+    const name = match ? match[1] : '';
+    return SCREENS[name] ? name : 'dashboard';
+  }
+
+  function syncUrl(screen, opts) {
+    const path = '/financial-manager/' + screen;
+    if (window.location.pathname === path) return;
+    const method = (opts && opts.replace) ? 'replaceState' : 'pushState';
+    try { window.history[method]({ screen: screen }, '', path); } catch (e) { /* history is a courtesy */ }
+  }
+
+  function go(name, opts) {
     const screen = SCREENS[name] ? name : 'dashboard';
     S.screen = screen;
     $$('.nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.screen === screen));
     $('#screen-title').textContent = SCREENS[screen].title;
     $('#screen-sub').textContent = SCREENS[screen].sub;
+    const crumb = $('#crumb-current');
+    if (crumb) crumb.textContent = SCREENS[screen].title;
+    syncUrl(screen, opts);
     document.body.classList.remove('drawer-open');
     closeDrawer();
     const view = $('#view');
@@ -515,6 +539,12 @@
     $('#scrim').addEventListener('click', closeDrawer);
     $('#signout').addEventListener('click', () => signOut({}));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
+    // The back and forward buttons move between the sections the sidebar
+    // visited, because each section is an address rather than a hidden state.
+    window.addEventListener('popstate', () => {
+      if (!S.token) return;
+      go(screenFromLocation(), { replace: true });
+    });
   }
 
   async function pollApprovals() {
@@ -625,85 +655,676 @@
 
   /* --------------------------------------------------- screen: dashboard */
 
+  // Month, Quarter and Year are the calendar's own divisions counted back from
+  // today; Custom is whatever the member typed. The window they name is sent
+  // to /reports/dashboard, which reads the posted ledger over it.
+  const DASH_FILTERS = [
+    { key: 'month', label: 'Month' },
+    { key: 'quarter', label: 'Quarter' },
+    { key: 'year', label: 'Year' },
+    { key: 'custom', label: 'Custom' }
+  ];
+
+  // The window survives a change of screen, so leaving the dashboard and
+  // coming back does not quietly reset the filter to something else.
+  const dashState = { filter: 'year', from: '', to: '' };
+
+  function dashRange() {
+    const t = today();
+    const now = new Date();
+    const y = now.getFullYear();
+    const p = n => String(n).padStart(2, '0');
+
+    if (dashState.filter === 'month') {
+      return { from: `${y}-${p(now.getMonth() + 1)}-01`, to: t };
+    }
+    if (dashState.filter === 'quarter') {
+      const q = Math.floor(now.getMonth() / 3) * 3;
+      return { from: `${y}-${p(q + 1)}-01`, to: t };
+    }
+    if (dashState.filter === 'year') {
+      return { from: `${y}-01-01`, to: t };
+    }
+    return { from: dashState.from || yearStart(), to: dashState.to || t };
+  }
+
+  function dashQuery() {
+    const range = dashRange();
+    const query = new URLSearchParams();
+    if (range.from) query.set('from', range.from);
+    if (range.to) query.set('to', range.to);
+    return query.toString();
+  }
+
   async function drawDashboard(container) {
     setStatus('Reading the books');
     await load(container, async () => {
-      const list = await periods();
-      const current = currentPeriod(list);
-      const t = today();
+      const payload = await api('/reports/dashboard?' + dashQuery());
+      setStatus('Ready');
+      return renderDashboard(payload);
+    });
+  }
 
-      const yearPeriods = current ? periodsOfYear(list, current.fiscal_year && current.fiscal_year.ulid) : [];
-      const from = (yearPeriods[0] && yearPeriods[0].starts_on) || yearStart();
+  /**
+   * The dashboard is one request. The endpoint answers with a section per
+   * question it was asked, and each section carries its own error, so a read
+   * that failed leaves its own card standing with the refusal printed on it
+   * while every other card still renders. Nothing on this page is invented:
+   * every figure arrived from /api/v1/reports/dashboard, which reads the
+   * posted ledger and nothing else.
+   */
+  function renderDashboard(payload) {
+    const sections = (payload && payload.sections) || {};
 
-      const results = await Promise.allSettled([
-        api(`/reports/profit-and-loss?from=${from}&to=${t}`),
-        api(`/reports/cash-position?as_of=${t}`),
-        api('/approval-requests?status=pending&per_page=5'),
-        api('/audit-logs?per_page=6')
-      ]);
+    return dashboardHead(payload) +
+      dashboardKpis(sections.kpis) +
+      dashboardCharts(sections) +
+      dashboardAgeing(sections.ageing) +
+      '<div class="grid grid--halves" style="margin-top:16px">' +
+        dashboardApprovals(sections.approvals) + dashboardAlerts(sections.alerts) +
+      '</div>' +
+      '<div style="margin-top:16px">' + dashboardForecast(sections.forecast) + '</div>' +
+      '<div style="margin-top:16px">' + dashboardReconciliation(sections.reconciliation) + '</div>';
+  }
 
-      const pl = results[0].status === 'fulfilled' ? results[0].value : null;
-      const cash = results[1].status === 'fulfilled' ? results[1].value : null;
-      const queue = results[2].status === 'fulfilled' ? results[2].value : null;
-      const audit = results[3].status === 'fulfilled' ? results[3].value : null;
+  /* ------------------------------------------------------------ dashboard head */
 
-      const revenue = pl ? pl.revenue.total : null;
-      const expense = pl ? pl.expense.total : null;
-      const net = pl ? pl.net_profit : null;
+  function dashboardHead(payload) {
+    const company = (payload && payload.company) || {};
+    const win = (payload && payload.window) || {};
+    const period = win.period || null;
+    const prior = win.prior || null;
+    const range = dashRange();
 
-      const metrics = `
-        <div class="grid grid--metrics">
-          <section class="card"><div class="metric__label">Revenue</div>
-            <div class="metric__value">${fmtMoney(revenue)}</div>
-            <p class="metric__note">${esc(from)} to ${esc(t)} \u00b7 ${CURRENCY}</p></section>
-          <section class="card"><div class="metric__label">Expenses</div>
-            <div class="metric__value">${fmtMoney(expense)}</div>
-            <p class="metric__note">The same period, read the other way</p></section>
-          <section class="card"><div class="metric__label">Net profit</div>
-            <div class="metric__value ${moneyClass(net)}">${fmtMoney(net)}</div>
-            <p class="metric__note">Revenue less expenses, as the ledger holds it</p></section>
-          <section class="card"><div class="metric__label">Cash and bank</div>
-            <div class="metric__value">${fmtMoney(cash ? cash.total : null)}</div>
-            <p class="metric__note">As at ${esc(t)}</p></section>
-        </div>`;
+    const filters = DASH_FILTERS.map(f =>
+      `<button class="seg__btn${dashState.filter === f.key ? ' is-active' : ''}" data-act="dash-filter"
+        data-filter="${esc(f.key)}" aria-pressed="${dashState.filter === f.key ? 'true' : 'false'}">${esc(f.label)}</button>`
+    ).join('');
 
-      const accountsRows = cash && cash.accounts && cash.accounts.length
-        ? `<div class="table-wrap"><table class="data"><thead><tr><th>Code</th><th>Account</th><th>Kind</th><th class="num">Balance</th></tr></thead><tbody>` +
-          cash.accounts.map(a => `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td>` +
-            `<td>${a.is_bank ? 'Bank' : (a.is_cash ? 'Cash' : '\u2014')}</td>` +
-            `<td class="num">${fmtMoney(a.balance)}</td></tr>`).join('') +
-          `</tbody><tfoot><tr><td colspan="3">Total</td><td class="num">${fmtMoney(cash.total)}</td></tr></tfoot></table></div>`
-        : emptyState('\u25CB', 'No cash accounts', 'Nothing is classified as cash or bank in the chart yet.');
+    const custom = dashState.filter === 'custom'
+      ? `<label class="field field--date"><span class="field__label">From</span>
+           <input type="date" data-act="dash-from" value="${esc(range.from || '')}"></label>
+         <label class="field field--date"><span class="field__label">To</span>
+           <input type="date" data-act="dash-to" value="${esc(range.to || '')}"></label>`
+      : '';
 
-      const queueRows = queue && queue.data && queue.data.length
-        ? `<div class="inline-list">` + queue.data.map(r => `
+    return `
+      <section class="card dash-head">
+        <div class="facts">
+          <div class="fact"><span class="fact__k">Company</span>
+            <strong class="fact__v">${esc(company.name || '\u2014')}</strong>
+            <small>${esc(company.currency_code || CURRENCY)}</small></div>
+          <div class="fact"><span class="fact__k">Financial period</span>
+            <strong class="fact__v">${esc(period ? period.name : 'No period covers today')}</strong>
+            <small>${period ? esc(fmtDate(period.starts_on) + ' \u2192 ' + fmtDate(period.ends_on)) : '\u2014'}</small></div>
+          <div class="fact"><span class="fact__k">Period status</span>
+            <span class="fact__v">${statusBadge(win.period_status || 'unknown')}</span></div>
+          <div class="fact"><span class="fact__k">Last refreshed</span>
+            <strong class="fact__v">${esc(fmtDateTime(payload && payload.generated_at))}</strong></div>
+          <div class="fact"><span class="fact__k">Compared with</span>
+            <strong class="fact__v">${prior ? esc(fmtDate(prior.from) + ' \u2192 ' + fmtDate(prior.to)) : '\u2014'}</strong>
+            <small>the equivalent window immediately before</small></div>
+        </div>
+        <div class="dash-head__tools">
+          <div class="seg" role="group" aria-label="Period filter">${filters}</div>
+          ${custom}
+          <button class="btn btn--quiet btn--sm" data-act="dash-refresh">Refresh</button>
+          <button class="btn btn--quiet btn--sm" data-act="dash-export" data-format="csv">Export CSV</button>
+          <button class="btn btn--quiet btn--sm" data-act="dash-export" data-format="pdf">Export PDF</button>
+        </div>
+      </section>`;
+  }
+
+  /* -------------------------------------------------------------- dashboard KPI */
+
+  function dashboardKpis(section) {
+    if (!section || section.error) {
+      return sectionProblem('Financial KPIs', section, 'The eight executive measures could not be read.');
+    }
+
+    const cards = ((section.data || {}).cards) || [];
+
+    if (!cards.length) {
+      return card('Financial KPIs', '', emptyState('\u25CB', 'Nothing to measure',
+        'The ledger holds no posted movement over this window.'));
+    }
+
+    return card('Financial KPIs', 'The posted ledger over the window, with the equivalent window before it',
+      `<div class="grid grid--kpis">${cards.map(dashKpiTile).join('')}</div>`);
+  }
+
+  function dashKpiTile(kpi) {
+    const isPercent = kpi.unit === 'percent';
+    const value = isPercent
+      ? (kpi.value === null || kpi.value === undefined ? '\u2014' : Number(kpi.value).toFixed(2) + '%')
+      : fmtMoney(kpi.value);
+
+    const tone = dashDeltaTone(kpi);
+    const direction = kpi.direction || 'unknown';
+    const arrow = direction === 'up' ? '\u25B2' : (direction === 'down' ? '\u25BC' : '\u2013');
+    const priorText = isPercent
+      ? (kpi.prior === null || kpi.prior === undefined ? '\u2014' : Number(kpi.prior).toFixed(2) + '%')
+      : fmtMoney(kpi.prior);
+
+    const delta = (kpi.variance_percent === null || kpi.variance_percent === undefined)
+      ? `<span class="kpi__delta kpi__delta--flat">No prior window to compare</span>`
+      : `<span class="kpi__delta kpi__delta--${tone}">${arrow} ${Number(kpi.variance_percent) >= 0 ? '+' : ''}${Number(kpi.variance_percent).toFixed(2)}%
+           <small>vs ${priorText}</small></span>`;
+
+    const report = kpi.report || {};
+    const target = report.key ? dashReportKey(report.key) : '';
+
+    return `
+      <button class="kpi" data-act="open-report" data-report="${esc(target)}">
+        <span class="kpi__label">${esc(kpi.label)}</span>
+        <span class="kpi__value ${isPercent ? '' : moneyClass(kpi.value)}">${value}</span>
+        ${delta}
+        ${sparkline(kpi.sparkline, tone)}
+        <span class="kpi__link">${esc(report.label || 'Open the report')} \u2192</span>
+      </button>`;
+  }
+
+  /**
+   * Whether a movement is good news. Rising revenue is good and rising expense
+   * is not, so the measure itself says which way is better; a balance with no
+   * direction of its own is left neutral rather than coloured by a guess.
+   */
+  function dashDeltaTone(kpi) {
+    const direction = kpi.direction;
+    if (direction === 'unknown' || direction === 'flat') return 'flat';
+    const better = kpi.higher_is_better;
+    if (better === null || better === undefined) return 'neutral';
+    if (direction === 'up') return better ? 'good' : 'bad';
+    return better ? 'bad' : 'good';
+  }
+
+  // The API names its reports with underscores ('profit_and_loss'); the reports
+  // screen names them with hyphens ('profit-and-loss'). One separator apart.
+  function dashReportKey(key) {
+    return String(key || '').replace(/_/g, '-');
+  }
+
+  function sectionProblem(title, section, fallback) {
+    const message = (section && section.error && section.error.message) || fallback ||
+      'This part of the dashboard could not be read.';
+    return card(title, '', `<div class="note note--warn">${esc(message)}</div>`);
+  }
+
+  /* ------------------------------------------------------------- dashboard charts */
+
+  function dashboardCharts(sections) {
+    const trend = sections.trend;
+    const cash = sections.cash_flow;
+    const budget = sections.budget;
+
+    return '<div class="grid grid--halves" style="margin-top:16px">' +
+      dashChartCard('Revenue, expenses and net profit', 'One point per fiscal period in the window', trend, [
+        ['revenue', 'Revenue', 'area'],
+        ['expense', 'Expenses', 'area'],
+        ['net_profit', 'Net profit', 'line']
+      ]) +
+      dashChartCard('Cash movement', 'What came in, what went out, and the movement between them', cash, [
+        ['cash_in', 'Inflows', 'bar'],
+        ['cash_out', 'Outflows', 'bar'],
+        ['cash_net', 'Net movement', 'line']
+      ]) +
+      '</div>' +
+      '<div style="margin-top:16px">' +
+      dashChartCard('Budget against actual', 'The plan the company wrote, beside what the ledger posted', budget, [
+        ['budget_revenue', 'Budget revenue', 'bar'],
+        ['actual_revenue', 'Actual revenue', 'bar'],
+        ['budget_expense', 'Budget expense', 'bar'],
+        ['actual_expense', 'Actual expense', 'bar']
+      ], budget && budget.data ? budget.data.note : '') +
+      '</div>';
+  }
+
+  function dashChartCard(title, subtitle, section, defs, note) {
+    if (!section || section.error) return sectionProblem(title, section, subtitle);
+
+    const data = section.data || {};
+    const series = data.series || {};
+    const measures = defs.map((def, index) => ({
+      label: def[1],
+      kind: def[2],
+      values: series[def[0]] || [],
+      color: (index % 4) + 1
+    }));
+
+    const body = chartSvg(series, measures) +
+      (series.truncated ? `<div class="note note--warn" style="margin-top:12px">
+        Only the most recent periods are charted; the window holds more than can be read at once.</div>` : '') +
+      (note ? `<div class="note" style="margin-top:12px">${esc(note)}</div>` : '');
+
+    return card(title, subtitle, body);
+  }
+
+  /* ------------------------------------------------------------------- charts */
+
+  /**
+   * One chart, drawn by hand as SVG.
+   *
+   * It is drawn here rather than by a charting library so it inherits the
+   * portal's own colours through the --chart-* variables, carries no extra
+   * download, and plots the ledger's own decimals without reformatting them.
+   */
+  function chartSvg(series, measures) {
+    const periods = (series && series.periods) || [];
+    const n = periods.length;
+
+    if (!n) {
+      return emptyState('\u25CB', 'No periods to chart',
+        'No fiscal period covers the window you chose, so there is nothing to plot.');
+    }
+
+    const W = 780;
+    const H = 280;
+    const padL = 70, padR = 20, padT = 18, padB = 46;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    let min = 0;
+    let max = 0;
+
+    measures.forEach(m => (m.values || []).forEach(v => {
+      const x = Number(v);
+      if (!isFinite(x)) return;
+      if (x < min) min = x;
+      if (x > max) max = x;
+    }));
+
+    if (max === min) max = min + 1;
+    const headroom = (max - min) * 0.1;
+    max += headroom;
+    if (min < 0) min -= headroom;
+
+    const yOf = v => padT + plotH - ((Number(v) - min) / (max - min)) * plotH;
+    const band = plotW / n;
+    const cx = i => padL + band * (i + 0.5);
+
+    const steps = 4;
+    let grid = '';
+
+    for (let s = 0; s <= steps; s++) {
+      const value = min + ((max - min) * s) / steps;
+      const gy = yOf(value);
+      grid += `<line class="chart__grid" x1="${padL}" y1="${gy.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${gy.toFixed(1)}"/>` +
+        `<text class="chart__axis" x="${padL - 10}" y="${(gy + 4).toFixed(1)}" text-anchor="end">${esc(shortMoney(value))}</text>`;
+    }
+
+    const labelStep = Math.ceil(n / 8);
+    let xAxis = '';
+
+    periods.forEach((period, i) => {
+      if (i % labelStep !== 0 && i !== n - 1) return;
+      xAxis += `<text class="chart__axis" x="${cx(i).toFixed(1)}" y="${(H - padB + 22).toFixed(1)}" text-anchor="middle">` +
+        `${esc(periodShort(period))}</text>`;
+    });
+
+    const zero = (min < 0 && max > 0)
+      ? `<line class="chart__zero" x1="${padL}" y1="${yOf(0).toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${yOf(0).toFixed(1)}"/>`
+      : '';
+
+    const bars = measures.filter(m => m.kind === 'bar');
+    const barW = bars.length ? Math.max(4, Math.min((band * 0.68) / bars.length, 26)) : 0;
+    const groupW = barW * bars.length;
+
+    let drawn = '';
+
+    measures.forEach((m, index) => {
+      const color = 'var(--chart-' + m.color + ')';
+      const values = (m.values || []).slice(0, n).map(v => (isFinite(Number(v)) ? Number(v) : 0));
+
+      if (m.kind === 'bar') {
+        const slot = bars.indexOf(m);
+        values.forEach((v, i) => {
+          const x = cx(i) - groupW / 2 + slot * barW;
+          const top = Math.min(yOf(v), yOf(0));
+          const height = Math.max(1, Math.abs(yOf(v) - yOf(0)));
+          drawn += `<rect class="chart__bar" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(1, barW - 2).toFixed(1)}" height="${height.toFixed(1)}" rx="2" style="fill:${color}"/>`;
+        });
+        return;
+      }
+
+      const points = values.map((v, i) => [cx(i), yOf(v)]);
+      const line = points.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+
+      if (m.kind === 'area' && points.length) {
+        const gradient = 'chartGrad' + index;
+        const base = yOf(Math.max(min, 0)).toFixed(1);
+        const area = line + ' L ' + points[points.length - 1][0].toFixed(1) + ' ' + base +
+          ' L ' + points[0][0].toFixed(1) + ' ' + base + ' Z';
+        drawn += `<defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${color}" stop-opacity=".32"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </linearGradient></defs>` +
+          `<path class="chart__area" d="${area}" style="fill:url(#${gradient})"/>`;
+      }
+
+      drawn += `<path class="chart__line" d="${line}" fill="none" style="stroke:${color}"/>`;
+
+      if (n <= 14) {
+        points.forEach(p => {
+          drawn += `<circle class="chart__dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" style="fill:${color}"/>`;
+        });
+      }
+    });
+
+    const legend = '<div class="chart__legend">' + measures.map(m =>
+      `<span class="chart__key"><i class="chart__swatch chart__swatch--${esc(m.kind)}" style="background:var(--chart-${m.color})"></i>${esc(m.label)}</span>`
+    ).join('') + '</div>';
+
+    return `<div class="chart">${legend}
+      <div class="chart__scroll">
+        <svg class="chart__svg" viewBox="0 0 ${W} ${H}" role="img"
+          aria-label="${esc(measures.map(m => m.label).join(', '))} by fiscal period">
+          ${grid}${zero}${drawn}${xAxis}
+        </svg>
+      </div></div>`;
+  }
+
+  function shortMoney(value) {
+    const n = Number(value);
+    if (!isFinite(n)) return '';
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+    return n.toFixed(0);
+  }
+
+  function periodShort(period) {
+    const name = String((period && (period.name || period.starts_on)) || '');
+    return name.length > 12 ? name.slice(0, 12) : name;
+  }
+
+  /**
+   * A sparkline: the same series as a card's chart, at the size of a thumbnail.
+   * It carries no axis because it is a shape rather than a reading — the number
+   * above it is the reading.
+   */
+  function sparkline(values, tone) {
+    const points = (values || []).map(Number).filter(v => isFinite(v));
+    if (points.length < 2) return '<span class="spark spark--empty" aria-hidden="true"></span>';
+
+    const W = 132;
+    const H = 34;
+    const pad = 3;
+    const min = Math.min.apply(null, points);
+    const max = Math.max.apply(null, points);
+    const span = (max - min) || 1;
+    const step = (W - pad * 2) / (points.length - 1);
+    const coords = points.map((v, i) => [pad + i * step, H - pad - ((v - min) / span) * (H - pad * 2)]);
+    const line = coords.map((c, i) => (i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+    const id = 'spark' + Math.random().toString(36).slice(2, 9);
+
+    return `<svg class="spark spark--${esc(tone || 'neutral')}" viewBox="0 0 ${W} ${H}"
+      preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="currentColor" stop-opacity=".30"/>
+        <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+      </linearGradient></defs>
+      <path d="${line} L ${coords[coords.length - 1][0].toFixed(1)} ${H} L ${coords[0][0].toFixed(1)} ${H} Z" fill="url(#${id})"/>
+      <path d="${line}" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+    </svg>`;
+  }
+
+  /* ------------------------------------------------------------------- ageing */
+
+  const AGE_BUCKET_LABELS = {
+    current: 'Current', '1_30': '1\u201330', '31_60': '31\u201360',
+    '61_90': '61\u201390', over_90: 'Over 90'
+  };
+
+  const AGE_OVERDUE = ['1_30', '31_60', '61_90', 'over_90'];
+
+  function dashboardAgeing(section) {
+    if (!section || section.error) {
+      return sectionProblem('Ageing', section, 'The receivables and payables ageing could not be read.');
+    }
+
+    const data = section.data || {};
+    const links = data.links || {};
+    const buckets = data.buckets || [];
+
+    return card('Ageing', 'As at ' + esc(fmtDate(data.as_of)) + ' \u00b7 overdue balances are marked',
+      '<div class="grid grid--halves">' +
+        ageingTable('Receivables \u2014 what customers owe', data.receivables, buckets, links.receivables) +
+        ageingTable('Payables \u2014 what the company owes', data.payables, buckets, links.payables) +
+      '</div>');
+  }
+
+  function ageingTable(title, block, buckets, link) {
+    const parties = (block && block.parties) || [];
+    const totals = (block && block.totals) || {};
+    const shown = parties.slice(0, 8);
+
+    const overdue = key => AGE_OVERDUE.indexOf(key) >= 0;
+
+    const head = '<tr><th>Party</th>' +
+      buckets.map(b => `<th class="num">${esc(AGE_BUCKET_LABELS[b] || b)}</th>`).join('') +
+      '<th class="num">Total</th></tr>';
+
+    const rows = shown.length
+      ? shown.map(p => '<tr><td>' + esc(p.party_name || p.party_code || '#' + p.party_id) + '</td>' +
+          buckets.map(b => `<td class="num${overdue(b) && Number(p[b]) !== 0 ? ' age--overdue' : ''}">${fmtMoney(p[b])}</td>`).join('') +
+          `<td class="num">${fmtMoney(p.total)}</td></tr>`).join('')
+      : `<tr><td colspan="${buckets.length + 2}"><span class="cell__sub">Nothing outstanding.</span></td></tr>`;
+
+    const foot = '<tr><td>Total</td>' +
+      buckets.map(b => `<td class="num${overdue(b) && Number(totals[b]) !== 0 ? ' age--overdue' : ''}">${fmtMoney(totals[b])}</td>`).join('') +
+      `<td class="num">${fmtMoney(totals.total)}</td></tr>`;
+
+    const more = parties.length > shown.length
+      ? `<p class="metric__note">Showing the ${shown.length} largest of ${parties.length} parties; the full list is in the ageing report.</p>`
+      : '';
+
+    return `<section class="ageing">
+      <div class="ageing__head">
+        <h4>${esc(title)}</h4>
+        ${link ? routeToAction(link.route) : ''}
+      </div>
+      <div class="table-wrap"><table class="data">
+        <thead>${head}</thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot>
+      </table></div>${more}</section>`;
+  }
+
+  /* --------------------------------------------------- approvals and alerts */
+
+  function dashboardApprovals(section) {
+    if (!section || section.error) {
+      return sectionProblem('Pending approvals', section, 'The approvals queue could not be read.');
+    }
+
+    const data = section.data || {};
+    const items = data.items || [];
+
+    const body = (data.total
+      ? `<div class="callout"><strong>${esc(data.total)}</strong> document(s) are waiting for a decision.</div>`
+      : '') +
+      (items.length
+        ? '<div class="inline-list">' + items.map(r => `
             <div class="inline-row">
               <div class="inline-row__main">
                 <strong>${esc(r.document_type_label)} \u00b7 ${esc(r.document_reference || r.document_ulid)}</strong>
-                <small>Raised ${esc(fmtDateTime(r.created_at))} \u00b7 decision by no one yet</small>
+                <small>Raised ${esc(fmtDateTime(r.created_at))}</small>
               </div>
-              <div class="inline-row__actions">
-                ${statusBadge(r.status)}
-                <button class="btn btn--quiet btn--sm" data-act="open-screen" data-screen="approvals">Open</button>
-              </div>
-            </div>`).join('') + `</div>`
-        : emptyState('\u2714', 'The queue is clear', 'Nothing is waiting for a decision.');
+              <div class="inline-row__actions">${statusBadge(r.status)}</div>
+            </div>`).join('') + '</div>'
+        : emptyState('\u2714', 'The queue is clear', 'Nothing is waiting for a decision.')) +
+      `<div class="card__foot"><button class="btn btn--quiet btn--sm" data-act="open-screen"
+        data-screen="approvals">Open the approvals page</button></div>`;
 
-      const auditRows = audit && audit.data && audit.data.length
-        ? `<div class="table-wrap"><table class="data"><thead><tr><th>When</th><th>Action</th><th>Subject</th><th>Who</th><th>Chain</th></tr></thead><tbody>` +
-          audit.data.map(r => `<tr><td>${esc(fmtDateTime(r.created_at))}</td><td>${esc(r.action)}</td>` +
-            `<td>${esc(r.subject_type || '\u2014')}${r.subject_id ? ' #' + esc(r.subject_id) : ''}</td>` +
-            `<td>${esc(r.user ? r.user.name : '\u2014')}</td>` +
-            `<td>${r.chain_valid === true ? badge('ok', 'Verified') : badge('bad', 'Broken')}</td></tr>`).join('') +
-          `</tbody></table></div>`
-        : emptyState('\u25CB', 'No trail yet', 'Nothing has been written to the audit chain.');
+    return card('Pending approvals', 'The latest five items in the queue', body);
+  }
 
-      setStatus('Ready');
-      return metrics +
-        card('Cash position', 'What sits in each cash and bank account, and the total', accountsRows) +
-        card('Waiting on a decision', 'The head of the approvals queue', queueRows) +
-        card('Latest in the audit chain', 'Newest first; each link checked as it is read', auditRows);
-    });
+  const SEVERITY_BADGE = { critical: 'bad', warning: 'pending', info: 'info', ok: 'ok' };
+
+  function dashboardAlerts(section) {
+    if (!section || section.error) {
+      return sectionProblem('Financial alerts', section, 'The alert list could not be read.');
+    }
+
+    const data = section.data || {};
+    const items = data.items || [];
+
+    return card('Financial alerts', 'As at ' + esc(fmtDate(data.as_of)),
+      items.length
+        ? '<div class="inline-list">' + items.map(alertRow).join('') + '</div>'
+        : emptyState('\u2714', 'Nothing to flag', 'No alert is raised.'));
+  }
+
+  function alertRow(item) {
+    const severity = item.severity || 'ok';
+    const kind = SEVERITY_BADGE[severity] || 'muted';
+    const total = item.total === null || item.total === undefined
+      ? ''
+      : `<small>${esc(fmtMoney(item.total))} ${esc(CURRENCY)}</small>`;
+    const count = item.count
+      ? `<span class="badge badge--${kind}">${esc(item.count)}</span>`
+      : '';
+
+    return `<div class="inline-row alert alert--${esc(severity)}">
+      <div class="inline-row__main">
+        <strong>${esc(item.label)} ${count}</strong>
+        <small>${esc(item.detail)}</small>${total}
+      </div>
+      <div class="inline-row__actions">${routeToAction(item.route)}</div>
+    </div>`;
+  }
+
+  /**
+   * A route the API named, turned into the control that walks there: a report
+   * route opens the reports screen on that report, a section route opens the
+   * section. A route the portal does not know becomes no button at all rather
+   * than a dead one.
+   */
+  function routeToAction(route) {
+    const text = String(route || '');
+    const report = /[?&]report=([a-z_]+)/.exec(text);
+
+    if (report) {
+      return `<button class="btn btn--quiet btn--sm" data-act="open-report"
+        data-report="${esc(dashReportKey(report[1]))}">Open</button>`;
+    }
+
+    const screen = /\/([a-z-]+)\/?$/.exec(text);
+
+    if (screen && SCREENS[screen[1]]) {
+      return `<button class="btn btn--quiet btn--sm" data-act="open-screen"
+        data-screen="${esc(screen[1])}">Open</button>`;
+    }
+
+    return '';
+  }
+
+  /* ---------------------------------------------------------------- forecast */
+
+  function dashboardForecast(section) {
+    if (!section || section.error) {
+      return sectionProblem('Forecast', section, 'The forecast could not be built.');
+    }
+
+    const data = section.data || {};
+    const horizon = data.horizon || {};
+    const totals = data.horizon_totals || {};
+    const revenue = totals.revenue || {};
+    const expense = totals.expense || {};
+    const net = totals.net || {};
+    const projected = (data.periods || []).filter(p => p.is_forecast);
+    const value = v => (v === null || v === undefined ? '\u2014' : fmtMoney(v));
+
+    const facts = `<div class="grid grid--thirds">
+      <div class="fact"><span class="fact__k">Projected revenue</span>
+        <strong class="fact__v">${value(revenue.forecast)}</strong>
+        <small>for the ${esc(horizon.period_count || 0)} periods left</small></div>
+      <div class="fact"><span class="fact__k">Projected expenses</span>
+        <strong class="fact__v">${value(expense.forecast)}</strong></div>
+      <div class="fact"><span class="fact__k">Projected net</span>
+        <strong class="fact__v ${moneyClass(net.forecast)}">${value(net.forecast)}</strong></div>
+    </div>`;
+
+    const rows = projected.length
+      ? `<div class="table-wrap" style="margin-top:14px"><table class="data">
+          <thead><tr><th>Period</th><th>Ends</th><th class="num">Projected revenue</th>
+            <th class="num">Projected expense</th><th class="num">Projected net</th></tr></thead>
+          <tbody>${projected.map(p => `<tr>
+            <td>${esc((p.period || {}).name)}</td><td>${esc(fmtDate((p.period || {}).ends_on))}</td>
+            <td class="num">${value((p.revenue || {}).forecast)}</td>
+            <td class="num">${value((p.expense || {}).forecast)}</td>
+            <td class="num">${value((p.net || {}).forecast)}</td></tr>`).join('')}</tbody>
+        </table></div>`
+      : emptyState('\u25CB', 'Nothing left to project',
+          'Every period in the open fiscal year has already happened.');
+
+    return `<section class="card forecast">
+      <div class="card__head">
+        <div>
+          <h3>Forecast to the end of the fiscal year</h3>
+          <p>${esc(horizon.from_period_name || 'no period')} to ${esc(horizon.to_period_name || 'no period')}
+             \u00b7 ends ${esc(fmtDate(horizon.ends_on))}</p>
+        </div>
+        <div class="spacer"><span class="forecast__flag">FORECAST \u2014 NOT ACTUAL</span></div>
+      </div>
+      ${facts}${rows}
+      <div class="note note--warn" style="margin-top:14px">
+        <strong>These figures are projections, not actuals.</strong>
+        Nothing here is posted, stored, or part of any trial balance. ${esc(data.note || '')}</div>
+    </section>`;
+  }
+
+  /* ---------------------------------------------------------- reconciliation */
+
+  function dashboardReconciliation(section) {
+    if (!section || section.error) {
+      return sectionProblem('Reconciliation', section, 'The reconciliation checks could not be run.');
+    }
+
+    const data = section.data || {};
+    const checks = data.checks || [];
+    const skipped = data.skipped || {};
+
+    const rows = checks.map(c => `<tr>
+      <td>${esc(c.label)}<div class="cell__sub">${esc(c.basis || '')}</div></td>
+      <td class="num">${fmtMoney(c.expected)}<div class="cell__sub">${esc(c.expected_label || '')}</div></td>
+      <td class="num">${fmtMoney(c.actual)}<div class="cell__sub">${esc(c.actual_label || '')}</div></td>
+      <td class="num ${Number(c.difference) === 0 ? '' : 'is-negative'}">${fmtMoney(c.difference)}</td>
+      <td>${c.reconciled ? badge('ok', 'Reconciled') : badge('bad', 'Difference')}</td>
+    </tr>`).join('');
+
+    const skippedNotes = Object.keys(skipped).map(key =>
+      `<div class="note note--warn" style="margin-top:10px">${esc(skipped[key])}</div>`).join('');
+
+    return card('Reconciliation', 'Each check compares two figures reached by different routes',
+      (data.reconciled
+        ? `<div class="note note--ok"><strong>Every check agrees.</strong> The dashboard states the same
+            figures as the trial balance, the ageing control accounts and the cash position report.</div>`
+        : `<div class="note note--bad"><strong>A check does not agree.</strong> The difference is reported
+            below as it stands; nothing was adjusted to force it away.</div>`) +
+      `<div class="table-wrap" style="margin-top:14px"><table class="data">
+        <thead><tr><th>Check</th><th class="num">Expected</th><th class="num">Actual</th>
+          <th class="num">Difference</th><th>Result</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5"><span class="cell__sub">No check was run.</span></td></tr>'}</tbody>
+      </table></div>${skippedNotes}
+      <div class="note" style="margin-top:12px">${esc(data.note || '')}</div>`);
+  }
+
+  /**
+   * The dashboard exports through the same pipeline every other report uses: a
+   * queued render, a record to poll, and a signed expiring download. The file
+   * is built from the same endpoint the page reads, so the two cannot disagree.
+   */
+  function startDashboardExport(format) {
+    const range = dashRange();
+    const body = { type: 'financial_manager_dashboard', format: format };
+    if (range.from) body.from = range.from;
+    if (range.to) body.to = range.to;
+
+    toast('info', 'Export requested', 'The dashboard is being rendered as a ' + String(format).toUpperCase() + ' file.');
+    api('/exports', { method: 'POST', key: newKey(), body })
+      .then(record => pollExport(record.data.id))
+      .then(record => downloadExport(record))
+      .catch(error => toast('bad', error.message, 'The export did not finish.'));
   }
 
   /* --------------------------------------------------- screen: approvals */
@@ -1140,7 +1761,8 @@
     { key: 'receivables-ageing', label: 'Receivables ageing', params: ['as_of'] },
     { key: 'payables-ageing', label: 'Payables ageing', params: ['as_of'] },
     { key: 'budget-vs-actual', label: 'Budget versus actual', params: ['fiscal_period', 'compare'] },
-    { key: 'cash-position', label: 'Cash position', params: ['as_of'] }
+    { key: 'cash-position', label: 'Cash position', params: ['as_of'] },
+    { key: 'stock-valuation', label: 'Stock valuation', params: ['as_of'] }
   ];
 
   const reportState = { key: 'profit-and-loss', params: {}, html: '' };
@@ -1421,6 +2043,34 @@
           posted ledger. They are shown side by side and never added together.</div>` +
         comparison + '<div style="height:14px"></div>' + sections +
         `<div class="note" style="margin-top:12px">${esc(report.note || '')}</div>`);
+    }
+
+    if (key === 'stock-valuation') {
+      const lines = report.lines || [];
+      const control = report.control || [];
+      return card('Stock valuation', 'What the stock on hand is worth as at ' + esc(report.as_of),
+        rowsTable('Items', [
+          { label: 'SKU', render: r => esc(r.product_sku || '') },
+          { label: 'Product', render: r => esc(r.product_name || '') },
+          { label: 'Warehouse', render: r => esc(r.warehouse_name || r.warehouse_code || '') },
+          { label: 'Quantity', num: true, render: r => fmtQty(r.quantity) },
+          { label: 'Unit cost', num: true, render: r => fmtMoney(r.unit_cost) },
+          { label: 'Value', num: true, render: r => fmtMoney(r.value) }
+        ], lines, { 0: '', 1: '', 2: 'Total', 3: '', 4: '', 5: fmtMoney(report.total_value) }) +
+        (control.length
+          ? '<div style="height:14px"></div>' + rowsTable('Inventory accounts', [
+              { label: 'Code', render: r => esc(r.account_code || '') },
+              { label: 'Account', render: r => esc(r.account_name || '') },
+              { label: 'Stock value', num: true, render: r => fmtMoney(r.stock_value) },
+              { label: 'Ledger balance', num: true, render: r => fmtMoney(r.ledger_balance) },
+              { label: 'Difference', num: true, render: r => fmtMoney(r.difference) }
+            ], control)
+          : '') +
+        `<div class="note ${report.reconciled ? 'note--ok' : 'note--bad'}" style="margin-top:12px">
+          The valuation is priced from the stock layers; the ledger balance is the inventory accounts
+          read from the posted journals. ${report.reconciled
+            ? 'The two agree at this date.'
+            : 'They disagree at this date, and the difference is shown rather than adjusted away.'}</div>`);
     }
 
     return `<section class="card"><details class="raw" open><summary>Raw payload</summary><pre>${esc(json(report))}</pre></details></section>`;
@@ -1786,6 +2436,27 @@
         return;
       }
       if (act === 'audit-page') { auditState.page = Number(trigger.dataset.page); go('audit'); return; }
+
+      // Dashboard controls. Each one re-asks the dashboard endpoint rather
+      // than redrawing from a stale payload, so what is on screen is what the
+      // ledger holds now.
+      if (act === 'dash-filter') {
+        dashState.filter = trigger.dataset.filter || 'year';
+        go('dashboard');
+        return;
+      }
+      if (act === 'dash-refresh') { go('dashboard'); return; }
+      if (act === 'dash-export') { startDashboardExport(trigger.dataset.format || 'csv'); return; }
+      if (act === 'open-report') {
+        // A KPI and an alert both walk to the report the API named; the report
+        // screen runs it on arrival, so the figure can be read where it came from.
+        const key = trigger.dataset.report;
+        if (key && REPORT_DEFS.some(d => d.key === key)) reportState.key = key;
+        reportState.params = {};
+        reportState.html = '';
+        go('reports');
+        return;
+      }
     });
 
     $('#view').addEventListener('change', event => {
@@ -1805,6 +2476,15 @@
         budgetState.lines = [];
         budgetState.name = '';
         go('budgets');
+        return;
+      }
+      // Custom dates put the dashboard on the custom filter, whatever the
+      // segmented control held before, so the window on screen matches the input.
+      if (target.dataset.act === 'dash-from' || target.dataset.act === 'dash-to') {
+        if (target.dataset.act === 'dash-from') dashState.from = target.value;
+        else dashState.to = target.value;
+        dashState.filter = 'custom';
+        go('dashboard');
         return;
       }
     });

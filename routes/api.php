@@ -172,6 +172,16 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/reports/forecast', [ReportController::class, 'forecast'])
             ->name('api.v1.reports.forecast');
 
+        // The Financial Manager dashboard: every statement above, for one
+        // company and one window, read in a single call. Nothing is computed
+        // here that a report does not already compute — it is the same services
+        // the routes above call, composed so a screen does not have to make a
+        // dozen requests to draw one page. Each block is guarded on its own, so
+        // one that cannot be read answers with its own error and the rest of the
+        // payload still arrives.
+        Route::get('/reports/dashboard', [ReportController::class, 'dashboard'])
+            ->name('api.v1.reports.dashboard');
+
         // Report exports: the heavy reports as a file. A request records what
         // was asked for and hands the rendering to the queue, so reading a
         // year of the ledger as a spreadsheet does not hold a request open.

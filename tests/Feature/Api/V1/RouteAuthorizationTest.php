@@ -99,6 +99,9 @@ function nxRoutePermissions(): array
         // The plan, which is not the books.
         'api.v1.reports.budget-vs-actual' => AccessMatrix::PERMISSION_BUDGET_VIEW,
         'api.v1.reports.forecast' => AccessMatrix::PERMISSION_BUDGET_VIEW,
+        // The Financial Manager dashboard: a composition of the statements
+        // above, guarded by the same read right every one of them is guarded by.
+        'api.v1.reports.dashboard' => AccessMatrix::PERMISSION_REPORT_VIEW,
 
         // Exports. Requesting one is reading a report, so it is the report
         // right; a specific export may ask for more, and ExportController

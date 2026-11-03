@@ -30,9 +30,24 @@ Route::get('/coming-soon', function () {
  * system calls, with a bearer token and the company header, so this route has
  * nothing to authorise — the API is what refuses a caller who is not a
  * Financial Manager, and the page renders the refusal.
+ *
+ * Each section has a URL of its own — the dashboard is /financial-manager/
+ * dashboard — so a reload, a bookmark or a click in the sidebar lands on the
+ * section it names. The page reads its own path to decide which section to
+ * draw; the server only decides which paths are real, so a path that is not one
+ * of the portal's sections is a 404 rather than a second copy of the shell.
  */
-Route::get('/financial-manager', function () {
-    return response()->file(public_path('financial-manager/index.html'), [
+$portal = function (?string $screen = null) {
+    $screens = ['dashboard', 'approvals', 'forecast', 'budgets', 'reports', 'periods', 'audit'];
+
+    abort_unless($screen === null || in_array($screen, $screens, true), 404);
+
+    return response()->file(public_path('fm-portal/index.html'), [
         'Content-Type' => 'text/html; charset=utf-8',
     ]);
-})->name('financial-manager');
+};
+
+Route::get('/financial-manager', $portal)->name('financial-manager');
+Route::get('/financial-manager/{screen}', $portal)
+    ->where('screen', '[a-z][a-z-]*')
+    ->name('financial-manager.screen');

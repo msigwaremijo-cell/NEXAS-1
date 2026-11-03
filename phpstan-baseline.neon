@@ -259,6 +259,66 @@ parameters:
 			path: app/Domain/Accounting/Services/LedgerBalanceCalculator.php
 
 		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Domain/Approvals/Actions/DecideApprovalRequest.php
+
+		-
+			message: '#^Cannot call method isPending\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Approvals/Actions/DecideApprovalRequest.php
+
+		-
+			message: '#^Cannot call method isReplayable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Approvals/Actions/DecideApprovalRequest.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:Failed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Approvals/Actions/DecideApprovalRequest.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:InProgress will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Approvals/Actions/DecideApprovalRequest.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Domain/Approvals/Actions/SubmitApprovalRequest.php
+
+		-
+			message: '#^Cannot call method isReplayable\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Approvals/Actions/SubmitApprovalRequest.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:Failed will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Approvals/Actions/SubmitApprovalRequest.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Support\\Enums\\IdempotencyStatus\:\:InProgress will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Domain/Approvals/Actions/SubmitApprovalRequest.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Domain/Approvals/Exceptions/ApprovalStateException.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$accumulated_depreciation_account_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1185,6 +1245,66 @@ parameters:
 		-
 			message: '#^Cannot access property \$value on string\.$#'
 			identifier: property.nonObject
+			count: 5
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 12
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Offset ''reconciled'' on array\{as_of\: string, lines\: list\<array\<string, mixed\>\>, total_value\: string, control\: list\<array\<string, mixed\>\>, reconciled\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 2
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\ApprovalRequest\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Bill\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\FiscalPeriod\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Invoice\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Domain/Reporting/Services/DashboardQuery.php
+
+		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
 			count: 4
 			path: app/Domain/Reporting/Services/FinancialStatementQuery.php
 
@@ -1609,6 +1729,24 @@ parameters:
 			path: app/Http/Controllers/Api/V1/AccountController.php
 
 		-
+			message: '#^Cannot access property \$value on string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/V1/ApprovalRequestController.php
+
+		-
+			message: '#^Cannot call method label\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApprovalRequestController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApprovalRequestController.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
 			identifier: property.notFound
 			count: 2
@@ -1683,7 +1821,7 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>password" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 1
+			count: 2
 			path: app/Http/Controllers/Api/V1/AuthController.php
 
 		-
@@ -2254,6 +2392,24 @@ parameters:
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
 			identifier: property.notFound
 			count: 2
+			path: app/Models/ApprovalRequest.php
+
+		-
+			message: '#^Cannot call method documentTypeColumn\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/ApprovalRequest.php
+
+		-
+			message: '#^Cannot call method modelClass\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/ApprovalRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ulid\.$#'
+			identifier: property.notFound
+			count: 2
 			path: app/Models/Asset.php
 
 		-
@@ -2585,3 +2741,9 @@ parameters:
 			identifier: property.nonObject
 			count: 1
 			path: database/seeders/ChartOfAccountsSeeder.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: database/seeders/LocalFinancialManagerSeeder.php

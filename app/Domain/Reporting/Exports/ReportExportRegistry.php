@@ -4,6 +4,7 @@ namespace App\Domain\Reporting\Exports;
 
 use App\Domain\Access\AccessMatrix;
 use App\Domain\Reporting\Exceptions\UnknownExportTypeException;
+use App\Domain\Reporting\Services\DashboardQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Models\Company;
@@ -36,6 +37,7 @@ final class ReportExportRegistry
     public function __construct(
         private readonly FinancialStatementQuery $statements,
         private readonly LedgerQuery $ledger,
+        private readonly DashboardQuery $dashboard,
     ) {}
 
     /**
@@ -71,6 +73,22 @@ final class ReportExportRegistry
                 parameters: ['from', 'to', 'compare'],
                 build: function (int $companyId, array $parameters): ReportDocument {
                     return $this->trialBalanceDocument($companyId, $parameters);
+                },
+            ),
+
+            // The dashboard as a file. It is the one definition whose figures
+            // are a composition rather than one report's answer, so it reads the
+            // same service the dashboard endpoint reads — which reads the same
+            // services the statements above read. The totals in the export are
+            // therefore the totals on the screen by construction, and a test
+            // asserts it rather than trusting the paragraph.
+            'financial_manager_dashboard' => new ReportDefinition(
+                type: 'financial_manager_dashboard',
+                label: 'Financial Manager Dashboard',
+                permission: AccessMatrix::PERMISSION_REPORT_VIEW,
+                parameters: ['from', 'to'],
+                build: function (int $companyId, array $parameters): ReportDocument {
+                    return $this->dashboardDocument($companyId, $parameters);
                 },
             ),
         ];
@@ -274,6 +292,244 @@ final class ReportExportRegistry
                 ['label' => 'Balanced', 'value' => $report['meta']['balanced'] ? 'Yes' : 'No'],
             ],
         );
+    }
+
+    /**
+     * The dashboard, flattened into the same document shape as the statements.
+     *
+     * The projection block is headed "FORECAST — NOT ACTUAL" and carries its own
+     * total line, so a reader of the file can never mistake a projected figure
+     * for a posted one. A block the dashboard could not read is written as a
+     * line saying so rather than left out, because a section silently missing
+     * from an export is a section a reader would take to be empty.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    private function dashboardDocument(int $companyId, array $parameters): ReportDocument
+    {
+        $from = $this->string($parameters, 'from');
+        $to = $this->string($parameters, 'to');
+
+        $report = $this->dashboard->dashboard($companyId, $from, $to);
+        $sections = is_array($report['sections'] ?? null) ? $report['sections'] : [];
+        $window = is_array($report['window'] ?? null) ? $report['window'] : [];
+
+        $kpis = $this->block($sections, 'kpis');
+        $ageing = $this->block($sections, 'ageing');
+        $reconciliation = $this->block($sections, 'reconciliation');
+        $forecast = $this->block($sections, 'forecast');
+
+        $summary = [];
+        $cards = [];
+
+        foreach ($this->part($kpis, 'cards') as $card) {
+            if (! is_array($card)) {
+                continue;
+            }
+
+            $percent = $card['variance_percent'] ?? null;
+
+            $cards[] = [
+                (string) ($card['label'] ?? ''),
+                (string) ($card['value'] ?? ''),
+                (string) ($card['prior'] ?? ''),
+                (string) ($card['variance'] ?? ''),
+                $percent === null ? '' : $percent.'%',
+            ];
+
+            $summary[] = [
+                'label' => (string) ($card['label'] ?? ''),
+                'value' => (string) ($card['value'] ?? ''),
+            ];
+        }
+
+        $documents = [
+            new ReportSection(
+                heading: 'Executive measures',
+                columns: ['Measure', 'Actual', 'Prior', 'Variance', 'Variance %'],
+                rows: $cards,
+            ),
+            new ReportSection(
+                heading: 'Receivables ageing',
+                columns: ['Age', 'Amount'],
+                rows: $this->bucketRows($this->part($ageing, 'receivables')['totals'] ?? []),
+                total: ['Total', $this->ageingTotal($ageing, 'receivables')],
+            ),
+            new ReportSection(
+                heading: 'Payables ageing',
+                columns: ['Age', 'Amount'],
+                rows: $this->bucketRows($this->part($ageing, 'payables')['totals'] ?? []),
+                total: ['Total', $this->ageingTotal($ageing, 'payables')],
+            ),
+            new ReportSection(
+                heading: 'Reconciliation',
+                columns: ['Check', 'Expected', 'Actual', 'Difference', 'Reconciled'],
+                rows: $this->reconciliationRows($reconciliation),
+            ),
+            new ReportSection(
+                heading: 'FORECAST — NOT ACTUAL',
+                columns: ['Period', 'Projected revenue', 'Projected expense', 'Projected net'],
+                rows: $this->forecastRows($forecast),
+                total: $this->forecastTotal($forecast),
+            ),
+        ];
+
+        return new ReportDocument(
+            title: 'Financial Manager Dashboard',
+            meta: $this->meta($companyId, 'Period', $this->periodLabel(
+                is_string($window['from'] ?? null) ? $window['from'] : $from,
+                is_string($window['to'] ?? null) ? $window['to'] : $to,
+            )),
+            sections: $documents,
+            summary: $summary,
+            note: 'The projection block is labelled FORECAST — NOT ACTUAL. Nothing in it is posted: '
+                .'the ledger does not know a forecast exists, and no projected figure is mixed with a '
+                .'posted one. Every actual figure is the posted ledger, read through the same reporting '
+                .'services the statements use.',
+        );
+    }
+
+    /**
+     * One block of the dashboard payload, or an empty array when it could not be
+     * read or its section is absent.
+     *
+     * @param  array<string, mixed>  $sections
+     * @return array<string, mixed>
+     */
+    private function block(array $sections, string $key): array
+    {
+        $section = $sections[$key] ?? null;
+
+        if (! is_array($section) || ! is_array($section['data'] ?? null)) {
+            return [];
+        }
+
+        return $section['data'];
+    }
+
+    /**
+     * A named part of a block, or an empty array when the block did not state
+     * it. Kept as the block holds it — a part may be a list of rows or a
+     * mapping of names to figures, and both are read the same way here.
+     *
+     * @param  array<string, mixed>  $source
+     * @return array<array-key, mixed>
+     */
+    private function part(array $source, string $key): array
+    {
+        $value = $source[$key] ?? null;
+
+        return is_array($value) ? $value : [];
+    }
+
+    /**
+     * The five age bands an ageing report states, in its own order.
+     *
+     * @return list<list<string>>
+     */
+    private function bucketRows(mixed $totals): array
+    {
+        if (! is_array($totals)) {
+            return [];
+        }
+
+        $rows = [];
+
+        foreach ([
+            'current' => 'Current',
+            '1_30' => '1–30 days',
+            '31_60' => '31–60 days',
+            '61_90' => '61–90 days',
+            'over_90' => 'Over 90 days',
+        ] as $key => $label) {
+            $rows[] = [$label, (string) ($totals[$key] ?? '')];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $ageing
+     */
+    private function ageingTotal(array $ageing, string $side): string
+    {
+        $totals = $this->part($ageing, $side)['totals'] ?? null;
+
+        return is_array($totals) ? (string) ($totals['total'] ?? '') : '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $reconciliation
+     * @return list<list<string>>
+     */
+    private function reconciliationRows(array $reconciliation): array
+    {
+        $rows = [];
+
+        foreach ($this->part($reconciliation, 'checks') as $check) {
+            if (! is_array($check)) {
+                continue;
+            }
+
+            $rows[] = [
+                (string) ($check['label'] ?? ''),
+                (string) ($check['expected_label'] ?? '').': '.(string) ($check['expected'] ?? ''),
+                (string) ($check['actual_label'] ?? '').': '.(string) ($check['actual'] ?? ''),
+                (string) ($check['difference'] ?? ''),
+                ($check['reconciled'] ?? false) === true ? 'Yes' : 'No',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $forecast
+     * @return list<list<string>>
+     */
+    private function forecastRows(array $forecast): array
+    {
+        $rows = [];
+
+        foreach ($this->part($forecast, 'periods') as $period) {
+            if (! is_array($period)) {
+                continue;
+            }
+
+            // A period that has already happened belongs in the year's story but
+            // nothing was projected onto it, so it is written as its name with
+            // the three projected columns blank rather than as a row of zeroes
+            // that would read as a forecast.
+            if (($period['is_forecast'] ?? false) !== true) {
+                $rows[] = [(string) ($period['period']['name'] ?? ''), '', '', ''];
+
+                continue;
+            }
+
+            $rows[] = [
+                (string) ($period['period']['name'] ?? ''),
+                (string) ($period['revenue']['forecast'] ?? ''),
+                (string) ($period['expense']['forecast'] ?? ''),
+                (string) ($period['net']['forecast'] ?? ''),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $forecast
+     * @return list<string>|null
+     */
+    private function forecastTotal(array $forecast): ?array
+    {
+        $totals = $this->part($forecast, 'horizon_totals')['net'] ?? null;
+
+        if (! is_array($totals)) {
+            return null;
+        }
+
+        return ['Projected total — not actual', '', '', (string) ($totals['forecast'] ?? '')];
     }
 
     /**

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
 <title>Nexas &middot; Financial Manager</title>
-<link rel="stylesheet" href="/financial-manager/styles.css">
+<link rel="stylesheet" href="/fm-portal/styles.css">
 <script>
 // Applied before the first paint so the portal never flashes the wrong theme.
 (function () {
@@ -143,6 +143,11 @@
               aria-expanded="false" aria-controls="sidebar">&#9776;</button>
 
       <div class="topbar__title">
+        <nav class="crumbs" id="crumbs" aria-label="Breadcrumb">
+          <a href="/financial-manager/dashboard">Financial Manager</a>
+          <span class="crumbs__sep" aria-hidden="true">&sol;</span>
+          <span id="crumb-current" aria-current="page">Dashboard</span>
+        </nav>
         <h2 id="screen-title">Dashboard</h2>
         <p id="screen-sub">Where the books stand right now</p>
       </div>
@@ -188,6 +193,6 @@
 
 <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
-<script src="/financial-manager/app.js"></script>
+<script src="/fm-portal/app.js"></script>
 </body>
 </html>

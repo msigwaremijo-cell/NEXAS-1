@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Domain\Reporting\Services\AgeingQuery;
 use App\Domain\Reporting\Services\BudgetVarianceQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
+use App\Domain\Reporting\Services\DashboardQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
 use App\Domain\Reporting\Services\ForecastQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
@@ -426,6 +427,38 @@ class ReportController extends Controller
         return response()->json(
             $forecast->forecast($this->companyId($request), $filters['as_of'] ?? null)
         );
+    }
+
+    /**
+     * The whole Financial Manager dashboard in one read.
+     *
+     * A composition rather than a report: every figure on the screen is another
+     * report's answer, read once for one company and one window by
+     * DashboardQuery. The window is the same `from`/`to` pair every other
+     * report takes, so the Month, Quarter, Year and Custom filters send the same
+     * thing here as they do to the report a card links through to.
+     *
+     * Guarded by the report read right, which is what every statement on it is
+     * guarded by. The company comes from the `company` middleware and never
+     * from a parameter, so the dashboard cannot be pointed at another tenant's
+     * books.
+     *
+     * A section that cannot be read does not fail the request: it answers with
+     * its own error and the rest of the payload is still returned, which is what
+     * lets one failing read leave the page standing.
+     */
+    public function dashboard(Request $request, DashboardQuery $dashboard): JsonResponse
+    {
+        $this->authorize('viewAny', Account::class);
+
+        $filters = $request->validate([
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ]);
+
+        [$from, $to] = $this->range($filters);
+
+        return response()->json($dashboard->dashboard($this->companyId($request), $from, $to));
     }
 
     /**
