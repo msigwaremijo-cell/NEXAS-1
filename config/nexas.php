@@ -153,6 +153,14 @@ return [
         // laptop it was minted on is a credential nobody is watching.
         'token_lifetime_minutes' => (int) env('NEXAS_TOKEN_LIFETIME_MINUTES', 10080),
 
+        // How long a token issued by a "Remember me" sign-in stays usable.
+        // Longer than the ordinary lifetime because that is exactly what the
+        // box asks for, and still finite so a remembered credential on a
+        // machine nobody watches stops working on its own. The pair lives here
+        // so a deployment can set both without a code change; zero keeps the
+        // ordinary rule, since a box cannot make a token outlive the policy.
+        'remember_token_lifetime_minutes' => (int) env('NEXAS_REMEMBER_TOKEN_LIFETIME_MINUTES', 43200),
+
         'password_min_length' => (int) env('NEXAS_PASSWORD_MIN_LENGTH', 12),
 
         'two_factor' => [

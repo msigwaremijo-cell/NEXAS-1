@@ -8,13 +8,13 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 
 /**
- * The operators to sign in with while the application is being built.
+ * The operator to sign in with while the application is being built.
  *
- * Two of them, because the system now has two doors: the administrator, who is
- * the Owner of the demo company and reaches the main application, and the
- * financial manager, who is the only account that may sign in at the separate
- * portal and decide the approvals queue. Keeping both here means the two
- * credentials live in one place rather than one per portal.
+ * One account, because there is one credential this repository may carry: the
+ * administrator, who is the Owner of the demo company and reaches the main
+ * application. The Financial Manager is deliberately absent — that account's
+ * password is a local secret and is created by LocalFinancialManagerSeeder
+ * from the environment, so no manager credential is ever committed here.
  *
  * Granting a role means naming the company it applies to, so the team id is set
  * before the role is assigned: otherwise Spatie would look for the role under a
@@ -25,10 +25,6 @@ class DemoUserSeeder extends Seeder
     public const DEMO_EMAIL = 'admin@nexas.co.tz';
 
     public const DEMO_PASSWORD = 'nexas2026';
-
-    public const FINANCIAL_MANAGER_EMAIL = 'finance.manager@nexas.co.tz';
-
-    public const FINANCIAL_MANAGER_PASSWORD = 'nexas2026';
 
     public function run(): void
     {
@@ -41,13 +37,6 @@ class DemoUserSeeder extends Seeder
             'name' => 'Nexas Administrator',
             'phone' => '+255 700 000 000',
             'job_title' => 'System Administrator',
-        ]);
-
-        $this->member($company, AccessMatrix::ROLE_FINANCIAL_MANAGER, [
-            'email' => self::FINANCIAL_MANAGER_EMAIL,
-            'name' => 'Nexas Financial Manager',
-            'phone' => '+255 700 000 001',
-            'job_title' => 'Financial Manager',
         ]);
     }
 

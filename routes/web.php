@@ -11,6 +11,17 @@ Route::get('/dashboard', function () {
 })->name('dashboard');
 
 /*
+ * Where a signed-in member lands when their role has no portal of its own yet.
+ *
+ * The sign-in response names this route for every role the matrix does not
+ * give a workspace to, so a member who signs in is sent somewhere honest
+ * rather than to a screen built for somebody else.
+ */
+Route::get('/coming-soon', function () {
+    return view('prototype.coming-soon');
+})->name('coming-soon');
+
+/*
  * The Financial Manager portal.
  *
  * Served as a file rather than through a controller on purpose: the window is

@@ -362,8 +362,8 @@ noscript .js-warn{display:block;margin-bottom:16px}
    </form>
 
    <p class="foot">
-    <span><span class="pill">Prototype · Stage 2</span> No backend connected.</span>
-    <a href="/dashboard">View dashboard prototype →</a>
+    <span><span class="pill">Nexas</span> Accounting &amp; Business Management</span>
+    <a href="/financial-manager">Financial Manager portal →</a>
    </p>
   </div>
 
@@ -509,7 +509,21 @@ noscript .js-warn{display:block;margin-bottom:16px}
   const loginNotice = $('loginNotice');
   const loginBtn = $('loginBtn');
 
-  loginForm.addEventListener('submit', (e) => {
+  // Where a finished sign-in is kept. These are the same three keys the
+  // Financial Manager portal reads, so the token a member arrives with is the
+  // token that portal runs on. sessionStorage and never localStorage: the
+  // session lasts the tab and dies with it, and two tabs never share a token.
+  const SESSION_KEYS = { token: 'nexas.fm.token', company: 'nexas.fm.company', user: 'nexas.fm.user' };
+
+  function storeSession(payload) {
+    try {
+      sessionStorage.setItem(SESSION_KEYS.token, payload.token);
+      sessionStorage.setItem(SESSION_KEYS.company, String(payload.company_id));
+      sessionStorage.setItem(SESSION_KEYS.user, JSON.stringify(payload.user));
+    } catch (e) { /* storage refused: the redirect is lost, but the login is not */ }
+  }
+
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     notice(loginNotice, '', '');
 
@@ -527,12 +541,57 @@ noscript .js-warn{display:block;margin-bottom:16px}
     }
 
     setLoading(loginBtn, true, 'Signing in…');
-    window.setTimeout(() => {
+
+    let response;
+    try {
+      response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          email: identifier.value.trim(),
+          password: pwd.value,
+          remember: $('remember').checked,
+          device_name: 'Nexas web sign-in'
+        })
+      });
+    } catch (error) {
       setLoading(loginBtn, false);
-      // Honest state: there is no authentication backend yet, so no session is created.
-      notice(loginNotice, 'warn',
-        'No authentication backend is connected yet. This is the Stage 2 interface preview — no credentials were sent and no session was created.');
-    }, 900);
+      notice(loginNotice, 'bad', 'We could not reach the server. Check your connection and try again.');
+      return;
+    }
+
+    let payload = {};
+    try { payload = await response.json(); } catch (error) { payload = {}; }
+
+    // The throttle answers before the password is even looked at, so it gets
+    // its own words rather than the generic refusal below.
+    if (response.status === 429) {
+      setLoading(loginBtn, false);
+      notice(loginNotice, 'bad', 'Too many attempts. Please wait a minute and try again.');
+      return;
+    }
+
+    // One message for every refusal. The screen never says whether it was the
+    // address or the password that was wrong, because a screen that did would
+    // be a way to find out which addresses exist.
+    if (!response.ok) {
+      setLoading(loginBtn, false);
+      notice(loginNotice, 'bad', 'Those details were not recognised. Check your email and password and try again.');
+      return;
+    }
+
+    // A second factor is a half-finished login, not a refusal; it is finished
+    // in the portal that can ask for the code.
+    if (payload.two_factor) {
+      setLoading(loginBtn, false);
+      notice(loginNotice, 'bad', 'This account needs a second factor. Open the Financial Manager portal to finish signing in.');
+      return;
+    }
+
+    storeSession(payload);
+
+    // Where to go is the server's answer, not this script's.
+    window.location.assign(payload.redirect_to || '/coming-soon');
   });
 
   // Clear a field's error as soon as the user corrects it.

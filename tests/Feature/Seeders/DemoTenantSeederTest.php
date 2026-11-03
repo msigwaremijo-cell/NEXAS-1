@@ -169,17 +169,16 @@ it('stores tax rates as dated rows and resolves them by document date', function
         ->and($withholding->tax_type->isDeducted())->toBeTrue();
 });
 
-it('seeds a demo operator and a financial manager attached to the demo company', function () {
+it('seeds the demo operator attached to the demo company and no financial manager', function () {
     $company = DB::table('companies')->sole();
     $admin = DB::table('users')->where('email', 'admin@nexas.co.tz')->sole();
-    $manager = DB::table('users')->where('email', 'finance.manager@nexas.co.tz')->sole();
 
     expect($admin->status)->toBe('active')
         ->and($admin->ulid)->not->toBeNull()
-        ->and($manager->status)->toBe('active')
-        ->and($manager->ulid)->not->toBeNull()
         ->and(DB::table('company_user')->where('company_id', $company->id)->where('user_id', $admin->id)->where('is_default', true)->exists())->toBeTrue()
-        ->and(DB::table('company_user')->where('company_id', $company->id)->where('user_id', $manager->id)->where('is_default', true)->exists())->toBeTrue();
+        // The Financial Manager's password is a local secret, so the committed
+        // seeder must not create that account at all.
+        ->and(DB::table('users')->where('email', 'finance.manager@nexas.co.tz')->exists())->toBeFalse();
 });
 
 it('is idempotent: seeding twice leaves one of every master row', function () {
@@ -192,6 +191,6 @@ it('is idempotent: seeding twice leaves one of every master row', function () {
         ->and(DB::table('document_sequences')->count())->toBe(5)
         ->and(DB::table('tax_codes')->count())->toBe(4)
         ->and(DB::table('tax_rates')->count())->toBe(4)
-        ->and(DB::table('users')->count())->toBe(2)
-        ->and(DB::table('company_user')->count())->toBe(2);
+        ->and(DB::table('users')->count())->toBe(1)
+        ->and(DB::table('company_user')->count())->toBe(1);
 });

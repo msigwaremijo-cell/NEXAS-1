@@ -41,6 +41,7 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
             'device_name' => ['sometimes', 'string', 'max:255'],
             'company_id' => ['sometimes', 'integer'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
 
         $user = User::query()->where('email', $data['email'])->first();
@@ -80,7 +81,13 @@ class AuthController extends Controller
             ]);
         }
 
-        return $this->issueToken($user, $companyId, $data['device_name'] ?? null, $twoFactor);
+        return $this->issueToken(
+            $user,
+            $companyId,
+            $data['device_name'] ?? null,
+            $twoFactor,
+            (bool) ($data['remember'] ?? false),
+        );
     }
 
     /**
@@ -146,6 +153,7 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
             'device_name' => ['sometimes', 'string', 'max:255'],
             'company_id' => ['sometimes', 'integer'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
 
         $user = User::query()->where('email', $data['email'])->first();
@@ -196,7 +204,13 @@ class AuthController extends Controller
             ]);
         }
 
-        return $this->issueToken($user, $companyId, $data['device_name'] ?? null, $twoFactor);
+        return $this->issueToken(
+            $user,
+            $companyId,
+            $data['device_name'] ?? null,
+            $twoFactor,
+            (bool) ($data['remember'] ?? false),
+        );
     }
 
     public function me(Request $request, TwoFactor $twoFactor): JsonResponse
@@ -241,10 +255,21 @@ class AuthController extends Controller
 
     /**
      * Mints the token a finished login carries, and records that it happened.
+     *
+     * The lifetime comes from configuration and is chosen by the `remember`
+     * box: a remembered sign-in gets the longer of the two figures, an
+     * ordinary one the shorter. The response also names where the caller
+     * should be sent, so the browser is told which door its role opens rather
+     * than deciding it from a script.
      */
-    private function issueToken(User $user, int $companyId, ?string $deviceName, TwoFactor $twoFactor): JsonResponse
-    {
-        $lifetime = (int) config('nexas.auth.token_lifetime_minutes', 0);
+    private function issueToken(
+        User $user,
+        int $companyId,
+        ?string $deviceName,
+        TwoFactor $twoFactor,
+        bool $remember = false,
+    ): JsonResponse {
+        $lifetime = $this->tokenLifetime($remember);
 
         $token = $user->createToken(
             $deviceName ?? 'api-token',
@@ -261,8 +286,40 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'company_id' => $companyId,
             'expires_in' => $lifetime > 0 ? $lifetime * 60 : null,
+            'redirect_to' => $this->portalFor($user),
             'user' => $this->profile($user, $twoFactor),
         ]);
+    }
+
+    /**
+     * How many minutes a token should live, given the remember box.
+     *
+     * Both figures are configuration; zero means "no expiry of its own", which
+     * is the same answer the token lifetime has always given.
+     */
+    private function tokenLifetime(bool $remember): int
+    {
+        $minutes = $remember
+            ? config('nexas.auth.remember_token_lifetime_minutes')
+            : config('nexas.auth.token_lifetime_minutes');
+
+        return (int) $minutes;
+    }
+
+    /**
+     * The door a finished sign-in opens, decided from the role the member
+     * holds in the company they have just signed into.
+     *
+     * Settled here rather than in the page on purpose: a page is a window, not
+     * a lock, so which portal a member reaches is a fact about their role and
+     * not about the script that drew the form. The team is already set by the
+     * caller, so the role is read for the company that was signed into.
+     */
+    private function portalFor(User $user): string
+    {
+        return $user->hasRole(AccessMatrix::ROLE_FINANCIAL_MANAGER)
+            ? '/financial-manager'
+            : '/coming-soon';
     }
 
     /**
