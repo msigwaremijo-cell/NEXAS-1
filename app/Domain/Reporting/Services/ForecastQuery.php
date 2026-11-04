@@ -108,7 +108,15 @@ final class ForecastQuery
 
             $accountIds = [...$accountIds, ...array_keys($rows)];
 
-            $raw[] = ['period' => $period, 'projected' => $projected, 'rows' => $rows];
+            $raw[] = [
+                'period' => $period,
+                'projected' => $projected,
+                // Whether the company wrote a plan for this period at all. A
+                // plan of nothing is still a plan, so this is asked of the
+                // budget itself rather than inferred from the amounts.
+                'has_plan' => $projected && $budgets->has((int) $period->getKey()),
+                'rows' => $rows,
+            ];
         }
 
         $accounts = $this->accounts($companyId, $accountIds);
@@ -117,6 +125,8 @@ final class ForecastQuery
         $blocks = [];
         $projectedRevenue = [];
         $projectedExpense = [];
+        $projectedBudgetRevenue = [];
+        $projectedBudgetExpense = [];
 
         foreach ($raw as $entry) {
             $period = $entry['period'];
@@ -151,9 +161,20 @@ final class ForecastQuery
             $revenueTotals = $this->totals($revenue, $entry['projected']);
             $expenseTotals = $this->totals($expense, $entry['projected']);
 
+            // The plan the period was projected from, kept apart from the
+            // projection itself: a reader comparing the two needs the plan as
+            // the company wrote it, not as the projection restates it. An
+            // account is on the plan when its row says so, so a plan of nothing
+            // contributes nothing — which is the truth about it.
+            $plan = $entry['has_plan']
+                ? $this->planTotals($revenue, $expense)
+                : ['revenue' => null, 'expense' => null, 'net' => null];
+
             if ($entry['projected']) {
                 $projectedRevenue[] = $revenueTotals;
                 $projectedExpense[] = $expenseTotals;
+                $projectedBudgetRevenue[] = ['budget' => $plan['revenue'] ?? '0.0000'];
+                $projectedBudgetExpense[] = ['budget' => $plan['expense'] ?? '0.0000'];
             }
 
             $blocks[] = [
@@ -169,6 +190,8 @@ final class ForecastQuery
                 // because a year is read as a whole, but nothing is projected
                 // onto it. Its forecast columns above are null for that reason.
                 'is_forecast' => $entry['projected'],
+                'has_plan' => $entry['has_plan'],
+                'budget' => $plan,
                 'revenue' => ['accounts' => $revenue] + $revenueTotals,
                 'expense' => ['accounts' => $expense] + $expenseTotals,
                 'net' => $this->net($revenueTotals, $expenseTotals),
@@ -227,6 +250,16 @@ final class ForecastQuery
                         ->minus(Money::of($this->sumOf($projectedExpense, 'actual')))->toDecimal(),
                     'forecast' => Money::of($this->sumOf($projectedRevenue, 'forecast'))
                         ->minus(Money::of($this->sumOf($projectedExpense, 'forecast')))->toDecimal(),
+                ],
+                // The plan the horizon was projected from, totalled. Read from
+                // the `budget` rows alone, so a period with no plan adds
+                // nothing and the figure compares the projection with the plan
+                // rather than with itself.
+                'budget' => [
+                    'revenue' => $this->sumOf($projectedBudgetRevenue, 'budget'),
+                    'expense' => $this->sumOf($projectedBudgetExpense, 'budget'),
+                    'net' => Money::of($this->sumOf($projectedBudgetRevenue, 'budget'))
+                        ->minus(Money::of($this->sumOf($projectedBudgetExpense, 'budget')))->toDecimal(),
                 ],
             ],
             'forecast_is_not_actual' => true,
@@ -443,6 +476,46 @@ final class ForecastQuery
                 ? null
                 : Money::of($revenue['forecast'])->minus(Money::of($expense['forecast']))->toDecimal(),
         ];
+    }
+
+    /**
+     * The plan a period was projected from, as the company wrote it.
+     *
+     * Only the rows the projection took from the plan are counted, so what is
+     * returned is the plan itself and not a restatement of the projection:
+     * an account the company did not plan contributes nothing, and its row is
+     * marked `run_rate` for that reason. The caller only asks when a plan
+     * exists, so a plan of nothing reads as zero rather than as a missing
+     * figure.
+     *
+     * @param  list<array<string, mixed>>  $revenue
+     * @param  list<array<string, mixed>>  $expense
+     * @return array{revenue: string, expense: string, net: string}
+     */
+    private function planTotals(array $revenue, array $expense): array
+    {
+        $plannedRevenue = $this->sumOf($this->onPlan($revenue), 'forecast');
+        $plannedExpense = $this->sumOf($this->onPlan($expense), 'forecast');
+
+        return [
+            'revenue' => $plannedRevenue,
+            'expense' => $plannedExpense,
+            'net' => Money::of($plannedRevenue)->minus(Money::of($plannedExpense))->toDecimal(),
+        ];
+    }
+
+    /**
+     * The rows a period took from its plan rather than from the run-rate.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function onPlan(array $rows): array
+    {
+        return array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['source'] ?? null) === 'budget',
+        ));
     }
 
     /**

@@ -263,6 +263,39 @@ final class AccessMatrix
      */
     public const PERMISSION_APPROVAL_DECIDE = 'approval.decide';
 
+    /**
+     * Reading the projection of the rest of the open year.
+     *
+     * Its own right rather than part of `budget.view`, because a projection is
+     * neither the plan nor the books. The plan says what the company means to
+     * do and the projection says what the year is expected to do, so a member
+     * trusted with one is not automatically trusted with the other — even
+     * though the roles that read a plan are, in practice, the roles that read a
+     * projection, and it is granted to the same set. It is kept from the
+     * Read-only role and from the Cashier for the same reason `budget.view` is:
+     * both read what the books report, and neither is shown what the company
+     * expects. Nothing here reaches the ledger — a projection is read, never
+     * posted — and every figure it returns carries the assumption behind it.
+     */
+    public const PERMISSION_FORECAST_VIEW = 'forecast.view';
+
+    /**
+     * Running the projection under changed assumptions: a different revenue
+     * growth rate, a different expense rate, or an adjustment to a named
+     * account.
+     *
+     * Separate from `forecast.view` because reading the projection the company
+     * actually expects is not the same as asking what it would look like if the
+     * year went differently, and the second question changes what a reader is
+     * told. It is held by the Financial Manager and the Owner alone: the role
+     * that sets the plan is the role that may test it. Nothing here is stored —
+     * a scenario is a set of figures passed to a read, and the response records
+     * no scenario — so this is not a second way to write anything. It is the
+     * right to ask "what if", which is deliberately narrower than the right to
+     * see the answer.
+     */
+    public const PERMISSION_FORECAST_SCENARIO = 'forecast.scenario';
+
     public const ROLE_OWNER = 'Owner';
 
     public const ROLE_ACCOUNTANT = 'Accountant';
@@ -359,6 +392,8 @@ final class AccessMatrix
             self::PERMISSION_APPROVAL_VIEW,
             self::PERMISSION_APPROVAL_REQUEST,
             self::PERMISSION_APPROVAL_DECIDE,
+            self::PERMISSION_FORECAST_VIEW,
+            self::PERMISSION_FORECAST_SCENARIO,
         ];
     }
 
@@ -436,6 +471,13 @@ final class AccessMatrix
                 // a posting: nothing in a budget reaches the ledger.
                 self::PERMISSION_BUDGET_VIEW,
                 self::PERMISSION_BUDGET_MANAGE,
+                // The projection built from those books. Read here for the same
+                // reason the plan is: the accountant keeps the books and says
+                // what a period is expected to do, so reading what the rest of
+                // the year is expected to do follows. Writing a scenario is not
+                // part of it — the assumptions are the Financial Manager's to
+                // change, and `forecast.scenario` is absent.
+                self::PERMISSION_FORECAST_VIEW,
                 // Fixed assets. The accountant keeps the register and charges
                 // the depreciation against it: entering an asset, running the
                 // month and disposing of one are all part of keeping the books,
@@ -507,6 +549,12 @@ final class AccessMatrix
                 // not write it: the second pair of hands is on the approval,
                 // and the plan is the accountant's to set.
                 self::PERMISSION_BUDGET_VIEW,
+                // The projection beside the plan, for the same reason: a second
+                // pair of eyes on a supplier bill wants to know what the rest of
+                // the year is expected to do, not only what the period was meant
+                // to spend. The assumptions behind it are not this role's to
+                // change, and `forecast.scenario` is absent.
+                self::PERMISSION_FORECAST_VIEW,
                 // The fixed-asset rights the Accountant holds, for the same
                 // reason: this role keeps the general ledger beside the bills it
                 // clears, and the register and its depreciation are part of it.
@@ -597,6 +645,12 @@ final class AccessMatrix
                 // the plan is not the same as reading the trail behind it,
                 // which is why the two rights are kept apart.
                 self::PERMISSION_BUDGET_VIEW,
+                // The projection as well as the plan: an audit compares what the
+                // company meant to do with what it expects to do, and reads the
+                // answer without changing a single assumption. `forecast.scenario`
+                // is absent — an audit reads the projection the company holds to,
+                // not a set of hypotheticals it asks for.
+                self::PERMISSION_FORECAST_VIEW,
                 // The register is part of what the books report, so an audit
                 // reads it. Nothing here writes to it: depreciation and
                 // disposals are postings, and an audit posts nothing.
@@ -657,6 +711,15 @@ final class AccessMatrix
                 // role has to be talked out of.
                 self::PERMISSION_BUDGET_VIEW,
                 self::PERMISSION_BUDGET_MANAGE,
+                // The projection built from the plan, and the right to run it
+                // under different assumptions. "Sets budgets and runs forecasts"
+                // is the plan, the projection and the scenario tests: the role
+                // says what the year should do and may ask what it would do if it
+                // did not. Neither right is a posting and neither stores a
+                // figure, so the scenario right is not a write this role has to
+                // be talked out of — it is the right to ask "what if".
+                self::PERMISSION_FORECAST_VIEW,
+                self::PERMISSION_FORECAST_SCENARIO,
                 // The calendar. Closing declares the year finished and reopening
                 // puts a reported period back into the books; both carry a
                 // mandatory reason, and both sit here because the member who

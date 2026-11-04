@@ -244,18 +244,18 @@ it('projects a period at the plan the company wrote for it', function () {
 
     $this->getJson('/api/v1/reports/forecast?as_of=2026-03-15')
         ->assertOk()
-        ->assertJsonPath('current_period.name', 'March 2026')
+        ->assertJsonPath('sections.projection.data.current_period.name', 'March 2026')
         // March is projected at the plan to the cent, and each row says so
         // rather than leaving a reader to guess where the number came from.
-        ->assertJsonPath('periods.2.period.name', 'March 2026')
-        ->assertJsonPath('periods.2.is_forecast', true)
-        ->assertJsonPath('periods.2.revenue.accounts.0.code', '4000')
-        ->assertJsonPath('periods.2.revenue.accounts.0.source', 'budget')
-        ->assertJsonPath('periods.2.revenue.accounts.0.forecast', '600.0000')
-        ->assertJsonPath('periods.2.expense.accounts.0.code', '5000')
-        ->assertJsonPath('periods.2.expense.accounts.0.source', 'budget')
-        ->assertJsonPath('periods.2.expense.accounts.0.forecast', '150.0000')
-        ->assertJsonPath('periods.2.net.forecast', '450.0000');
+        ->assertJsonPath('sections.projection.data.periods.2.period.name', 'March 2026')
+        ->assertJsonPath('sections.projection.data.periods.2.is_forecast', true)
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.code', '4000')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.source', 'budget')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.forecast', '600.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.expense.accounts.0.code', '5000')
+        ->assertJsonPath('sections.projection.data.periods.2.expense.accounts.0.source', 'budget')
+        ->assertJsonPath('sections.projection.data.periods.2.expense.accounts.0.forecast', '150.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.net.forecast', '450.0000');
 });
 
 it('projects a period with no plan at the trailing run-rate', function () {
@@ -270,18 +270,18 @@ it('projects a period with no plan at the trailing run-rate', function () {
 
     $this->getJson('/api/v1/reports/forecast?as_of=2026-03-15')
         ->assertOk()
-        ->assertJsonPath('run_rate.used', true)
-        ->assertJsonPath('run_rate.period_count', 2)
-        ->assertJsonPath('run_rate.from', '2026-01-01')
-        ->assertJsonPath('run_rate.to', '2026-02-28')
+        ->assertJsonPath('sections.projection.data.run_rate.used', true)
+        ->assertJsonPath('sections.projection.data.run_rate.period_count', 2)
+        ->assertJsonPath('sections.projection.data.run_rate.from', '2026-01-01')
+        ->assertJsonPath('sections.projection.data.run_rate.to', '2026-02-28')
         // March wrote no plan, so it is projected at the average of what the
         // account actually did — and the row says run_rate rather than budget.
-        ->assertJsonPath('periods.2.revenue.accounts.0.source', 'run_rate')
-        ->assertJsonPath('periods.2.revenue.accounts.0.forecast', '200.0000')
-        ->assertJsonPath('periods.2.revenue.accounts.0.actual', '0.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.source', 'run_rate')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.forecast', '200.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.actual', '0.0000')
         // April has nothing behind it but the same run-rate.
-        ->assertJsonPath('periods.3.revenue.accounts.0.source', 'run_rate')
-        ->assertJsonPath('periods.3.revenue.accounts.0.forecast', '200.0000');
+        ->assertJsonPath('sections.projection.data.periods.3.revenue.accounts.0.source', 'run_rate')
+        ->assertJsonPath('sections.projection.data.periods.3.revenue.accounts.0.forecast', '200.0000');
 });
 
 it('lets the plan win over the run-rate for the same account', function () {
@@ -300,8 +300,8 @@ it('lets the plan win over the run-rate for the same account', function () {
         ->assertOk()
         // The plan is 640, the run-rate is 200: the plan is used where it was
         // written, and the average only fills the gap beside it.
-        ->assertJsonPath('periods.2.revenue.accounts.0.source', 'budget')
-        ->assertJsonPath('periods.2.revenue.accounts.0.forecast', '640.0000');
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.source', 'budget')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.forecast', '640.0000');
 });
 
 it('keeps a plan that says zero rather than falling through to the run-rate', function () {
@@ -323,9 +323,9 @@ it('keeps a plan that says zero rather than falling through to the run-rate', fu
         ->assertOk()
         // A plan of nothing is a plan: the account is not handed the run-rate's
         // 200 behind the company's back.
-        ->assertJsonPath('periods.2.revenue.accounts.0.source', 'budget')
-        ->assertJsonPath('periods.2.revenue.accounts.0.forecast', '0.0000')
-        ->assertJsonPath('periods.2.revenue.accounts.0.actual', '50.0000');
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.source', 'budget')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.forecast', '0.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.actual', '50.0000');
 });
 
 /*
@@ -342,13 +342,13 @@ it('says which basis each figure came from and what it assumed', function () {
         // Said on the payload itself, because a reader of this response is one
         // step away from the ledger and should not mistake a projection for a
         // fact.
-        ->assertJsonPath('forecast_is_not_actual', true)
-        ->assertJsonPath('basis', 'budget where the company wrote a plan for the period, otherwise the trailing run-rate')
-        ->assertJsonPath('run_rate.basis', 'average per period of what the account actually posted')
-        ->assertJsonCount(6, 'assumptions');
+        ->assertJsonPath('sections.projection.data.forecast_is_not_actual', true)
+        ->assertJsonPath('sections.projection.data.basis', 'budget where the company wrote a plan for the period, otherwise the trailing run-rate')
+        ->assertJsonPath('sections.projection.data.run_rate.basis', 'average per period of what the account actually posted')
+        ->assertJsonCount(6, 'sections.projection.data.assumptions');
 
-    expect($response->json('note'))->toBeString()->toContain('not a transaction')
-        ->and($response->json('assumptions.0'))->toContain('plan');
+    expect($response->json('sections.projection.data.note'))->toBeString()->toContain('not a transaction')
+        ->and($response->json('sections.projection.data.assumptions.0'))->toContain('plan');
 });
 
 it('reports the periods already past without projecting onto them', function () {
@@ -363,12 +363,12 @@ it('reports the periods already past without projecting onto them', function () 
         // January is reported as it happened: its actual is the ledger and its
         // forecast column is null rather than a zero that would read as a
         // forecast of nothing.
-        ->assertJsonPath('periods.0.period.name', 'January 2026')
-        ->assertJsonPath('periods.0.is_forecast', false)
-        ->assertJsonPath('periods.0.revenue.accounts.0.actual', '300.0000')
-        ->assertJsonPath('periods.0.revenue.accounts.0.forecast', null)
-        ->assertJsonPath('periods.0.revenue.forecast', null)
-        ->assertJsonPath('periods.0.net.forecast', null);
+        ->assertJsonPath('sections.projection.data.periods.0.period.name', 'January 2026')
+        ->assertJsonPath('sections.projection.data.periods.0.is_forecast', false)
+        ->assertJsonPath('sections.projection.data.periods.0.revenue.accounts.0.actual', '300.0000')
+        ->assertJsonPath('sections.projection.data.periods.0.revenue.accounts.0.forecast', null)
+        ->assertJsonPath('sections.projection.data.periods.0.revenue.forecast', null)
+        ->assertJsonPath('sections.projection.data.periods.0.net.forecast', null);
 });
 
 /*
@@ -390,14 +390,14 @@ it('runs to the last period of the open year and no further', function () {
         ->assertOk()
         // March through June: four periods, ending on the last day of June, the
         // last period the company has opened. Nothing beyond it is invented.
-        ->assertJsonPath('horizon.from_period_name', 'March 2026')
-        ->assertJsonPath('horizon.to_period_name', 'June 2026')
-        ->assertJsonPath('horizon.period_count', 4)
-        ->assertJsonPath('horizon.ends_on', '2026-06-30')
+        ->assertJsonPath('sections.projection.data.horizon.from_period_name', 'March 2026')
+        ->assertJsonPath('sections.projection.data.horizon.to_period_name', 'June 2026')
+        ->assertJsonPath('sections.projection.data.horizon.period_count', 4)
+        ->assertJsonPath('sections.projection.data.horizon.ends_on', '2026-06-30')
         // The whole year is reported, so the payload holds six periods and the
         // last of them is June — no period outside the calendar appears.
-        ->assertJsonCount(6, 'periods')
-        ->assertJsonPath('periods.5.period.name', 'June 2026');
+        ->assertJsonCount(6, 'sections.projection.data.periods')
+        ->assertJsonPath('sections.projection.data.periods.5.period.name', 'June 2026');
 });
 
 /*
@@ -454,9 +454,9 @@ it('reads the actual column straight from the posted ledger', function () {
 
     $this->getJson('/api/v1/reports/forecast?as_of=2026-03-15')
         ->assertOk()
-        ->assertJsonPath('periods.2.revenue.actual', '500.0000')
-        ->assertJsonPath('periods.2.expense.actual', '200.0000')
-        ->assertJsonPath('periods.2.net.actual', '300.0000');
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.actual', '500.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.expense.actual', '200.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.net.actual', '300.0000');
 
     // The same window read through the profit and loss statement: the forecast's
     // actual column and the statement are the same ledger.
@@ -481,8 +481,8 @@ it('keeps the forecast out of the actual column and out of the statements', func
         ->assertOk()
         // The plan is projected, but the actual column beside it is the ledger,
         // which is empty for March.
-        ->assertJsonPath('periods.2.revenue.accounts.0.forecast', '600.0000')
-        ->assertJsonPath('periods.2.revenue.accounts.0.actual', '0.0000');
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.forecast', '600.0000')
+        ->assertJsonPath('sections.projection.data.periods.2.revenue.accounts.0.actual', '0.0000');
 
     // A report built from the ledger cannot see the plan at all.
     $this->getJson('/api/v1/reports/profit-and-loss?from=2026-03-01&to=2026-03-31')

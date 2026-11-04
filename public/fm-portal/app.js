@@ -2158,95 +2158,621 @@
 
   /* ---------------------------------------------------- screen: forecast */
 
+  // The scenarios the endpoint knows by name. Nothing is sent when the reader
+  // has made no choice, so a caller who holds only the forecast right never has
+  // a scenario parameter on the wire: the endpoint refuses on the presence of
+  // one rather than on its value.
+  const FORECAST_SCENARIOS = [
+    { name: 'base', label: 'Base (as planned)' },
+    { name: 'optimistic', label: 'Optimistic' },
+    { name: 'pessimistic', label: 'Pessimistic' }
+  ];
+
+  // Some measures read better when they are higher (earning more) and some when
+  // they are lower (spending less). The direction the endpoint reports is the
+  // sign of the projection against the plan, so which sign is good news is
+  // decided here, per measure, rather than coloured by the sign alone.
+  const FORECAST_HIGHER_IS_BETTER = {
+    revenue: true, expense: false, net_profit: true,
+    margin: true, year_end_cash: true, break_even: null
+  };
+
+  const forecastState = { scenario: '', revenue_growth: '', expense_growth: '' };
+
+  function forecastQuery() {
+    const q = new URLSearchParams();
+    if (forecastState.scenario) q.set('scenario', forecastState.scenario);
+    if (forecastState.revenue_growth !== '') q.set('revenue_growth', forecastState.revenue_growth);
+    if (forecastState.expense_growth !== '') q.set('expense_growth', forecastState.expense_growth);
+    const text = q.toString();
+    return text ? '?' + text : '';
+  }
+
   async function drawForecast(container) {
     setStatus('Building the projection');
     await load(container, async () => {
-      const report = await api('/reports/forecast');
-
-      const banner = `
-        <div class="note note--warn">
-          <strong>These figures are forecasts, not actuals.</strong>
-          Nothing here is stored and no journal is posted. The actual column is the posted ledger;
-          the forecast column is what the company intends. The two are never mixed.
-        </div>
-        <div class="note" style="margin-top:12px">${esc(report.note || '')}</div>`;
-
-      const horizon = report.horizon || {};
-      const runRate = report.run_rate || {};
-
-      const summary = `
-        <div class="grid grid--metrics">
-          <section class="card"><div class="metric__label">Open year</div>
-            <div class="metric__value" style="font-size:18px">${esc((report.fiscal_year || {}).name || '\u2014')}</div>
-            <p class="metric__note">${esc((report.fiscal_year || {}).starts_on)} to ${esc((report.fiscal_year || {}).ends_on)}</p></section>
-          <section class="card"><div class="metric__label">Projected from</div>
-            <div class="metric__value" style="font-size:18px">${esc(horizon.from_period_name || '\u2014')}</div>
-            <p class="metric__note">to ${esc(horizon.to_period_name || '\u2014')} \u00b7 ${esc(horizon.period_count || 0)} periods</p></section>
-          <section class="card"><div class="metric__label">Basis</div>
-            <div class="metric__value" style="font-size:14px;line-height:1.4">${esc(report.basis || '\u2014')}</div>
-            <p class="metric__note">${runRate.used ? 'Trailing run-rate read over ' + esc(runRate.period_count || 0) + ' completed periods' : 'No completed periods to average yet'}</p></section>
-          <section class="card"><div class="metric__label">Net for the horizon</div>
-            <div class="metric__value ${moneyClass((report.horizon_totals || {}).net && report.horizon_totals.net.forecast)}">${fmtMoney((report.horizon_totals || {}).net && report.horizon_totals.net.forecast)}</div>
-            <p class="metric__note">Projected, not posted</p></section>
-        </div>`;
-
-      const totals = report.horizon_totals || {};
-      const totalsTable = `
-        <div class="table-wrap"><table class="data">
-          <thead><tr><th>Measure</th><th class="num">Actual (posted)</th><th class="num">Forecast (projected)</th></tr></thead>
-          <tbody>
-            ${[['Revenue', totals.revenue], ['Expense', totals.expense], ['Net', totals.net]].map(([label, row]) =>
-              `<tr><td>${label}</td><td class="num">${fmtMoney(row && row.actual)}</td>` +
-              `<td class="num"><em>${fmtMoney(row && row.forecast)}</em></td></tr>`).join('')}
-          </tbody>
-        </table></div>`;
-
-      const periodBlocks = (report.periods || []).map(block => {
-        const isForecast = block.is_forecast === true;
-        const rows = [].concat(
-          (block.revenue.accounts || []).map(a => Object.assign({ section: 'Revenue' }, a)),
-          (block.expense.accounts || []).map(a => Object.assign({ section: 'Expense' }, a))
-        );
-
-        const body = rows.length
-          ? `<div class="table-wrap"><table class="data">
-              <thead><tr><th>Section</th><th>Code</th><th>Account</th><th class="num">Actual</th><th class="num">Forecast</th><th>Basis</th></tr></thead>
-              <tbody>` + rows.map(r => `<tr>
-                <td>${esc(r.section)}</td>
-                <td>${esc(r.code)}</td>
-                <td>${esc(r.name)}</td>
-                <td class="num">${fmtMoney(r.actual)}</td>
-                <td class="num"><em>${r.forecast === null ? '\u2014' : fmtMoney(r.forecast)}</em></td>
-                <td>${r.source === 'budget' ? badge('info', 'From the plan')
-                      : r.source === 'run_rate' ? badge('muted', 'Trailing run-rate')
-                      : r.source === 'none' ? badge('muted', 'No basis')
-                      : badge('ok', 'Actual')}</td>
-              </tr>`).join('') + `</tbody></table></div>`
-          : emptyState('\u25CB', 'Nothing in this period', 'No revenue or expense is recorded or planned for it.');
-
-        return card(
-          (block.period && block.period.name) || 'Period',
-          (block.period && (block.period.starts_on + ' to ' + block.period.ends_on)) || '',
-          `<div style="margin-bottom:10px">${isForecast
-            ? badge('warn', 'Projected') + ' <span style="color:var(--mut);font-size:12.5px">forecast figures only</span>'
-            : badge('ok', 'Actual') + ' <span style="color:var(--mut);font-size:12.5px">reported as it happened; nothing is projected onto a past period</span>'}</div>` +
-          body +
-          `<p style="margin-top:10px;color:var(--mut);font-size:12.5px">Net: actual <strong>${fmtMoney(block.net && block.net.actual)}</strong>` +
-          ` \u00b7 forecast <em>${block.net && block.net.forecast === null ? '\u2014' : fmtMoney(block.net && block.net.forecast)}</em></p>`
-        );
-      }).join('');
-
-      const assumptions = (report.assumptions || []).length
-        ? `<ul style="margin:0;padding-left:20px;font-size:12.5px;color:var(--mut)">` +
-          report.assumptions.map(a => `<li>${esc(a)}</li>`).join('') + `</ul>`
-        : '';
-
+      const payload = await api('/reports/forecast' + forecastQuery());
       setStatus('Ready');
-      return banner + summary +
-        card('The horizon in totals', 'Posted actuals beside projected figures, never added together', totalsTable) +
-        periodBlocks +
-        card('What the projection assumes', 'Stated rather than left to be inferred', assumptions);
+      return renderForecast(payload);
     });
+  }
+
+  /**
+   * The forecast page is one request. The endpoint answers with a section per
+   * question it was asked and each section carries its own error, so a read that
+   * failed leaves its own card standing with the reason printed on it while the
+   * rest of the page renders — the arrangement the dashboard uses, for the same
+   * reason. Nothing here is posted or stored.
+   */
+  function renderForecast(payload) {
+    const sections = (payload && payload.sections) || {};
+
+    return forecastHead(payload) +
+      forecastKpis(sections.kpis) +
+      forecastChart(sections.chart) +
+      '<div class="grid grid--halves" style="margin-top:16px">' +
+        forecastCashOutlook(sections.cash_outlook) + forecastWorkingCapital(sections.working_capital) +
+      '</div>' +
+      '<div class="grid grid--halves" style="margin-top:16px">' +
+        forecastBreakEven(sections.break_even) + forecastRiskAlerts(sections.risk_alerts) +
+      '</div>' +
+      '<div style="margin-top:16px">' + forecastBudgetVsForecast(sections.budget_vs_forecast) + '</div>' +
+      (sections.scenario_comparison
+        ? '<div style="margin-top:16px">' + forecastComparison(sections.scenario_comparison) + '</div>'
+        : '') +
+      '<div style="margin-top:16px">' + forecastPeriods(sections.projection) + '</div>' +
+      '<div style="margin-top:16px">' + forecastAssumptions(sections.projection) + '</div>';
+  }
+
+  function forecastHead(payload) {
+    const company = (payload && payload.company) || {};
+    const win = (payload && payload.window) || {};
+    const capabilities = (payload && payload.capabilities) || {};
+    const scenario = (payload && payload.scenario) || {};
+
+    return `<section class="card forecast">
+      <div class="card__head">
+        <div>
+          <h3>Forecast to the end of the open year</h3>
+          <p>Every figure is a projection unless it is labelled an actual; nothing here is posted or stored.</p>
+        </div>
+        <div class="spacer"><span class="forecast__flag">FORECAST \u2014 NOT ACTUAL</span></div>
+      </div>
+      <div class="facts">
+        <div class="fact"><span class="fact__k">Company</span>
+          <strong class="fact__v">${esc(company.name || '\u2014')}</strong>
+          <small>${esc(company.currency || CURRENCY)}</small></div>
+        <div class="fact"><span class="fact__k">Open year</span>
+          <strong class="fact__v">${esc(win.fiscal_year || '\u2014')}</strong>
+          <small>ends ${esc(fmtDate(win.ends_on))}</small></div>
+        <div class="fact"><span class="fact__k">Projected from</span>
+          <strong class="fact__v">${esc(win.from_period || '\u2014')} \u2192 ${esc(win.to_period || '\u2014')}</strong>
+          <small>${esc(win.period_count || 0)} periods \u00b7 as at ${esc(fmtDate(win.as_of))}</small></div>
+        <div class="fact"><span class="fact__k">Built</span>
+          <strong class="fact__v">${esc(fmtDateTime(payload && payload.generated_at))}</strong>
+          <small>a read, not a stored run</small></div>
+      </div>
+      <div class="dash-head__tools">
+        ${capabilities.scenario ? forecastScenarioTools(scenario) : ''}
+        <button class="btn btn--quiet btn--sm" data-act="forecast-refresh">Refresh</button>
+        <button class="btn btn--quiet btn--sm" data-act="forecast-export" data-format="csv">Export CSV</button>
+        <button class="btn btn--quiet btn--sm" data-act="forecast-export" data-format="pdf">Export PDF</button>
+      </div>
+    </section>`;
+  }
+
+  // The scenario controls are only drawn for a caller who holds the scenario
+  // right; everyone else is shown the projection and nothing to change it with.
+  function forecastScenarioTools(scenario) {
+    const current = scenario.name || 'base';
+    const options = FORECAST_SCENARIOS.map(s =>
+      `<option value="${esc(s.name)}"${current === s.name ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
+
+    return `<label class="field" style="min-width:200px"><span class="field__label">Scenario</span>
+        <select data-act="forecast-scenario">${options}</select></label>
+      <label class="field field--date"><span class="field__label">Revenue growth %</span>
+        <input type="text" inputmode="decimal" data-act="forecast-revenue" value="${esc(forecastState.revenue_growth)}"
+          placeholder="from the scenario"></label>
+      <label class="field field--date"><span class="field__label">Expense growth %</span>
+        <input type="text" inputmode="decimal" data-act="forecast-expense" value="${esc(forecastState.expense_growth)}"
+          placeholder="from the scenario"></label>
+      <button class="btn btn--primary btn--sm" data-act="forecast-run">Run scenario</button>
+      <button class="btn btn--quiet btn--sm" data-act="forecast-reset">Reset</button>`;
+  }
+
+  /* --------------------------------------------------- forecast: measures */
+
+  function forecastKpis(section) {
+    if (!section || section.error) {
+      return sectionProblem('Forecast measures', section, 'The projected measures could not be read.');
+    }
+
+    const data = section.data || {};
+    const cards = data.cards || [];
+
+    if (!cards.length) {
+      return card('Forecast measures', '', emptyState('\u25CB', 'Nothing to project',
+        'There is no open year left to project.'));
+    }
+
+    return card('Forecast measures', 'Each projection beside the plan it was measured against',
+      `<div class="grid grid--metrics">${cards.map(forecastKpiTile).join('')}</div>` +
+      (data.note ? `<div class="note note--warn" style="margin-top:14px">${esc(data.note)}</div>` : ''));
+  }
+
+  function forecastCardValue(card, value) {
+    if (value === null || value === undefined || value === '') return '\u2014';
+    if (card.format === 'percent') return Number(value).toFixed(2) + '%';
+    if (card.format === 'month') return String(value);
+    return fmtMoney(value);
+  }
+
+  function forecastKpiTile(card) {
+    const tone = forecastTone(card);
+
+    const variance = (card.variance === null || card.variance === undefined)
+      ? '<span class="kpi__delta kpi__delta--flat">No plan to compare with</span>'
+      : `<span class="kpi__delta kpi__delta--${tone}">${forecastArrow(tone)}
+           ${esc(forecastCardValue(card, card.variance))} <small>vs plan</small></span>`;
+
+    const plan = (card.budget === null || card.budget === undefined)
+      ? 'No plan was written for the horizon'
+      : 'Plan ' + forecastCardValue(card, card.budget);
+
+    const money = card.format === 'money';
+
+    return `<section class="kpi kpi--static">
+      <span class="kpi__label">${esc(card.label)}</span>
+      <span class="kpi__value ${money ? moneyClass(card.forecast) : ''}">${esc(forecastCardValue(card, card.forecast))}</span>
+      ${variance}
+      <span class="metric__note">${esc(plan)}</span>
+    </section>`;
+  }
+
+  /**
+   * Whether the projection against the plan is good news, which is not the same
+   * as the sign of the difference: earning more than planned is good and
+   * spending more than planned is not, so the measure decides.
+   */
+  function forecastTone(card) {
+    if (card.variance === null || card.variance === undefined) return 'flat';
+
+    const n = Number(card.variance);
+    if (!isFinite(n) || n === 0) return 'flat';
+
+    const better = FORECAST_HIGHER_IS_BETTER[card.key];
+    if (better === null || better === undefined) return 'neutral';
+
+    return (n > 0) === better ? 'good' : 'bad';
+  }
+
+  function forecastArrow(tone) {
+    return tone === 'good' ? '\u25B2' : (tone === 'bad' ? '\u25BC' : '\u2013');
+  }
+
+  /* ------------------------------------------------------ forecast: chart */
+
+  function forecastChart(section) {
+    if (!section || section.error) {
+      return sectionProblem('Revenue and net profit', section, 'The projection could not be charted.');
+    }
+
+    const data = section.data || {};
+
+    return card('Revenue and net profit, actual then projected',
+      'Solid is what the ledger posted; dashed is what the company intends, and the band is the range',
+      forecastChartSvg(data) +
+      (data.note ? `<div class="note" style="margin-top:12px">${esc(data.note)}</div>` : ''));
+  }
+
+  /**
+   * The projection chart, drawn by hand as SVG like the dashboard's charts, so
+   * it inherits the portal's own colours and plots the ledger's decimals without
+   * reformatting them.
+   *
+   * The posted line is drawn only through periods that have happened and the
+   * projected line only through periods that have not, so the two are never
+   * joined into one line and the future is never presented as if it had
+   * occurred. The shaded band is the pessimistic-to-optimistic envelope and is
+   * drawn only behind the projected points.
+   */
+  function forecastChartSvg(data) {
+    const periods = data.periods || [];
+    const series = data.series || [];
+    const n = periods.length;
+
+    if (!n) {
+      return emptyState('\u25CB', 'Nothing to chart', 'There are no periods in the open year to plot.');
+    }
+
+    const W = 780, H = 300;
+    const padL = 72, padR = 20, padT = 18, padB = 48;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    let min = 0, max = 0;
+
+    series.forEach(s => (s.points || []).forEach(p => {
+      [p.actual, p.forecast, p.low, p.high].forEach(v => {
+        const x = Number(v);
+        if (!isFinite(x) || v === null) return;
+        if (x < min) min = x;
+        if (x > max) max = x;
+      });
+    }));
+
+    if (max === min) max = min + 1;
+    const headroom = (max - min) * 0.1;
+    max += headroom;
+    if (min < 0) min -= headroom;
+
+    const yOf = v => padT + plotH - ((Number(v) - min) / (max - min)) * plotH;
+    const band = plotW / n;
+    const cx = i => padL + band * (i + 0.5);
+
+    let grid = '';
+
+    for (let s = 0; s <= 4; s++) {
+      const value = min + ((max - min) * s) / 4;
+      const gy = yOf(value);
+      grid += `<line class="chart__grid" x1="${padL}" y1="${gy.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${gy.toFixed(1)}"/>` +
+        `<text class="chart__axis" x="${padL - 10}" y="${(gy + 4).toFixed(1)}" text-anchor="end">${esc(shortMoney(value))}</text>`;
+    }
+
+    const labelStep = Math.ceil(n / 8);
+    let xAxis = '';
+
+    periods.forEach((period, i) => {
+      if (i % labelStep !== 0 && i !== n - 1) return;
+      xAxis += `<text class="chart__axis" x="${cx(i).toFixed(1)}" y="${(H - padB + 22).toFixed(1)}" text-anchor="middle">` +
+        `${esc(periodShort(period))}</text>`;
+    });
+
+    const zero = (min < 0 && max > 0)
+      ? `<line class="chart__zero" x1="${padL}" y1="${yOf(0).toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${yOf(0).toFixed(1)}"/>`
+      : '';
+
+    const colours = { revenue: 'var(--chart-1)', net: 'var(--chart-3)' };
+    let drawn = '';
+
+    series.forEach((s, index) => {
+      const colour = colours[s.key] || ('var(--chart-' + ((index % 4) + 1) + ')');
+      const points = s.points || [];
+      const posted = [];
+      const projected = [];
+      const bandPoints = [];
+
+      points.forEach((p, i) => {
+        if (p.is_forecast !== true && p.actual !== null && p.actual !== undefined) {
+          posted.push([cx(i), yOf(p.actual)]);
+        }
+        if (p.is_forecast === true && p.forecast !== null && p.forecast !== undefined) {
+          projected.push([cx(i), yOf(p.forecast)]);
+        }
+        if (p.is_forecast === true && p.low !== null && p.low !== undefined && p.high !== null && p.high !== undefined) {
+          bandPoints.push([cx(i), yOf(p.low), yOf(p.high)]);
+        }
+      });
+
+      const path = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+
+      if (bandPoints.length) {
+        const top = bandPoints.map(p => p[0].toFixed(1) + ' ' + p[2].toFixed(1));
+        const bottom = bandPoints.slice().reverse().map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1));
+        drawn += `<path class="chart__band" d="M ${top.join(' L ')} L ${bottom.join(' L ')} Z" style="fill:${colour}"/>`;
+      }
+
+      if (posted.length > 1) drawn += `<path class="chart__line" d="${path(posted)}" fill="none" style="stroke:${colour}"/>`;
+      if (projected.length > 1) {
+        drawn += `<path class="chart__line chart__line--projected" d="${path(projected)}" fill="none" style="stroke:${colour}"/>`;
+      }
+
+      posted.concat(projected).forEach(p => {
+        drawn += `<circle class="chart__dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" style="fill:${colour}"/>`;
+      });
+    });
+
+    const legend = '<div class="chart__legend">' +
+      series.map(s => `<span class="chart__key"><i class="chart__swatch chart__swatch--line" ` +
+        `style="background:${colours[s.key] || 'var(--acc)'}"></i>${esc(s.label)}</span>`).join('') +
+      '<span class="chart__key"><i class="chart__swatch chart__swatch--dashed"></i>Projected</span>' +
+      '<span class="chart__key"><i class="chart__swatch chart__swatch--band"></i>Pessimistic\u2013optimistic range</span>' +
+      '</div>';
+
+    return `<div class="chart">${legend}
+      <div class="chart__scroll">
+        <svg class="chart__svg" viewBox="0 0 ${W} ${H}" role="img"
+          aria-label="Revenue and net profit, actual then projected, by fiscal period">
+          ${grid}${zero}${drawn}${xAxis}
+        </svg>
+      </div></div>`;
+  }
+
+  /* ------------------------------------------- forecast: cash and capital */
+
+  const forecastRate = value => (value === null || value === undefined || value === '')
+    ? '\u2014'
+    : (Number(value) * 100).toFixed(1) + '%';
+
+  function forecastCashOutlook(section) {
+    if (!section || section.error) {
+      return sectionProblem('Cash outlook', section, 'The cash outlook could not be estimated.');
+    }
+
+    const d = section.data || {};
+
+    const rows = [
+      ['Cash at the start', fmtMoney(d.opening_cash), ''],
+      ['Projected net profit for the horizon', fmtMoney(d.projected_net_profit), ''],
+      ['Collected from customers (' + forecastRate(d.collection_rate) + ' of receivables)',
+        fmtMoney(d.expected_collections), ''],
+      ['Paid to suppliers (' + forecastRate(d.payment_rate) + ' of payables)',
+        fmtMoney(d.expected_payments === null || d.expected_payments === undefined
+          ? null : -Math.abs(Number(d.expected_payments))), '']
+    ];
+
+    const body = `<div class="table-wrap"><table class="data">
+        <thead><tr><th>Line</th><th class="num">Amount</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${esc(r[0])}</td><td class="num">${esc(r[1])}</td></tr>`).join('')}</tbody>
+        <tfoot>
+          <tr><td>Projected movement</td><td class="num ${moneyClass(d.projected_movement)}">${esc(fmtMoney(d.projected_movement))}</td></tr>
+          <tr><td>Projected closing cash</td><td class="num ${moneyClass(d.projected_closing_cash)}">${esc(fmtMoney(d.projected_closing_cash))}</td></tr>
+        </tfoot>
+      </table></div>` +
+      (d.note ? `<div class="note note--warn" style="margin-top:14px">${esc(d.note)}</div>` : '');
+
+    return card('Cash outlook', 'An estimate, on assumptions held in configuration', body);
+  }
+
+  function forecastWorkingCapital(section) {
+    if (!section || section.error) {
+      return sectionProblem('Working capital', section, 'The working capital could not be estimated.');
+    }
+
+    const d = section.data || {};
+
+    const body = `<div class="table-wrap"><table class="data">
+        <thead><tr><th>Measure</th><th class="num">Now</th><th class="num">Projected year end</th></tr></thead>
+        <tbody>
+          <tr><td>Receivables owed to us</td>
+            <td class="num">${esc(fmtMoney(d.receivables))}</td>
+            <td class="num"><em>${esc(fmtMoney(d.projected_receivables))}</em></td></tr>
+          <tr><td>Payables we owe</td>
+            <td class="num">${esc(fmtMoney(d.payables))}</td>
+            <td class="num"><em>${esc(fmtMoney(d.projected_payables))}</em></td></tr>
+          <tr><td>Working capital</td>
+            <td class="num ${moneyClass(d.working_capital)}">${esc(fmtMoney(d.working_capital))}</td>
+            <td class="num ${moneyClass(d.projected_working_capital)}"><em>${esc(fmtMoney(d.projected_working_capital))}</em></td></tr>
+        </tbody>
+        <tfoot><tr><td>Projected cash</td><td class="num" colspan="2">${esc(fmtMoney(d.projected_cash))}</td></tr></tfoot>
+      </table></div>` +
+      (d.note ? `<div class="note" style="margin-top:14px">${esc(d.note)}</div>` : '');
+
+    return card('Working capital', 'What is owed, and what it is projected to be at the year end', body);
+  }
+
+  /* ---------------------------------------------- forecast: break-even */
+
+  function forecastBreakEven(section) {
+    if (!section || section.error) {
+      return sectionProblem('Break-even', section, 'The break-even point could not be read.');
+    }
+
+    const d = section.data || {};
+    const trend = d.trend || [];
+    const budgetTrend = d.budget_trend || [];
+
+    const headline = d.profitable
+      ? `<div class="callout"><strong>${esc(d.month)}</strong> is the first projected month the year to date turns profitable` +
+        (d.budget_month ? `, against <strong>${esc(d.budget_month)}</strong> on the plan` : ', and the plan does not reach it') + '.</div>'
+      : `<div class="note note--warn"><strong>The year to date is never profitable on this projection.</strong>
+           Not one projected month turns the running total positive.</div>`;
+
+    const rows = trend.map((p, i) => {
+      const plan = budgetTrend[i] || {};
+      return `<tr>
+        <td>${esc(p.period)}</td>
+        <td class="num">${esc(fmtMoney(p.net))}</td>
+        <td class="num ${moneyClass(p.cumulative)}">${esc(fmtMoney(p.cumulative))}</td>
+        <td class="num">${esc(plan.cumulative === undefined ? '\u2014' : fmtMoney(plan.cumulative))}</td>
+      </tr>`;
+    }).join('');
+
+    const body = headline + (trend.length
+      ? `<div class="table-wrap" style="margin-top:12px"><table class="data">
+          <thead><tr><th>Period</th><th class="num">Projected net</th><th class="num">Running total</th>
+            <th class="num">Running total on plan</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`
+      : '') +
+      (d.note ? `<div class="note" style="margin-top:12px">${esc(d.note)}</div>` : '');
+
+    return card('Break-even', 'The running total from the current period, projected', body);
+  }
+
+  /* ------------------------------------ forecast: plan against projection */
+
+  function forecastBudgetVsForecast(section) {
+    if (!section || section.error) {
+      return sectionProblem('Plan against projection', section, 'The comparison could not be read.');
+    }
+
+    const data = section.data || {};
+    const rows = data.rows || [];
+
+    if (!rows.length) {
+      return card('Plan against projection', '', emptyState('\u25CB', 'Nothing to compare',
+        'There is no projected period to hold against the plan.'));
+    }
+
+    const sourceBadge = row => row.source === 'budget' ? badge('info', 'From the plan')
+      : row.source === 'run_rate' ? badge('muted', 'Trailing run-rate')
+      : row.source === 'none' ? badge('muted', 'No basis')
+      : badge('muted', 'Mixed');
+
+    const body = `<div class="table-wrap"><table class="data">
+        <thead><tr><th>Period</th><th class="num">Projected net</th><th class="num">Plan net</th>
+          <th class="num">Variance</th><th class="num">%</th><th>Reading</th><th>Basis</th></tr></thead>
+        <tbody>${rows.map(row => {
+          const tone = row.variance === null ? 'flat'
+            : (Number(row.variance) === 0 ? 'flat' : (Number(row.variance) > 0 ? 'good' : 'bad'));
+          const pct = row.variance_percent === null || row.variance_percent === undefined
+            ? '\u2014' : Number(row.variance_percent).toFixed(2) + '%';
+          return `<tr>
+            <td>${esc(row.period)}</td>
+            <td class="num ${moneyClass(row.net)}">${esc(fmtMoney(row.net))}</td>
+            <td class="num">${esc(row.budget === null ? '\u2014' : fmtMoney(row.budget))}</td>
+            <td class="num ${row.variance === null ? '' : (tone === 'good' ? 'is-positive' : tone === 'bad' ? 'is-negative' : '')}">${esc(row.variance === null ? '\u2014' : fmtMoney(row.variance))}</td>
+            <td class="num">${esc(pct)}</td>
+            <td>${esc(row.direction === 'unknown' ? '\u2014' : row.direction)}</td>
+            <td>${sourceBadge(row)}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div>` +
+      (data.note ? `<div class="note" style="margin-top:14px">${esc(data.note)}</div>` : '');
+
+    return card('Plan against projection', 'The projection beside the plan the company wrote, period by period', body);
+  }
+
+  /* -------------------------------------------- forecast: risk and scenarios */
+
+  function forecastRiskAlerts(section) {
+    if (!section || section.error) {
+      return sectionProblem('What could go wrong', section, 'The readings could not be taken.');
+    }
+
+    const data = section.data || {};
+    const alerts = data.alerts || [];
+
+    const list = alerts.length
+      ? alerts.map(a => {
+        const kind = a.level === 'critical' ? 'bad' : (a.level === 'warning' ? 'pending' : 'info');
+        const amount = (a.amount === null || a.amount === undefined)
+          ? '' : ` <strong class="${moneyClass(a.amount)}">${esc(fmtMoney(a.amount))}</strong>`;
+        return `<div class="card alert alert--${esc(a.level)}" style="padding:12px 14px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              ${badge(kind, a.title)}${amount}
+            </div>
+            <p style="margin:8px 0 0;color:var(--mut);font-size:12.5px">${esc(a.detail)}</p>
+          </div>`;
+      }).join('')
+      : emptyState('\u2714', 'Nothing flagged', 'No reading of the projection crossed a threshold this build watches.');
+
+    return card('What could go wrong', alerts.length ? `${alerts.length} reading(s) worth a look` : 'Readings, not controls',
+      list + (data.note ? `<div class="note" style="margin-top:6px">${esc(data.note)}</div>` : ''));
+  }
+
+  function forecastComparison(section) {
+    if (!section || section.error) {
+      return sectionProblem('Scenario comparison', section, 'The scenarios could not be compared.');
+    }
+
+    const data = section.data || {};
+    const scenarios = data.scenarios || [];
+
+    const body = `<div class="table-wrap"><table class="data">
+        <thead><tr><th>Scenario</th><th class="num">Revenue growth</th><th class="num">Expense growth</th>
+          <th class="num">Projected net</th><th class="num">Margin</th><th class="num">Plan net</th><th class="num">Variance</th></tr></thead>
+        <tbody>${scenarios.map(s => `<tr${s.selected ? ' style="background:var(--info-bg)"' : ''}>
+          <td>${esc(s.label)}${s.selected ? ' ' + badge('info', 'Running') : ''}</td>
+          <td class="num">${esc(Number(s.revenue_growth).toFixed(2))}%</td>
+          <td class="num">${esc(Number(s.expense_growth).toFixed(2))}%</td>
+          <td class="num ${moneyClass(s.net)}">${esc(fmtMoney(s.net))}</td>
+          <td class="num">${esc(s.margin === null ? '\u2014' : Number(s.margin).toFixed(2) + '%')}</td>
+          <td class="num">${esc(fmtMoney(s.budget))}</td>
+          <td class="num">${esc(fmtMoney(s.variance))}</td>
+        </tr>`).join('')}</tbody></table></div>` +
+      (data.note ? `<div class="note note--warn" style="margin-top:14px">${esc(data.note)}</div>` : '');
+
+    return card('Scenarios side by side', 'The same year under each set of assumptions, none of them stored', body);
+  }
+
+  /* ------------------------------------------ forecast: projection detail */
+
+  function forecastPeriods(section) {
+    if (!section || section.error) {
+      return sectionProblem('Period by period', section, 'The projection detail could not be read.');
+    }
+
+    const periods = (section.data || {}).periods || [];
+
+    if (!periods.length) {
+      return card('Period by period', '', emptyState('\u25CB', 'Nothing to project',
+        'The open year holds no periods to project.'));
+    }
+
+    const blocks = periods.map(block => {
+      const isForecast = block.is_forecast === true;
+      const rows = [].concat(
+        (block.revenue.accounts || []).map(a => Object.assign({ section: 'Revenue' }, a)),
+        (block.expense.accounts || []).map(a => Object.assign({ section: 'Expense' }, a))
+      );
+
+      const body = rows.length
+        ? `<div class="table-wrap"><table class="data">
+            <thead><tr><th>Section</th><th>Code</th><th>Account</th><th class="num">Actual</th><th class="num">Forecast</th><th>Basis</th></tr></thead>
+            <tbody>` + rows.map(r => `<tr>
+              <td>${esc(r.section)}</td>
+              <td>${esc(r.code)}</td>
+              <td>${esc(r.name)}</td>
+              <td class="num">${esc(fmtMoney(r.actual))}</td>
+              <td class="num"><em>${r.forecast === null ? '\u2014' : esc(fmtMoney(r.forecast))}</em></td>
+              <td>${r.source === 'budget' ? badge('info', 'From the plan')
+                    : r.source === 'run_rate' ? badge('muted', 'Trailing run-rate')
+                    : r.source === 'none' ? badge('muted', 'No basis')
+                    : badge('ok', 'Actual')}</td>
+            </tr>`).join('') + `</tbody></table></div>`
+        : emptyState('\u25CB', 'Nothing in this period', 'No revenue or expense is recorded or planned for it.');
+
+      return card(
+        (block.period && block.period.name) || 'Period',
+        (block.period && (block.period.starts_on + ' to ' + block.period.ends_on)) || '',
+        `<div style="margin-bottom:10px">${isForecast
+          ? badge('pending', 'Projected') + ' <span style="color:var(--mut);font-size:12.5px">forecast figures only</span>'
+          : badge('ok', 'Actual') + ' <span style="color:var(--mut);font-size:12.5px">reported as it happened; nothing is projected onto a past period</span>'}</div>` +
+        body +
+        `<p style="margin-top:10px;color:var(--mut);font-size:12.5px">Net: actual <strong>${esc(fmtMoney(block.net && block.net.actual))}</strong>` +
+        ` \u00b7 forecast <em>${block.net && block.net.forecast === null ? '\u2014' : esc(fmtMoney(block.net && block.net.forecast))}</em></p>`
+      );
+    }).join('');
+
+    return card('Period by period', 'Every account the projection touches, period by period', blocks);
+  }
+
+  function forecastAssumptions(section) {
+    if (!section || section.error) {
+      return sectionProblem('What the projection assumes', section, 'The assumptions could not be read.');
+    }
+
+    const data = section.data || {};
+    const runRate = data.run_rate || {};
+    const assumptions = data.assumptions || [];
+
+    const facts = `<div class="facts">
+        <div class="fact"><span class="fact__k">Basis</span>
+          <strong class="fact__v">${esc(data.basis || '\u2014')}</strong></div>
+        <div class="fact"><span class="fact__k">Trailing run-rate</span>
+          <strong class="fact__v">${runRate.used
+            ? 'Read over ' + esc(runRate.period_count || 0) + ' completed periods'
+            : 'No completed periods to average yet'}</strong></div>
+        <div class="fact"><span class="fact__k">As at</span>
+          <strong class="fact__v">${esc(fmtDate(data.as_of))}</strong></div>
+      </div>`;
+
+    const list = assumptions.length
+      ? `<ul style="margin:14px 0 0;padding-left:20px;font-size:12.5px;color:var(--mut)">` +
+        assumptions.map(a => `<li>${esc(a)}</li>`).join('') + `</ul>`
+      : '<p style="color:var(--mut);font-size:12.5px;margin:14px 0 0">The projection carries no stated assumptions beyond the plan and the run-rate.</p>';
+
+    return card('What the projection assumes', 'Stated rather than left to be inferred',
+      facts + list +
+      (data.note ? `<div class="note note--warn" style="margin-top:14px">${esc(data.note)}</div>` : ''));
+  }
+
+  function startForecastExport(format) {
+    toast('info', 'Export requested', 'The forecast is being rendered as a ' + String(format).toUpperCase() + ' file.');
+    api('/exports', { method: 'POST', key: newKey(), body: { type: 'forecast', format: format } })
+      .then(record => pollExport(record.data.id))
+      .then(record => downloadExport(record))
+      .catch(error => toast('bad', error.message, 'The export did not finish.'));
   }
 
   /* ----------------------------------------------------- screen: budgets */
@@ -3127,6 +3653,28 @@
       }
       if (act === 'dash-refresh') { go('dashboard'); return; }
       if (act === 'dash-export') { startDashboardExport(trigger.dataset.format || 'csv'); return; }
+
+      // Forecast controls. A scenario is a set of assumptions handed to a read,
+      // so running one re-asks the endpoint with them on the query string and
+      // nothing is written. Reset takes the query back to a plain read of the
+      // projection as the company expects it.
+      if (act === 'forecast-refresh') { go('forecast'); return; }
+      if (act === 'forecast-run') {
+        const revenue = ($('[data-act="forecast-revenue"]') || {}).value || '';
+        const expense = ($('[data-act="forecast-expense"]') || {}).value || '';
+        forecastState.revenue_growth = revenue.trim();
+        forecastState.expense_growth = expense.trim();
+        go('forecast');
+        return;
+      }
+      if (act === 'forecast-reset') {
+        forecastState.scenario = '';
+        forecastState.revenue_growth = '';
+        forecastState.expense_growth = '';
+        go('forecast');
+        return;
+      }
+      if (act === 'forecast-export') { startForecastExport(trigger.dataset.format || 'csv'); return; }
       if (act === 'open-report') {
         // A KPI and an alert both walk to the report the API named; the report
         // screen runs it on arrival, so the figure can be read where it came from.
@@ -3160,6 +3708,13 @@
         budgetState.lines = [];
         budgetState.name = '';
         go('budgets');
+        return;
+      }
+      // Choosing a scenario re-runs the projection under it straight away, so
+      // the figures on screen always belong to the scenario named above them.
+      if (target.dataset.act === 'forecast-scenario') {
+        forecastState.scenario = target.value;
+        go('forecast');
         return;
       }
       // Custom dates put the dashboard on the custom filter, whatever the

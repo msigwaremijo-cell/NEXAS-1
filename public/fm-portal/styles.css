@@ -531,6 +531,10 @@ details.raw pre { margin: 8px 0 0; font-size: 12px; overflow-x: auto; }
 }
 .kpi:hover { border-color: color-mix(in srgb, var(--acc) 45%, transparent); background: var(--info-bg); }
 .kpi:active { transform: translateY(1px); }
+/* A measure that opens nothing is not offered as a button. */
+.kpi--static { cursor: default; }
+.kpi--static:hover { border-color: var(--bd); background: var(--glass-2); }
+.kpi--static:active { transform: none; }
 .kpi__label { color: var(--mut); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
 .kpi__value {
   font-size: 22px; font-weight: 700; letter-spacing: -.02em;
@@ -573,8 +577,16 @@ details.raw pre { margin: 8px 0 0; font-size: 12px; overflow-x: auto; }
 .chart__bar { opacity: .85; transition: opacity .15s ease; }
 .chart__bar:hover { opacity: 1; }
 .chart__line { stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+/* A projected line is dashed, so it is never read as something that happened. */
+.chart__line--projected { stroke-dasharray: 6 5; }
+.chart__band { opacity: .14; stroke: none; }
 .chart__dot { stroke: var(--surf); stroke-width: 1; }
 .chart__area { stroke: none; }
+.chart__swatch--dashed {
+  height: 3px; border-radius: 2px;
+  background-image: repeating-linear-gradient(90deg, var(--mut) 0 4px, transparent 4px 8px);
+}
+.chart__swatch--band { background: color-mix(in srgb, var(--warn) 32%, transparent); }
 
 /* ---------------------------------------------------------------- ageing */
 

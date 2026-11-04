@@ -272,4 +272,51 @@ return [
         'bulk_max_items' => (int) env('NEXAS_APPROVAL_BULK_MAX_ITEMS', 50),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Forecast Scenarios
+    |--------------------------------------------------------------------------
+    |
+    | The three scenarios a Financial Manager may read the projection under,
+    | and the ceilings a scenario request is held to.
+    |
+    | `scenarios` are the growth rates each named scenario starts from, as
+    | percentages of the projected figure: base moves nothing, so base is the
+    | projection the company actually expects, and the other two answer "what
+    | if". They are configuration rather than constants so a deployment can set
+    | its own envelope without a code change, and a caller may still override
+    | either rate on the request. Nothing here is stored and nothing here
+    | reaches the ledger — a scenario is a set of figures passed to a read.
+    |
+    | `max_adjustments` is the most accounts one request may adjust, and
+    | `max_growth_percent` the widest growth either way that will be accepted.
+    | Both are enforced on the server, so a caller cannot widen the question by
+    | changing what the screen sends. `variance_warning_percent` is the budget
+    | variance at which the risk block raises a flag; it is a reporting
+    | threshold and not a control, because nothing here can block anything.
+    |
+    */
+
+    'forecast' => [
+        'scenarios' => [
+            'base' => ['revenue_growth' => '0', 'expense_growth' => '0'],
+            'optimistic' => ['revenue_growth' => '10', 'expense_growth' => '5'],
+            'pessimistic' => ['revenue_growth' => '-10', 'expense_growth' => '10'],
+        ],
+        'max_adjustments' => (int) env('NEXAS_FORECAST_MAX_ADJUSTMENTS', 50),
+        'max_growth_percent' => (string) env('NEXAS_FORECAST_MAX_GROWTH_PERCENT', '1000'),
+        'variance_warning_percent' => (string) env('NEXAS_FORECAST_VARIANCE_WARNING_PERCENT', '10'),
+
+        /*
+        | The share of what is owed that the cash outlook assumes settles
+        | inside the horizon. There is no cash budget, so a cash projection
+        | can only be built from the ageing plus an assumption about how much
+        | of it moves — and the assumption belongs here, where a deployment
+        | can set its own, rather than buried in the service. Both figures are
+        | reported back with the answer so a reader can see what produced it.
+        */
+        'collection_rate' => (string) env('NEXAS_FORECAST_COLLECTION_RATE', '0.9'),
+        'payment_rate' => (string) env('NEXAS_FORECAST_PAYMENT_RATE', '0.95'),
+    ],
+
 ];

@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Access\AccessMatrix;
 use App\Domain\Reporting\Services\AgeingQuery;
 use App\Domain\Reporting\Services\BudgetVarianceQuery;
 use App\Domain\Reporting\Services\CashFlowQuery;
 use App\Domain\Reporting\Services\DashboardQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
-use App\Domain\Reporting\Services\ForecastQuery;
+use App\Domain\Reporting\Services\ForecastPageQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Domain\Reporting\Services\LedgerVerification;
 use App\Domain\Reporting\Services\StockValuationQuery;
@@ -19,6 +20,7 @@ use App\Models\FiscalPeriod;
 use App\Models\StockMovement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -401,32 +403,134 @@ class ReportController extends Controller
     }
 
     /**
-     * The rest of the open fiscal year projected period by period.
+     * The Financial Manager forecast page in one read.
      *
      * A forecast is built from the plan where the company wrote one for the
      * period and from the trailing run-rate where it did not, so it is guarded
-     * by the budget read right rather than the report right the statements.
+     * by `forecast.view` rather than the report right the statements use.
      * Reading the books has never meant being shown what the company intends,
      * and a projection that is half plan is still half plan.
      *
-     * Nothing is stored and nothing is posted: the payload says which basis
-     * each figure came from, so a reader is never left to guess whether a
-     * number is a plan, an average or a fact. The horizon is decided by the
-     * company's own calendar — the current period to the last period of the
-     * open year — so there is no window to name and no date to be handed one
-     * outside the periods that exist.
+     * Running the projection under different assumptions is a second, narrower
+     * right. A request that carries any scenario parameter at all is refused
+     * unless the caller holds `forecast.scenario`, and the refusal happens
+     * before the parameters are read: what a caller unable to ask "what if" is
+     * sent is not parsed, validated and then discarded, it is not parsed. The
+     * right is checked on the presence of a parameter rather than on its value,
+     * so a scenario named `base` is still a scenario being run.
+     *
+     * Nothing is stored and nothing is posted. The payload is a composition of
+     * sections, each produced independently, so one read that cannot be served
+     * answers for itself and leaves the rest of the page standing. The response
+     * echoes the assumptions back only after they have been validated and
+     * normalised, never as they were received.
      */
-    public function forecast(Request $request, ForecastQuery $forecast): JsonResponse
-    {
-        $this->authorize('viewAny', Budget::class);
+    public function forecast(
+        Request $request,
+        ForecastPageQuery $page,
+    ): JsonResponse {
+        $this->authorize(AccessMatrix::PERMISSION_FORECAST_VIEW);
+
+        if ($this->asksForAScenario($request)) {
+            $this->authorize(AccessMatrix::PERMISSION_FORECAST_SCENARIO);
+        }
 
         $filters = $request->validate([
             'as_of' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'scenario' => ['sometimes', 'nullable', Rule::in(array_keys((array) config('nexas.forecast.scenarios')))],
+            'revenue_growth' => $this->growthRules(),
+            'expense_growth' => $this->growthRules(),
+            'adjustments' => ['sometimes', 'array', 'max:'.(int) config('nexas.forecast.max_adjustments', 50)],
+            'adjustments.*.account_id' => ['required', 'integer', 'min:1'],
+            'adjustments.*.amount' => ['required', 'regex:/^-?\d+(\.\d{1,4})?$/'],
         ]);
 
-        return response()->json(
-            $forecast->forecast($this->companyId($request), $filters['as_of'] ?? null)
-        );
+        return response()->json($page->page(
+            $this->companyId($request),
+            $filters['as_of'] ?? null,
+            $this->scenario($filters),
+            $request->user()?->can(AccessMatrix::PERMISSION_FORECAST_SCENARIO) === true,
+        ));
+    }
+
+    /**
+     * Whether the request is a scenario run at all.
+     *
+     * Asked of the presence of a parameter and not of its value, because the
+     * question is whether the caller is testing an assumption rather than
+     * reading the projection, and a growth of zero is still a growth the caller
+     * chose.
+     */
+    private function asksForAScenario(Request $request): bool
+    {
+        foreach (['scenario', 'revenue_growth', 'expense_growth', 'adjustments'] as $parameter) {
+            if ($request->exists($parameter)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A growth rate is taken as a plain decimal — a percentage, so `10` is ten
+     * per cent — and bounded by the envelope in configuration. The rule refuses
+     * scientific notation and anything with more than four decimal places, so
+     * what reaches the money arithmetic is a literal it can accept.
+     *
+     * `numeric` is stated explicitly rather than left to `between`: without it
+     * `between` measures a string's length, so `5000` would pass an envelope
+     * that names 1000 as its ceiling by being four characters long. It is the
+     * numeric rule that makes the bound a bound.
+     *
+     * @return list<string>
+     */
+    private function growthRules(): array
+    {
+        $max = (string) config('nexas.forecast.max_growth_percent', '1000');
+
+        return [
+            'sometimes',
+            'nullable',
+            'numeric',
+            'regex:/^-?\d+(\.\d{1,4})?$/',
+            'between:-'.$max.','.$max,
+        ];
+    }
+
+    /**
+     * The assumptions the projection is asked for, normalised.
+     *
+     * A named scenario starts from the rates configured for it and either rate
+     * may be replaced on the request; an unnamed one starts from zero, which is
+     * the projection the company actually expects. The adjustments are keyed by
+     * account so a repeated account resolves to one figure rather than being
+     * applied twice.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array{name: string, revenue_growth: string, expense_growth: string, adjustments: array<int, string>}
+     */
+    private function scenario(array $filters): array
+    {
+        $name = (string) ($filters['scenario'] ?? 'base');
+        $rates = config('nexas.forecast.scenarios.'.$name);
+        $rates = is_array($rates) ? $rates : [];
+
+        $adjustments = [];
+
+        foreach ($filters['adjustments'] ?? [] as $adjustment) {
+            // The account is only ever matched against rows the projection has
+            // already produced for this company, so an account the caller does
+            // not own adjusts nothing and reads nothing.
+            $adjustments[(int) $adjustment['account_id']] = (string) $adjustment['amount'];
+        }
+
+        return [
+            'name' => $name,
+            'revenue_growth' => (string) ($filters['revenue_growth'] ?? $rates['revenue_growth'] ?? '0'),
+            'expense_growth' => (string) ($filters['expense_growth'] ?? $rates['expense_growth'] ?? '0'),
+            'adjustments' => $adjustments,
+        ];
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Domain\Access\AccessMatrix;
 use App\Domain\Reporting\Exceptions\UnknownExportTypeException;
 use App\Domain\Reporting\Services\DashboardQuery;
 use App\Domain\Reporting\Services\FinancialStatementQuery;
+use App\Domain\Reporting\Services\ForecastPageQuery;
 use App\Domain\Reporting\Services\LedgerQuery;
 use App\Models\Company;
 use App\Support\Money;
@@ -38,6 +39,7 @@ final class ReportExportRegistry
         private readonly FinancialStatementQuery $statements,
         private readonly LedgerQuery $ledger,
         private readonly DashboardQuery $dashboard,
+        private readonly ForecastPageQuery $forecast,
     ) {}
 
     /**
@@ -89,6 +91,21 @@ final class ReportExportRegistry
                 parameters: ['from', 'to'],
                 build: function (int $companyId, array $parameters): ReportDocument {
                     return $this->dashboardDocument($companyId, $parameters);
+                },
+            ),
+
+            // The forecast as a file, guarded by the forecast right rather than
+            // the report right: reading the books has never meant being shown
+            // what the company intends, and the definition names the right the
+            // forecast endpoint itself is guarded by, so a caller who cannot
+            // read the projection cannot take it away either.
+            'forecast' => new ReportDefinition(
+                type: 'forecast',
+                label: 'Forecast',
+                permission: AccessMatrix::PERMISSION_FORECAST_VIEW,
+                parameters: ['as_of'],
+                build: function (int $companyId, array $parameters): ReportDocument {
+                    return $this->forecastDocument($companyId, $parameters);
                 },
             ),
         ];
@@ -387,6 +404,174 @@ final class ReportExportRegistry
                 .'posted one. Every actual figure is the posted ledger, read through the same reporting '
                 .'services the statements use.',
         );
+    }
+
+    /**
+     * The forecast page flattened into the same document shape as the
+     * statements.
+     *
+     * Every block is read from the same ForecastPageQuery the forecast screen
+     * reads, for the same company and date, so the file and the screen are the
+     * same answer read once more and cannot disagree. The projection block is
+     * headed "FORECAST — NOT ACTUAL" and carries its own total line, and the
+     * cash and working-capital blocks are headed as estimates, so a reader of
+     * the file can never mistake a projection for a posted figure.
+     *
+     * A scenario is deliberately not offered here. An export is a file that
+     * outlives the request that asked for it, and a set of assumptions handed
+     * to a read has no standing to be kept: the file holds the company's own
+     * projection, stated under the assumptions the screen states. A block the
+     * page could not read is written as a line saying so rather than left out,
+     * because a section silently missing from an export is a section a reader
+     * would take to be empty.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    private function forecastDocument(int $companyId, array $parameters): ReportDocument
+    {
+        $asOf = $this->string($parameters, 'as_of');
+
+        $page = $this->forecast->page(
+            $companyId,
+            $asOf,
+            ['name' => 'base', 'revenue_growth' => '0', 'expense_growth' => '0', 'adjustments' => []],
+            false,
+        );
+
+        $sections = is_array($page['sections'] ?? null) ? $page['sections'] : [];
+        $window = is_array($page['window'] ?? null) ? $page['window'] : [];
+
+        $projection = $this->block($sections, 'projection');
+        $kpis = $this->block($sections, 'kpis');
+        $cash = $this->block($sections, 'cash_outlook');
+        $capital = $this->block($sections, 'working_capital');
+        $risk = $this->block($sections, 'risk_alerts');
+
+        $cards = [];
+        $summary = [];
+
+        foreach ($this->part($kpis, 'cards') as $card) {
+            if (! is_array($card)) {
+                continue;
+            }
+
+            $percent = $card['variance_percent'] ?? null;
+
+            $cards[] = [
+                (string) ($card['label'] ?? ''),
+                (string) ($card['forecast'] ?? ''),
+                (string) ($card['budget'] ?? ''),
+                (string) ($card['variance'] ?? ''),
+                $percent === null ? '' : $percent.'%',
+            ];
+
+            $summary[] = [
+                'label' => (string) ($card['label'] ?? ''),
+                'value' => (string) ($card['forecast'] ?? ''),
+            ];
+        }
+
+        $documents = [
+            new ReportSection(
+                heading: 'FORECAST — NOT ACTUAL',
+                columns: ['Period', 'Projected revenue', 'Projected expense', 'Projected net'],
+                rows: $this->forecastRows($projection),
+                total: $this->forecastTotal($projection),
+            ),
+            new ReportSection(
+                heading: 'Executive measures',
+                columns: ['Measure', 'Forecast', 'Budget', 'Variance', 'Variance %'],
+                rows: $cards,
+            ),
+            new ReportSection(
+                heading: 'Cash outlook (estimate)',
+                columns: ['Measure', 'Amount'],
+                rows: $this->figureRows($cash, [
+                    'opening_cash' => 'Opening cash',
+                    'projected_net_profit' => 'Projected net profit',
+                    'expected_collections' => 'Expected collections',
+                    'expected_payments' => 'Expected payments',
+                    'projected_closing_cash' => 'Projected closing cash',
+                ]),
+            ),
+            new ReportSection(
+                heading: 'Working capital (estimate)',
+                columns: ['Measure', 'Amount'],
+                rows: $this->figureRows($capital, [
+                    'receivables' => 'Receivables',
+                    'payables' => 'Payables',
+                    'projected_receivables' => 'Projected receivables',
+                    'projected_payables' => 'Projected payables',
+                    'projected_working_capital' => 'Projected working capital',
+                    'projected_cash' => 'Projected cash',
+                ]),
+            ),
+            new ReportSection(
+                heading: 'Risk alerts',
+                columns: ['Level', 'Alert', 'Detail', 'Amount'],
+                rows: $this->alertRows($risk),
+            ),
+        ];
+
+        $from = is_string($window['from_period'] ?? null) ? $window['from_period'] : null;
+        $to = is_string($window['to_period'] ?? null) ? $window['to_period'] : null;
+
+        return new ReportDocument(
+            title: 'Forecast',
+            meta: $this->meta($companyId, 'Horizon', $this->periodLabel($from, $to)),
+            sections: $documents,
+            summary: $summary,
+            note: 'Every figure in this file is a projection and not a posted result. Nothing here is '
+                .'stored, no journal is posted, and no forecast figure appears in a trial balance or any '
+                .'other actual report. The projection is read from the same service the forecast screen '
+                .'reads, for the same company and date.',
+        );
+    }
+
+    /**
+     * Named figures out of a block as label/value rows, in the order given. A
+     * figure the block did not state reads as an empty cell rather than as a
+     * zero, so an absent answer is not written as a figure.
+     *
+     * @param  array<string, mixed>  $source
+     * @param  array<string, string>  $labels  payload key => written label
+     * @return list<list<string>>
+     */
+    private function figureRows(array $source, array $labels): array
+    {
+        $rows = [];
+
+        foreach ($labels as $key => $label) {
+            $value = $source[$key] ?? null;
+
+            $rows[] = [$label, is_scalar($value) ? (string) $value : ''];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $risk
+     * @return list<list<string>>
+     */
+    private function alertRows(array $risk): array
+    {
+        $rows = [];
+
+        foreach ($this->part($risk, 'alerts') as $alert) {
+            if (! is_array($alert)) {
+                continue;
+            }
+
+            $rows[] = [
+                (string) ($alert['level'] ?? ''),
+                (string) ($alert['title'] ?? ''),
+                (string) ($alert['detail'] ?? ''),
+                (string) ($alert['amount'] ?? ''),
+            ];
+        }
+
+        return $rows;
     }
 
     /**
