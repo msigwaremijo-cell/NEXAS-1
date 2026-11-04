@@ -174,6 +174,10 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         // above does not hand back, so it is deliberately absent here.
         AccessMatrix::PERMISSION_APPROVAL_VIEW,
         AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+        // The projection and the assumptions behind it. The Owner holds both:
+        // reading the forecast and asking what-if are the same trust here.
+        AccessMatrix::PERMISSION_FORECAST_VIEW,
+        AccessMatrix::PERMISSION_FORECAST_SCENARIO,
     ]],
 
     AccessMatrix::ROLE_ACCOUNTANT => [AccessMatrix::ROLE_ACCOUNTANT, [
@@ -210,6 +214,9 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         // Raises the documents they keep and reads the outcome; never decides.
         AccessMatrix::PERMISSION_APPROVAL_VIEW,
         AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+        // Reads the projection. The assumptions behind it are the Financial
+        // Manager's to change, so `forecast.scenario` is absent.
+        AccessMatrix::PERMISSION_FORECAST_VIEW,
     ]],
 
     AccessMatrix::ROLE_FINANCE_OFFICER => [AccessMatrix::ROLE_FINANCE_OFFICER, [
@@ -245,6 +252,9 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         // theirs — the decision belongs to the Financial Manager.
         AccessMatrix::PERMISSION_APPROVAL_VIEW,
         AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+        // The projection is theirs to read, not to restate: `forecast.scenario`
+        // is absent, as it is for the Accountant.
+        AccessMatrix::PERMISSION_FORECAST_VIEW,
     ]],
 
     AccessMatrix::ROLE_CASHIER => [AccessMatrix::ROLE_CASHIER, [
@@ -289,6 +299,9 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         // The queue is evidence: an audit reads who raised what and what was
         // decided, and never joins it.
         AccessMatrix::PERMISSION_APPROVAL_VIEW,
+        // An audit reads the projection the company holds to, not the
+        // hypotheticals it asks for, so `forecast.scenario` is absent.
+        AccessMatrix::PERMISSION_FORECAST_VIEW,
     ]],
 
     AccessMatrix::ROLE_READ_ONLY => [AccessMatrix::ROLE_READ_ONLY, [
@@ -329,6 +342,11 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_APPROVAL_VIEW,
         AccessMatrix::PERMISSION_APPROVAL_REQUEST,
         AccessMatrix::PERMISSION_APPROVAL_DECIDE,
+        // The projection and its assumptions both: asking what-if is the
+        // Financial Manager's right, and the only one it holds that the
+        // Accountant does not.
+        AccessMatrix::PERMISSION_FORECAST_VIEW,
+        AccessMatrix::PERMISSION_FORECAST_SCENARIO,
     ]],
 ]);
 

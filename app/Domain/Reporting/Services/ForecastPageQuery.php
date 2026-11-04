@@ -42,6 +42,7 @@ final class ForecastPageQuery
         private readonly ForecastQuery $forecast,
         private readonly AgeingQuery $ageing,
         private readonly CashFlowQuery $cash,
+        private readonly CashRunway $runway,
     ) {}
 
     /**
@@ -63,6 +64,7 @@ final class ForecastPageQuery
             'kpis' => $this->section(fn (): array => $this->kpis($companyId, $projection)),
             'chart' => $this->section(fn (): array => $this->chart($base, $projection)),
             'cash_outlook' => $this->section(fn (): array => $this->cashOutlook($companyId, $projection)),
+            'cash_runway' => $this->section(fn (): array => $this->cashRunway($companyId, $projection)),
             'working_capital' => $this->section(fn (): array => $this->workingCapital($companyId, $projection)),
             'break_even' => $this->section(fn (): array => $this->breakEven($projection)),
             'budget_vs_forecast' => $this->section(fn (): array => $this->budgetVsForecast($projection)),
@@ -80,7 +82,8 @@ final class ForecastPageQuery
             'generated_at' => now()->toIso8601String(),
             'company' => $this->company($companyId),
             'window' => $this->window($projection),
-            'scenario' => $scenario,
+            'history' => $this->history($base),
+            'scenario' => $this->scenario($scenario),
             'capabilities' => ['scenario' => $mayRunScenarios],
             'sections' => $sections,
         ];
@@ -526,6 +529,47 @@ final class ForecastPageQuery
     }
 
     /**
+     * How long the cash lasts, under the same projection the page is showing.
+     *
+     * The threshold is a company setting rather than a constant: what counts as
+     * low cash is the company's to say, and the panel reports which it used —
+     * the company's own figure or the deployment default — so a reader is never
+     * left guessing why an alert did or did not appear.
+     *
+     * @param  array<string, mixed>  $projection
+     * @return array<string, mixed>
+     */
+    private function cashRunway(int $companyId, array $projection): array
+    {
+        $threshold = $this->threshold($companyId);
+
+        return $this->runway->analyse($companyId, $projection, $threshold['value']) + [
+            'threshold_source' => $threshold['source'],
+            'history_months' => (int) ($projection['run_rate']['period_count'] ?? 0),
+        ];
+    }
+
+    /**
+     * The low-cash threshold in force, and where it came from.
+     *
+     * @return array{value: string, source: string}
+     */
+    private function threshold(int $companyId): array
+    {
+        $settings = Company::query()->whereKey($companyId)->value('settings');
+        $configured = is_array($settings) ? ($settings['forecast_low_cash_threshold'] ?? null) : null;
+
+        if ($configured !== null && $configured !== '') {
+            return ['value' => Money::of((string) $configured)->toDecimal(), 'source' => 'company'];
+        }
+
+        return [
+            'value' => Money::of((string) config('nexas.forecast.low_cash_threshold', '0'))->toDecimal(),
+            'source' => 'default',
+        ];
+    }
+
+    /**
      * Receivables, payables and cash at the end of the horizon.
      *
      * The closing balances follow from the same collection and payment
@@ -966,6 +1010,99 @@ final class ForecastPageQuery
             'id' => $companyId,
             'name' => $company?->name,
             'currency' => $company?->base_currency_code,
+        ];
+    }
+
+    /**
+     * How much history the projection actually rests on.
+     *
+     * The count is read from the projection's own run-rate record — the number
+     * of completed periods of this fiscal year the trailing average was taken
+     * over — and never assumed. It is the honest answer to "how much is this
+     * forecast built on": a projection in the first period of a year rests on
+     * nothing at all, and the page has to be able to say so rather than imply a
+     * depth of evidence that is not there.
+     *
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function history(array $base): array
+    {
+        $runRate = $base['run_rate'];
+        $months = (int) $runRate['period_count'];
+
+        return [
+            'months' => $months,
+            'label' => sprintf('Based on %d month%s of historical data', $months, $months === 1 ? '' : 's'),
+            'available' => (bool) $runRate['used'],
+            'from' => $runRate['from'],
+            'to' => $runRate['to'],
+            'periods' => $runRate['periods'],
+            'basis' => 'Average per period of what each account actually posted, read from the posted ledger through the same profit '
+                .'and loss statement the reports use.',
+            'limitations' => $this->historyLimitations($months),
+        ];
+    }
+
+    /**
+     * What the run-rate cannot answer, said plainly rather than left implied.
+     *
+     * @return list<string>
+     */
+    private function historyLimitations(int $months): array
+    {
+        $limitations = [
+            'The run-rate covers only the completed periods of the current fiscal year. Earlier years are not read, so a company '
+                .'early in its year is projected from a short history.',
+            'Where the company wrote a plan for a period, the plan is the projection and the run-rate is not used for it. A period '
+                .'the company planned is therefore only as reliable as the plan.',
+        ];
+
+        if ($months === 0) {
+            $limitations[] = 'No completed period exists yet in this fiscal year, so there is no history to average. Where the company '
+                .'wrote no plan, nothing is projected for that period at all.';
+        } elseif ($months < 3) {
+            $limitations[] = sprintf(
+                'Only %d completed period%s of history %s available, so the run-rate rests on a short sample and a single unusual '
+                .'month can move it sharply.',
+                $months,
+                $months === 1 ? '' : 's',
+                $months === 1 ? 'is' : 'are',
+            );
+        }
+
+        return $limitations;
+    }
+
+    /**
+     * The assumptions the page was produced under, named as they will be read.
+     *
+     * A scenario loaded from a saved record carries its identity and version so
+     * the page can say which saved scenario and which of its versions is on
+     * screen. It is recalculated against current actuals every time it is
+     * opened — nothing about the saved assumptions is cached — so an old
+     * version read today is restated on today's ledger, and the payload says so
+     * rather than letting a reader believe they are looking at last month's
+     * answer.
+     *
+     * @param  array<string, mixed>  $scenario
+     * @return array<string, mixed>
+     */
+    private function scenario(array $scenario): array
+    {
+        $saved = (bool) ($scenario['saved'] ?? false);
+
+        return [
+            'name' => (string) $scenario['name'],
+            'type' => (string) ($scenario['type'] ?? $scenario['name']),
+            'revenue_growth' => (string) $scenario['revenue_growth'],
+            'expense_growth' => (string) $scenario['expense_growth'],
+            'adjustments' => $scenario['adjustments'],
+            'saved' => $saved,
+            'scenario_ulid' => $scenario['scenario_ulid'] ?? null,
+            'version_no' => isset($scenario['version_no']) ? (int) $scenario['version_no'] : null,
+            'updated_at' => $scenario['updated_at'] ?? null,
+            'recalculated_with_current_actuals' => $saved,
         ];
     }
 

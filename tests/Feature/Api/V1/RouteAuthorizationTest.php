@@ -99,6 +99,17 @@ function nxRoutePermissions(): array
         // The plan, which is not the books.
         'api.v1.reports.budget-vs-actual' => AccessMatrix::PERMISSION_BUDGET_VIEW,
         'api.v1.reports.forecast' => AccessMatrix::PERMISSION_FORECAST_VIEW,
+        // Saved forecast scenarios and the low-cash threshold. A saved scenario
+        // is the Financial Manager's own working paper rather than a report, so
+        // every one of these is the scenario right — the narrower one — and the
+        // controller checks each row against its own company as well.
+        'api.v1.forecast.scenarios.index' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.scenarios.store' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.scenarios.comparison' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.scenarios.show' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.scenarios.versions.store' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.scenarios.versions.restore' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
+        'api.v1.forecast.settings.update' => AccessMatrix::PERMISSION_FORECAST_SCENARIO,
         // The Financial Manager dashboard: a composition of the statements
         // above, guarded by the same read right every one of them is guarded by.
         'api.v1.reports.dashboard' => AccessMatrix::PERMISSION_REPORT_VIEW,

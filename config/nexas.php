@@ -317,6 +317,16 @@ return [
         */
         'collection_rate' => (string) env('NEXAS_FORECAST_COLLECTION_RATE', '0.9'),
         'payment_rate' => (string) env('NEXAS_FORECAST_PAYMENT_RATE', '0.95'),
+
+        /*
+        | The cash level below which the runway panel raises a low-cash
+        | warning. It is a company-level setting — held in companies.settings
+        | under `forecast_low_cash_threshold` and edited by a Financial Manager
+        | — and this is only the default a company inherits until it sets its
+        | own. Zero means nothing alerts: a company that has not said what "low"
+        | means to it is not told that its cash is low.
+        */
+        'low_cash_threshold' => (string) env('NEXAS_FORECAST_LOW_CASH_THRESHOLD', '0'),
     ],
 
 ];

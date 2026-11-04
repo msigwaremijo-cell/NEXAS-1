@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\DebitNoteController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\FiscalPeriodController;
 use App\Http\Controllers\Api\V1\FiscalYearController;
+use App\Http\Controllers\Api\V1\ForecastScenarioController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -171,6 +172,41 @@ Route::prefix('v1')->group(function (): void {
         // own calendar's answer, not the caller's.
         Route::get('/reports/forecast', [ReportController::class, 'forecast'])
             ->name('api.v1.reports.forecast');
+
+        // Saved forecast scenarios: the assumptions a Financial Manager wants
+        // the projection restated under, kept so they can be returned to.
+        //
+        // These are not the ledger and never become it. A scenario stores
+        // assumptions only — a stance, two growth rates and per-account
+        // adjustments — and saving one posts no journal and writes no figure. A
+        // version is written once and can never be edited or deleted, so the
+        // history behind a scenario is the whole of what happened to it;
+        // changing one writes its next version and restoring an old one writes
+        // a further version that copies it.
+        //
+        // All of it is behind `forecast.scenario`, checked in the controller and
+        // again per row against the row's own company, so one tenant can never
+        // read or change another's scenarios.
+        Route::get('/forecast/scenarios', [ForecastScenarioController::class, 'index'])
+            ->name('api.v1.forecast.scenarios.index');
+        Route::post('/forecast/scenarios', [ForecastScenarioController::class, 'store'])
+            ->name('api.v1.forecast.scenarios.store');
+        // Declared before the `{scenario}` route below: a literal segment has to
+        // be matched before a binding that would otherwise swallow it.
+        Route::get('/forecast/scenarios/comparison', [ForecastScenarioController::class, 'compare'])
+            ->name('api.v1.forecast.scenarios.comparison');
+        Route::get('/forecast/scenarios/{scenario}', [ForecastScenarioController::class, 'show'])
+            ->name('api.v1.forecast.scenarios.show');
+        Route::post('/forecast/scenarios/{scenario}/versions', [ForecastScenarioController::class, 'storeVersion'])
+            ->name('api.v1.forecast.scenarios.versions.store');
+        Route::post('/forecast/scenarios/{scenario}/versions/{version}/restore', [ForecastScenarioController::class, 'restore'])
+            ->name('api.v1.forecast.scenarios.versions.restore');
+
+        // The low-cash alert threshold, held in the company's settings blob and
+        // guarded by the same scenario right: what counts as low cash is a
+        // reading of the forecast, so the member who runs the forecast sets it.
+        Route::put('/forecast/settings', [ForecastScenarioController::class, 'updateSettings'])
+            ->name('api.v1.forecast.settings.update');
 
         // The Financial Manager dashboard: every statement above, for one
         // company and one window, read in a single call. Nothing is computed

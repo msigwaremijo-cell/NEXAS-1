@@ -227,12 +227,15 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_ATTACHMENT_MANAGE,
                 AccessMatrix::PERMISSION_APPROVAL_VIEW,
                 AccessMatrix::PERMISSION_APPROVAL_REQUEST,
+                // Reads the projection; the assumptions behind it are the
+                // Financial Manager's to change, so forecast.scenario is not.
+                AccessMatrix::PERMISSION_FORECAST_VIEW,
                 // Deliberately not granted: PERMISSION_FISCAL_YEAR_CLOSE,
-                // PERMISSION_FISCAL_PERIOD_REOPEN, PERMISSION_BILL_APPROVE and
-                // PERMISSION_APPROVAL_DECIDE. Closing a year is the Financial
-                // Manager's and the Owner's, approval is withheld from the role
-                // that enters bills, and deciding the queue is the Financial
-                // Manager's alone.
+                // PERMISSION_FISCAL_PERIOD_REOPEN, PERMISSION_BILL_APPROVE,
+                // PERMISSION_APPROVAL_DECIDE and PERMISSION_FORECAST_SCENARIO.
+                // Closing a year is the Financial Manager's and the Owner's,
+                // approval is withheld from the role that enters bills, and
+                // deciding the queue is the Financial Manager's alone.
             ])->sort()->values()->all()
         );
 });
