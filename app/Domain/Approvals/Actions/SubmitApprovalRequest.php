@@ -9,6 +9,7 @@ use App\Domain\Approvals\Enums\ApprovalStatus;
 use App\Domain\Approvals\Exceptions\ApprovalsException;
 use App\Domain\Approvals\Exceptions\ApprovalStateException;
 use App\Models\ApprovalRequest;
+use App\Models\BudgetVersion;
 use App\Models\IdempotencyKey;
 use App\Support\Enums\IdempotencyStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -132,6 +133,16 @@ final class SubmitApprovalRequest
             ApprovalDocumentType::DebitNote => $document->getAttribute('bill_no'),
             ApprovalDocumentType::Payment => $document->getAttribute('payment_no'),
             ApprovalDocumentType::AssetDisposal => $document->getAttribute('code'),
+            // A plan is identified by the year it covers and the version of it
+            // being raised, because a budget version has no number of its own on
+            // the row the reader sees.
+            ApprovalDocumentType::Budget => $document instanceof BudgetVersion
+                ? sprintf(
+                    '%s · version %d',
+                    (string) ($document->fiscalYear?->name ?? 'Plan'),
+                    (int) $document->version_no,
+                )
+                : null,
         };
 
         return is_string($value) ? $value : null;

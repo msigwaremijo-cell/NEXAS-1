@@ -170,6 +170,45 @@ final class AccessMatrix
     public const PERMISSION_BUDGET_MANAGE = 'budget.manage';
 
     /**
+     * Raising a plan for approval: putting a version of it in the queue.
+     *
+     * Separate from `budget.manage` because writing a plan and asking somebody
+     * to agree to it are two acts. A member may correct a draft as often as they
+     * like without troubling anybody else; raising it is the moment the company
+     * is asked to take a position, and that is worth its own right. It is
+     * deliberately not held by every role that may read the plan: reading a plan
+     * is not promising to stand behind one.
+     */
+    public const PERMISSION_BUDGET_SUBMIT = 'budget.submit';
+
+    /**
+     * Deciding a plan: accepting or refusing what has been raised.
+     *
+     * This is the second pair of eyes on the plan, and it is why writing a plan
+     * is not the same as agreeing to it. It is withheld from the member who
+     * writes plans — including the Accountant, who now reads plans rather than
+     * writing them — so that a plan cannot be both proposed and accepted by the
+     * same hand. As with every other approval, the rule that a member may not
+     * decide their own plan is enforced at the queue and holds even for the
+     * member who could otherwise decide anything, which is why an approval
+     * normally needs the Owner or a second Financial Manager.
+     */
+    public const PERMISSION_BUDGET_APPROVE = 'budget.approve';
+
+    /**
+     * Closing an approved plan, and reopening a closed one.
+     *
+     * Locking says a plan is settled: no further version may be started from it
+     * and no amount in it may change. Unlocking says the opposite, and is
+     * deliberately the same right rather than a separate one — the member
+     * trusted to declare a plan finished is the member trusted to say it is not,
+     * and splitting the two would let somebody lock a plan that nobody could
+     * reopen. Only a plan that has already been approved may be locked, so this
+     * right cannot be used to close a plan that was never agreed to.
+     */
+    public const PERMISSION_BUDGET_LOCK = 'budget.lock';
+
+    /**
      * Reading the fixed-asset register: what the company holds, what it cost,
      * what has been depreciated against it and what it is worth in the books.
      *
@@ -384,6 +423,9 @@ final class AccessMatrix
             self::PERMISSION_AUDIT_VIEW,
             self::PERMISSION_BUDGET_VIEW,
             self::PERMISSION_BUDGET_MANAGE,
+            self::PERMISSION_BUDGET_SUBMIT,
+            self::PERMISSION_BUDGET_APPROVE,
+            self::PERMISSION_BUDGET_LOCK,
             self::PERMISSION_ASSET_VIEW,
             self::PERMISSION_ASSET_MANAGE,
             self::PERMISSION_ASSET_POST,
@@ -464,16 +506,20 @@ final class AccessMatrix
                 // neither keeps the books and neither should change what the
                 // numbers already written mean.
                 self::PERMISSION_COMPANY_MANAGE,
-                // The plan, both halves. The accountant keeps the books and is
-                // the person who says what a period is expected to do, so the
-                // right to write the plan is not separated from the right to
-                // read the accounts it is written against. Neither of these is
-                // a posting: nothing in a budget reaches the ledger.
+                // The plan, read only. The accountant keeps the books, and a
+                // plan is written against those books, so reading it belongs
+                // here. Writing a plan does not: setting what the company means
+                // to earn and spend is a decision about the company rather than
+                // a consequence of keeping its ledger, and it is held by the
+                // Financial Manager and the Owner. Every right that changes a
+                // plan is therefore absent — manage, submit, approve and lock —
+                // which leaves this role able to see the plan and its variance
+                // and unable to move either. Nothing in a budget reaches the
+                // ledger, so nothing here is a posting right being withheld.
                 self::PERMISSION_BUDGET_VIEW,
-                self::PERMISSION_BUDGET_MANAGE,
                 // The projection built from those books. Read here for the same
-                // reason the plan is: the accountant keeps the books and says
-                // what a period is expected to do, so reading what the rest of
+                // reason the plan is: the accountant keeps the books and reads
+                // the plan written against them, so reading what the rest of
                 // the year is expected to do follows. Writing a scenario is not
                 // part of it — the assumptions are the Financial Manager's to
                 // change, and `forecast.scenario` is absent.
@@ -547,7 +593,7 @@ final class AccessMatrix
                 // Reads the plan because a second pair of eyes on a supplier
                 // bill needs to know what the period was meant to spend. Does
                 // not write it: the second pair of hands is on the approval,
-                // and the plan is the accountant's to set.
+                // and the plan is the Financial Manager's to set.
                 self::PERMISSION_BUDGET_VIEW,
                 // The projection beside the plan, for the same reason: a second
                 // pair of eyes on a supplier bill wants to know what the rest of
@@ -705,12 +751,21 @@ final class AccessMatrix
                 self::PERMISSION_STOCK_VIEW,
                 self::PERMISSION_ASSET_VIEW,
                 self::PERMISSION_ATTACHMENT_VIEW,
-                // The plan, both halves: "sets budgets and runs forecasts" is
-                // writing the plan and reading the projection built from it.
-                // Neither reaches the ledger, so neither is a posting right the
-                // role has to be talked out of.
+                // The plan, all of it: "sets budgets and runs forecasts" is
+                // writing the plan, raising it, seeing it agreed to and closing
+                // it once the year it describes has been settled. None of it
+                // reaches the ledger, so none of it is a posting right the role
+                // has to be talked out of. Approving is here too — the role is
+                // the company's approver — but the rule that nobody may approve
+                // their own plan is enforced at the queue, so a plan this role
+                // wrote is decided by the Owner or by a second Financial
+                // Manager. That is the whole point of holding the two rights
+                // together rather than treating approval as a formality.
                 self::PERMISSION_BUDGET_VIEW,
                 self::PERMISSION_BUDGET_MANAGE,
+                self::PERMISSION_BUDGET_SUBMIT,
+                self::PERMISSION_BUDGET_APPROVE,
+                self::PERMISSION_BUDGET_LOCK,
                 // The projection built from the plan, and the right to run it
                 // under different assumptions. "Sets budgets and runs forecasts"
                 // is the plan, the projection and the scenario tests: the role

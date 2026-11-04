@@ -2,6 +2,7 @@
 
 namespace App\Domain\Approvals\Services;
 
+use App\Domain\Accounting\Enums\AccountType;
 use App\Domain\Approvals\Enums\ApprovalDocumentType;
 use App\Domain\Approvals\Enums\ApprovalStatus;
 use Carbon\CarbonImmutable;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * The queue row itself carries only the handle of the document it names, so
  * everything a reader wants beside it — what the document is worth, who it is
  * with — lives in the document's own table. Rather than resolving each row one
- * at a time, the four tables the queue can name are read once into a single
+ * at a time, the five tables the queue can name are read once into a single
  * derived table keyed by document type and ULID, and the queue is joined to it.
  * That is what lets the line be filtered by amount and searched by party name
  * in the database, so pagination stays honest: a page of the filtered set is a
@@ -323,10 +324,28 @@ final class ApprovalQueueQuery
             ->selectRaw('assets.disposal_proceeds as amount')
             ->selectRaw('cast(null as char(255)) as party_name');
 
+        // A plan's single figure is its planned net for the year: revenue less
+        // expense, which is the number a reader weighs a plan by. It is
+        // deliberately read the same way the plan itself is presented — the
+        // lines are signed on their own side — so the figure the queue shows
+        // and the figure the plan screen shows cannot disagree.
+        $budgets = DB::table('budget_versions')
+            ->where('budget_versions.company_id', $companyId)
+            ->selectRaw("'budget' as doc_type")
+            ->selectRaw('budget_versions.ulid as doc_ulid')
+            ->selectRaw(
+                '(select coalesce(sum(case when a.account_type = ? then bvl.amount else -bvl.amount end), 0) '
+                .'from budget_version_lines bvl join accounts a on a.id = bvl.account_id '
+                .'where bvl.budget_version_id = budget_versions.id) as amount',
+                [AccountType::Revenue->value]
+            )
+            ->selectRaw('cast(null as char(255)) as party_name');
+
         return $journals
             ->unionAll($bills)
             ->unionAll($payments)
-            ->unionAll($assets);
+            ->unionAll($assets)
+            ->unionAll($budgets);
     }
 
     private function onDocument(JoinClause $join): JoinClause

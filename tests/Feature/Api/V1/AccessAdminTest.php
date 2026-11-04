@@ -164,6 +164,12 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_AUDIT_VIEW,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        // The whole life of a plan: the Owner proposes it, agrees to it and
+        // declares it settled. `approval.decide` is withheld above, so agreeing
+        // to a plan is reached through the plan's own right.
+        AccessMatrix::PERMISSION_BUDGET_SUBMIT,
+        AccessMatrix::PERMISSION_BUDGET_APPROVE,
+        AccessMatrix::PERMISSION_BUDGET_LOCK,
         AccessMatrix::PERMISSION_ASSET_VIEW,
         AccessMatrix::PERMISSION_ASSET_MANAGE,
         AccessMatrix::PERMISSION_ASSET_POST,
@@ -205,7 +211,8 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_STOCK_POST,
         AccessMatrix::PERMISSION_COMPANY_MANAGE,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
-        AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        // Reads the plan; every right that changes it is absent, as the
+        // Accountant keeps the books rather than the intentions.
         AccessMatrix::PERMISSION_ASSET_VIEW,
         AccessMatrix::PERMISSION_ASSET_MANAGE,
         AccessMatrix::PERMISSION_ASSET_POST,
@@ -335,6 +342,9 @@ it('grants each of the eight roles exactly the rights the matrix allows', functi
         AccessMatrix::PERMISSION_ATTACHMENT_VIEW,
         AccessMatrix::PERMISSION_BUDGET_VIEW,
         AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        AccessMatrix::PERMISSION_BUDGET_SUBMIT,
+        AccessMatrix::PERMISSION_BUDGET_APPROVE,
+        AccessMatrix::PERMISSION_BUDGET_LOCK,
         AccessMatrix::PERMISSION_FISCAL_YEAR_CLOSE,
         AccessMatrix::PERMISSION_FISCAL_PERIOD_REOPEN,
         AccessMatrix::PERMISSION_BANK_RECONCILE,

@@ -226,6 +226,22 @@ function nxRoutePermissions(): array
         'api.v1.budgets.index' => AccessMatrix::PERMISSION_BUDGET_VIEW,
         'api.v1.budgets.show' => AccessMatrix::PERMISSION_BUDGET_VIEW,
         'api.v1.budgets.save' => AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        // A plan's life: reading the history is reading the plan, writing it is
+        // managing it, raising it for a decision is its own right, answering it
+        // is another and closing it is a third. The decision is recorded on the
+        // queue's own row even though it is reached from here, because the Owner
+        // must be able to agree to a plan without the queue's decision right.
+        'api.v1.budgets.versions.index' => AccessMatrix::PERMISSION_BUDGET_VIEW,
+        'api.v1.budgets.versions.store' => AccessMatrix::PERMISSION_BUDGET_MANAGE,
+        'api.v1.budgets.versions.show' => AccessMatrix::PERMISSION_BUDGET_VIEW,
+        'api.v1.budgets.versions.submit' => AccessMatrix::PERMISSION_BUDGET_SUBMIT,
+        // The plan's decision, reached through a door of its own so the Owner —
+        // who does not hold the queue's `approval.decide` — can still agree to a
+        // plan. The request it answers is the queue's own row.
+        'api.v1.budgets.versions.approve' => AccessMatrix::PERMISSION_BUDGET_APPROVE,
+        'api.v1.budgets.versions.reject' => AccessMatrix::PERMISSION_BUDGET_APPROVE,
+        'api.v1.budgets.versions.lock' => AccessMatrix::PERMISSION_BUDGET_LOCK,
+        'api.v1.budgets.versions.unlock' => AccessMatrix::PERMISSION_BUDGET_LOCK,
 
         // Fixed assets.
         'api.v1.asset-categories.index' => AccessMatrix::PERMISSION_ASSET_VIEW,

@@ -5,9 +5,11 @@ namespace App\Domain\Approvals\Actions;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Services\AuditTrail;
+use App\Domain\Approvals\Enums\ApprovalDocumentType;
 use App\Domain\Approvals\Enums\ApprovalStatus;
 use App\Domain\Approvals\Exceptions\ApprovalsException;
 use App\Domain\Approvals\Exceptions\ApprovalStateException;
+use App\Domain\Reporting\Actions\BudgetVersionLifecycle;
 use App\Models\ApprovalRequest;
 use App\Models\IdempotencyKey;
 use App\Support\Enums\IdempotencyStatus;
@@ -134,10 +136,35 @@ final class DecideApprovalRequest
                 ],
             );
 
+            $this->notify($decided, $decision, $reason, $decidedByUserId);
+
             $this->completeKey($record, $decided, $decision);
 
             return $decided;
         });
+    }
+
+    /**
+     * Tell the document's own module what became of it, in this same
+     * transaction.
+     *
+     * A queue that only marked its own row would leave a decided document
+     * looking undecided to the screen that owns it, so the module is told here
+     * rather than left to poll. Only a module that has a life of its own needs
+     * this: a journal is posted or it is not, but a budget plan is Draft,
+     * Pending, Approved or Locked, and a decision is what moves it. A rollback
+     * takes the module's change with it, so the queue and the document can never
+     * disagree about what was decided.
+     */
+    private function notify(
+        ApprovalRequest $request,
+        ApprovalStatus $decision,
+        ?string $reason,
+        ?int $decidedByUserId,
+    ): void {
+        if ($request->document_type === ApprovalDocumentType::Budget) {
+            app(BudgetVersionLifecycle::class)->applyDecision($request, $decision, $reason, $decidedByUserId);
+        }
     }
 
     /**

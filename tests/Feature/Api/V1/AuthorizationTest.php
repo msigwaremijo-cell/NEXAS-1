@@ -219,7 +219,9 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_STOCK_POST,
                 AccessMatrix::PERMISSION_COMPANY_MANAGE,
                 AccessMatrix::PERMISSION_BUDGET_VIEW,
-                AccessMatrix::PERMISSION_BUDGET_MANAGE,
+                // Reads the plan; writing it, raising it, agreeing to it and
+                // closing it are all absent — the Accountant keeps the books,
+                // not the intentions.
                 AccessMatrix::PERMISSION_ASSET_VIEW,
                 AccessMatrix::PERMISSION_ASSET_MANAGE,
                 AccessMatrix::PERMISSION_ASSET_POST,
@@ -232,7 +234,9 @@ it('reports the roles and permissions a member actually holds', function () {
                 AccessMatrix::PERMISSION_FORECAST_VIEW,
                 // Deliberately not granted: PERMISSION_FISCAL_YEAR_CLOSE,
                 // PERMISSION_FISCAL_PERIOD_REOPEN, PERMISSION_BILL_APPROVE,
-                // PERMISSION_APPROVAL_DECIDE and PERMISSION_FORECAST_SCENARIO.
+                // PERMISSION_APPROVAL_DECIDE, PERMISSION_FORECAST_SCENARIO and
+                // the four budget rights that change a plan
+                // (BUDGET_MANAGE, BUDGET_SUBMIT, BUDGET_APPROVE, BUDGET_LOCK).
                 // Closing a year is the Financial Manager's and the Owner's,
                 // approval is withheld from the role that enters bills, and
                 // deciding the queue is the Financial Manager's alone.

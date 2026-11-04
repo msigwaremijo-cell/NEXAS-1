@@ -246,7 +246,7 @@ function nxBudgetPlanBody(int $fiscalPeriodId, array $lines): array
 */
 
 it('writes a plan and records the change in the audit chain', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $before = DB::table('audit_logs')->count();
 
@@ -279,7 +279,7 @@ it('writes a plan and records the change in the audit chain', function () {
 });
 
 it('posts no journal when a plan is written', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $journals = DB::table('journals')->count();
     $lines = DB::table('journal_lines')->count();
@@ -298,7 +298,7 @@ it('posts no journal when a plan is written', function () {
 });
 
 it('records nothing when the plan is written as it already stands', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $body = [
         ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],
@@ -324,7 +324,7 @@ it('records nothing when the plan is written as it already stands', function () 
 });
 
 it('replaces the whole plan when the period already has one', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $this->putJson('/api/v1/budgets', nxBudgetPlanBody($this->fiscalPeriodId, [
         ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],
@@ -346,7 +346,7 @@ it('replaces the whole plan when the period already has one', function () {
 });
 
 it('accepts a negative planned amount, because a contra account is planned as one', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $this->putJson('/api/v1/budgets', nxBudgetPlanBody($this->fiscalPeriodId, [
         ['account_id' => $this->revenueAccountId, 'amount' => '-50.0000'],
@@ -356,7 +356,7 @@ it('accepts a negative planned amount, because a contra account is planned as on
 });
 
 it('refuses a plan line naming an account that is not the company\u2019s', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $foreign = nxBudgetForeignCompany();
 
@@ -370,7 +370,7 @@ it('refuses a plan line naming an account that is not the company\u2019s', funct
 });
 
 it('refuses a plan line naming a balance sheet account', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     // The cash account is an asset, and a plan against a balance sheet account
     // is not something the variance report could compare with anything.
@@ -382,7 +382,7 @@ it('refuses a plan line naming a balance sheet account', function () {
 });
 
 it('refuses a plan line naming a cost centre that is not the company\u2019s', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $foreign = nxBudgetForeignCompany();
 
@@ -398,7 +398,7 @@ it('refuses a plan line naming a cost centre that is not the company\u2019s', fu
 });
 
 it('refuses a plan naming a fiscal period that is not the company\u2019s', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $foreign = nxBudgetForeignCompany();
 
@@ -417,7 +417,7 @@ it('refuses a plan naming a fiscal period that is not the company\u2019s', funct
 */
 
 it('adds, amends and reads back a cost centre', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $created = $this->postJson('/api/v1/cost-centers', [
         'code' => 'CC-200',
@@ -446,7 +446,7 @@ it('adds, amends and reads back a cost centre', function () {
 });
 
 it('refuses a second cost centre with the same code in the same company', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $this->postJson('/api/v1/cost-centers', ['code' => 'CC-200', 'name' => 'First'])->assertCreated();
 
@@ -474,7 +474,7 @@ function nxBudgetPostTheMonth(array $ctx): void
 }
 
 it('shows the plan, the actual and the variance for a period', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     nxBudgetPostTheMonth($this->budget);
 
@@ -518,7 +518,7 @@ it('shows the plan, the actual and the variance for a period', function () {
 });
 
 it('makes the actual column the ledger totals the profit and loss reports', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     nxBudgetPostTheMonth($this->budget);
 
@@ -548,7 +548,7 @@ it('makes the actual column the ledger totals the profit and loss reports', func
 });
 
 it('shows an account that was planned and never touched', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     // Nothing is posted at all: the whole plan is unspent, which is exactly
     // what a reader is looking for.
@@ -566,7 +566,7 @@ it('shows an account that was planned and never touched', function () {
 });
 
 it('reports the actuals with no budget when the period has no plan', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     nxBudgetPostTheMonth($this->budget);
 
@@ -586,7 +586,7 @@ it('reports the actuals with no budget when the period has no plan', function ()
 });
 
 it('sums an account\u2019s plan lines across the cost centres they were split into', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $first = $this->postJson('/api/v1/cost-centers', ['code' => 'CC-100', 'name' => 'Head Office'])
         ->assertCreated()
@@ -620,7 +620,7 @@ it('sums an account\u2019s plan lines across the cost centres they were split in
 });
 
 it('compares the plan with the period before it, in both columns', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $february = nxBudgetInstallPeriod(
         $this->companyId,
@@ -667,7 +667,7 @@ it('compares the plan with the period before it, in both columns', function () {
 });
 
 it('does not compare a period that has no earlier one', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     nxBudgetPostTheMonth($this->budget);
 
@@ -713,7 +713,7 @@ it('refuses the plan and its report for a company the caller does not belong to'
 });
 
 it('answers not found for another company\u2019s plan', function () {
-    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $this->putJson('/api/v1/budgets', nxBudgetPlanBody($this->fiscalPeriodId, [
         ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],
@@ -774,8 +774,18 @@ it('lets a member who may read the plan read it and refuse them the write', func
         ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],
     ]))->assertForbidden();
 
-    // The Accountant keeps the plan and writes it.
+    // The Accountant reads the plan and no longer writes it: the books are the
+    // Accountant's to keep, while the intentions are the Financial Manager's.
     Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_ACCOUNTANT));
+
+    $this->getJson('/api/v1/reports/budget-vs-actual?fiscal_period='.$period)->assertOk();
+    $this->getJson('/api/v1/budgets')->assertOk();
+    $this->putJson('/api/v1/budgets', nxBudgetPlanBody($this->fiscalPeriodId, [
+        ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],
+    ]))->assertForbidden();
+
+    // The Financial Manager keeps the plan and writes it.
+    Sanctum::actingAs(nxBudgetMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER));
 
     $this->putJson('/api/v1/budgets', nxBudgetPlanBody($this->fiscalPeriodId, [
         ['account_id' => $this->revenueAccountId, 'amount' => '600.0000'],

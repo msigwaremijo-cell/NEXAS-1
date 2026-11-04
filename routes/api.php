@@ -418,6 +418,28 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/cost-centers/{costCenter}', [CostCenterController::class, 'update'])->name('api.v1.cost-centers.update');
 
         Route::get('/budgets', [BudgetController::class, 'index'])->name('api.v1.budgets.index');
+
+        // The plan's life: one version per authored state of a fiscal year's
+        // plan. Declared before the `{budget}` route below, because a literal
+        // segment has to be matched before a binding that would otherwise
+        // swallow it. Writing one is a put named by its fiscal year, and
+        // whether that starts a version or rewrites the draft is decided by the
+        // plan itself. Submit, lock and unlock are the three moves that are an
+        // act on the version rather than a rewrite of it; the decision they
+        // wait on is made in the shared approvals queue, not here.
+        Route::get('/budgets/versions', [BudgetController::class, 'versions'])->name('api.v1.budgets.versions.index');
+        Route::put('/budgets/versions', [BudgetController::class, 'saveVersion'])->name('api.v1.budgets.versions.store');
+        Route::get('/budgets/versions/{version}', [BudgetController::class, 'showVersion'])->name('api.v1.budgets.versions.show');
+        Route::post('/budgets/versions/{version}/submit', [BudgetController::class, 'submitVersion'])->name('api.v1.budgets.versions.submit');
+        // The decision has its own door here, guarded by `budget.approve`, so the
+        // Owner can agree to a plan without holding the queue's `approval.decide`
+        // — the request it answers is still the queue's, decided by the queue's
+        // own action.
+        Route::post('/budgets/versions/{version}/approve', [BudgetController::class, 'approveVersion'])->name('api.v1.budgets.versions.approve');
+        Route::post('/budgets/versions/{version}/reject', [BudgetController::class, 'rejectVersion'])->name('api.v1.budgets.versions.reject');
+        Route::post('/budgets/versions/{version}/lock', [BudgetController::class, 'lockVersion'])->name('api.v1.budgets.versions.lock');
+        Route::post('/budgets/versions/{version}/unlock', [BudgetController::class, 'unlockVersion'])->name('api.v1.budgets.versions.unlock');
+
         Route::get('/budgets/{budget}', [BudgetController::class, 'show'])->name('api.v1.budgets.show');
         Route::put('/budgets', [BudgetController::class, 'save'])->name('api.v1.budgets.save');
 

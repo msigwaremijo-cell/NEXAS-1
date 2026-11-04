@@ -27,6 +27,7 @@ use App\Domain\Inventory\Exceptions\InventoryException;
 use App\Domain\Inventory\Exceptions\StockStateException;
 use App\Domain\Purchases\Exceptions\BillStateException;
 use App\Domain\Purchases\Exceptions\PurchasesException;
+use App\Domain\Reporting\Exceptions\BudgetStateException;
 use App\Domain\Reporting\Exceptions\ForecastUnavailableException;
 use App\Domain\Sales\Exceptions\InvoiceStateException;
 use App\Domain\Sales\Exceptions\SalesException;
@@ -143,7 +144,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 // asset already disposed of, a status that only moves one way,
                 // nothing left to depreciate. Named before AssetsException
                 // below, since each of these is also a fixed-asset refusal.
-                $exception instanceof AssetStateException => 409,
+                $exception instanceof AssetStateException,
+
+                // A budget asked to move in a way its state does not allow: an
+                // edit of a plan that has been raised, a lock of one that has
+                // not been approved, a resubmission already waiting on a
+                // decision. The request names a real plan and a real act, so no
+                // change to it would help — the state is what refuses it.
+                $exception instanceof BudgetStateException => 409,
 
                 // Bad input the caller can fix and resubmit: an unbalanced
                 // journal, an unknown tax code, a negative amount.
