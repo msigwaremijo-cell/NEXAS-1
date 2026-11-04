@@ -2177,24 +2177,115 @@
     margin: true, year_end_cash: true, break_even: null
   };
 
-  const forecastState = { scenario: '', revenue_growth: '', expense_growth: '' };
+  // The three assumptions a scenario can hold, named as the endpoint names them.
+  const SCENARIO_TYPES = [
+    { name: 'base', label: 'Base (as planned)' },
+    { name: 'optimistic', label: 'Optimistic' },
+    { name: 'pessimistic', label: 'Pessimistic' }
+  ];
 
+  const forecastState = {
+    // An ad-hoc run: the named scenario and the rates typed beside it.
+    scenario: '',
+    revenue_growth: '',
+    expense_growth: '',
+    // A saved scenario being replayed, held as the assumptions it carries
+    // rather than as an identity — see forecastQuery(). Null when the page is
+    // showing the plain read or an ad-hoc run.
+    saved: null,
+    // The last projection the endpoint answered with, kept so opening a
+    // history or a comparison does not re-ask for a projection whose
+    // assumptions have not moved.
+    payload: null,
+    // The saved scenarios, or the error their read returned, or null when the
+    // caller may not keep them.
+    scenarios: null
+  };
+
+  // The saved-scenario panel's own state: the open scenario's history, and the
+  // comparison the reader asked for.
+  const scenarioState = { detail: null, comparison: null };
+
+  /**
+   * The query the projection is read with.
+   *
+   * A saved scenario has no name the report endpoint knows — it keeps the three
+   * named scenarios only — so it is replayed as the assumptions it holds: the
+   * two growth rates and the per-account adjustments. The endpoint then
+   * recalculates it against the ledger as it stands, which is what reopening a
+   * saved scenario means, and why no figure from when it was saved survives.
+   */
   function forecastQuery() {
+    const text = forecastQueryParams().toString();
+    return text ? '?' + text : '';
+  }
+
+  function forecastQueryParams() {
     const q = new URLSearchParams();
+    const saved = forecastState.saved;
+
+    if (saved) {
+      if (saved.revenue_growth !== '' && saved.revenue_growth !== null && saved.revenue_growth !== undefined) {
+        q.set('revenue_growth', String(saved.revenue_growth));
+      }
+      if (saved.expense_growth !== '' && saved.expense_growth !== null && saved.expense_growth !== undefined) {
+        q.set('expense_growth', String(saved.expense_growth));
+      }
+      Object.keys(saved.adjustments || {}).forEach((account, index) => {
+        q.set('adjustments[' + index + '][account_id]', String(account));
+        q.set('adjustments[' + index + '][amount]', String(saved.adjustments[account]));
+      });
+      return q;
+    }
+
     if (forecastState.scenario) q.set('scenario', forecastState.scenario);
     if (forecastState.revenue_growth !== '') q.set('revenue_growth', forecastState.revenue_growth);
     if (forecastState.expense_growth !== '') q.set('expense_growth', forecastState.expense_growth);
-    const text = q.toString();
-    return text ? '?' + text : '';
+    return q;
   }
 
   async function drawForecast(container) {
     setStatus('Building the projection');
     await load(container, async () => {
       const payload = await api('/reports/forecast' + forecastQuery());
+      const capabilities = (payload && payload.capabilities) || {};
+
+      // The saved scenarios are a second, independent read. A caller who may
+      // not keep them is given no panel at all rather than an empty one, and a
+      // refusal here is held as the panel's own message so it can never take
+      // the projection off the screen.
+      forecastState.payload = payload;
+      forecastState.scenarios = null;
+      scenarioState.detail = null;
+      scenarioState.comparison = null;
+
+      if (capabilities.scenario) {
+        try {
+          const list = await api('/forecast/scenarios');
+          forecastState.scenarios = (list && list.data) || [];
+        } catch (error) {
+          forecastState.scenarios = error;
+        }
+      }
+
       setStatus('Ready');
-      return renderForecast(payload);
+      return renderForecast(payload, forecastState.scenarios);
     });
+  }
+
+  /**
+   * A redraw from what is already held.
+   *
+   * Opening a scenario's history or its comparison does not change the
+   * assumptions the projection was built on, so re-asking for it would spend a
+   * round trip to redraw the same figures. Anything that does change them goes
+   * through `go('forecast')` instead, so what is drawn and what it was drawn
+   * from never drift apart.
+   */
+  function redrawForecast() {
+    const view = $('#view');
+    if (!view || !forecastState.payload || S.screen !== 'forecast') { go('forecast'); return; }
+    view.innerHTML = renderForecast(forecastState.payload, forecastState.scenarios);
   }
 
   /**
@@ -2204,12 +2295,16 @@
    * rest of the page renders — the arrangement the dashboard uses, for the same
    * reason. Nothing here is posted or stored.
    */
-  function renderForecast(payload) {
+  function renderForecast(payload, scenarios) {
     const sections = (payload && payload.sections) || {};
+    const capabilities = (payload && payload.capabilities) || {};
 
     return forecastHead(payload) +
+      forecastScenarios(scenarios) +
+      forecastHistory(payload && payload.history) +
       forecastKpis(sections.kpis) +
       forecastChart(sections.chart) +
+      forecastRunway(sections.cash_runway, capabilities.scenario === true) +
       '<div class="grid grid--halves" style="margin-top:16px">' +
         forecastCashOutlook(sections.cash_outlook) + forecastWorkingCapital(sections.working_capital) +
       '</div>' +
@@ -2238,6 +2333,7 @@
         </div>
         <div class="spacer"><span class="forecast__flag">FORECAST \u2014 NOT ACTUAL</span></div>
       </div>
+      ${forecastSavedBanner()}
       <div class="facts">
         <div class="fact"><span class="fact__k">Company</span>
           <strong class="fact__v">${esc(company.name || '\u2014')}</strong>
@@ -2259,6 +2355,40 @@
         <button class="btn btn--quiet btn--sm" data-act="forecast-export" data-format="pdf">Export PDF</button>
       </div>
     </section>`;
+  }
+
+  /**
+   * The notice a reader gets when the page is showing a saved scenario.
+   *
+   * A saved scenario is a stance, not a result: the figures beneath it were
+   * rebuilt from today's posted ledger, so this says so where the figures are,
+   * rather than leaving a reader to assume they are looking at what the
+   * scenario produced when it was saved.
+   */
+  function forecastSavedBanner() {
+    const saved = forecastState.saved;
+    if (!saved) return '';
+
+    return `<div class="note note--ok saved-banner">
+      <div>
+        <strong>Viewing the saved scenario \u201c${esc(saved.name)}\u201d</strong>
+        ${badge('info', 'v' + esc(saved.version_no))}
+        ${badge(scenarioTypeKind(saved.type), scenarioTypeLabel(saved.type))}
+      </div>
+      <p>Its assumptions are held, but its figures are not: reopening a saved scenario recalculates
+        the projection against the ledger as it stands, so what is below comes from today\u2019s posted
+        actuals and not from the day the scenario was saved.</p>
+      <button class="btn btn--quiet btn--sm" data-act="forecast-clear-saved">Back to the plain read</button>
+    </div>`;
+  }
+
+  function scenarioTypeLabel(type) {
+    const found = SCENARIO_TYPES.find(t => t.name === type);
+    return found ? found.label : (type || '\u2014');
+  }
+
+  function scenarioTypeKind(type) {
+    return type === 'optimistic' ? 'ok' : (type === 'pessimistic' ? 'bad' : 'muted');
   }
 
   // The scenario controls are only drawn for a caller who holds the scenario
@@ -2773,6 +2903,605 @@
       .then(record => pollExport(record.data.id))
       .then(record => downloadExport(record))
       .catch(error => toast('bad', error.message, 'The export did not finish.'));
+  }
+
+  /* ---------------------------------------------- forecast: saved scenarios */
+
+  /**
+   * The company's saved scenarios and the history of the one being inspected.
+   *
+   * `scenarios` is the list the endpoint returned, the error its read threw, or
+   * null when the caller holds no scenario right — in which case the panel is
+   * left off the page rather than drawn empty, because a panel a reader can
+   * never use is noise.
+   */
+  function forecastScenarios(scenarios) {
+    if (scenarios === null || scenarios === undefined) return '';
+
+    if (scenarios instanceof Error) {
+      const forbidden = scenarios.status === 403;
+      return card('Saved scenarios', 'The assumptions the company keeps, and how they changed',
+        `<div class="note note--warn">${esc(forbidden
+          ? 'You may read the projection but not keep scenarios, so none are shown here.'
+          : scenarios.message)}</div>`);
+    }
+
+    const tools =
+      (scenarios.length >= 2 ? '<button class="btn btn--quiet btn--sm" data-act="scenario-compare">Compare</button>' : '') +
+      '<button class="btn btn--primary btn--sm" data-act="scenario-new">Save current assumptions</button>';
+
+    const body = scenarios.length
+      ? `<div class="grid grid--thirds">${scenarios.map(scenarioCard).join('')}</div>` + scenarioDetail()
+      : emptyState('\u25CB', 'No saved scenarios',
+        'Nothing has been saved yet. Set assumptions with the controls above, then save them under a name — a saved scenario is recalculated against the ledger whenever it is reopened.');
+
+    return card('Saved scenarios', 'Assumptions the company keeps, each with an immutable version history', body, tools);
+  }
+
+  function scenarioCard(s) {
+    const live = s.current_version || {};
+    const open = forecastState.saved && forecastState.saved.ulid === s.ulid;
+    const viewing = scenarioState.detail && scenarioState.detail.ulid === s.ulid;
+
+    return `<section class="card scenario${open ? ' scenario--open' : ''}">
+      <div class="scenario__head">
+        <strong>${esc(s.name)}</strong>
+        ${badge(scenarioTypeKind(s.type), s.type_label)}
+        ${open ? badge('info', 'On screen') : ''}
+      </div>
+      <div class="facts">
+        <div class="fact"><span class="fact__k">Live version</span>
+          <strong class="fact__v">v${esc(s.current_version_no)}</strong>
+          <small>${esc(s.version_count)} kept</small></div>
+        <div class="fact"><span class="fact__k">Revenue growth</span>
+          <strong class="fact__v">${esc(scenarioPercent(live.revenue_growth))}</strong></div>
+        <div class="fact"><span class="fact__k">Expense growth</span>
+          <strong class="fact__v">${esc(scenarioPercent(live.expense_growth))}</strong></div>
+        <div class="fact"><span class="fact__k">Adjustments</span>
+          <strong class="fact__v">${esc(Object.keys(live.adjustments || {}).length)}</strong></div>
+        <div class="fact"><span class="fact__k">Author</span>
+          <strong class="fact__v">${esc(authorName(live.created_by))}</strong>
+          <small>updated ${esc(fmtDateTime(s.updated_at))}</small></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn btn--primary btn--sm" data-act="scenario-open" data-ulid="${esc(s.ulid)}">Open</button>
+        <button class="btn btn--quiet btn--sm" data-act="scenario-history" data-ulid="${esc(s.ulid)}">${viewing ? 'Hide history' : 'History'}</button>
+        <button class="btn btn--quiet btn--sm" data-act="scenario-revise" data-ulid="${esc(s.ulid)}">New version</button>
+      </div>
+    </section>`;
+  }
+
+  /**
+   * One scenario's version history, newest first.
+   *
+   * Nothing here can be edited or removed: the write actions are "save a new
+   * version" and "restore an old one", and both of them only ever add. The
+   * live version is marked where it sits rather than moved to the top, so the
+   * order the reader sees is the order the versions were written.
+   */
+  function scenarioDetail() {
+    const detail = scenarioState.detail;
+    if (!detail) return '';
+
+    const versions = detail.versions || [];
+
+    const rows = versions.map(v => `<tr${v.version_no === detail.current_version_no ? ' style="background:var(--info-bg)"' : ''}>
+      <td>v${esc(v.version_no)}${v.version_no === detail.current_version_no ? ' ' + badge('info', 'Live') : ''}</td>
+      <td>${badge(scenarioTypeKind(v.type), scenarioTypeLabel(v.type))}</td>
+      <td class="num">${esc(scenarioPercent(v.revenue_growth))}</td>
+      <td class="num">${esc(scenarioPercent(v.expense_growth))}</td>
+      <td>${esc(scenarioAdjustmentsText(v.adjustments))}</td>
+      <td>${esc(authorName(v.created_by))}</td>
+      <td>${esc(fmtDateTime(v.created_at))}</td>
+      <td>${v.note ? esc(v.note) : '\u2014'}</td>
+      <td class="num">${v.version_no === detail.current_version_no
+        ? '<span class="cell__sub">live</span>'
+        : `<button class="btn btn--quiet btn--sm" data-act="scenario-restore" data-ulid="${esc(detail.ulid)}" data-version="${esc(v.ulid)}" data-version-no="${esc(v.version_no)}">Restore</button>`}</td>
+    </tr>`).join('');
+
+    return `<div class="scenario-detail">
+      <div class="card__head" style="margin-top:18px">
+        <div><h4 style="font-size:14px">${esc(detail.name)} \u2014 version history</h4>
+          <p>Newest first. A version is never edited or deleted; restoring one writes a new version that copies it.</p></div>
+        <div class="spacer"><button class="btn btn--quiet btn--sm" data-act="scenario-history-close">Close history</button></div>
+      </div>
+      <div class="note note--warn">${esc(detail.note || '')}</div>
+      <div class="table-wrap" style="margin-top:12px"><table class="data">
+        <thead><tr><th>Version</th><th>Type</th><th class="num">Revenue growth</th><th class="num">Expense growth</th>
+          <th>Adjustments</th><th>Author</th><th>Saved</th><th>Note</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+    </div>`;
+  }
+
+  function scenarioPercent(value) {
+    if (value === null || value === undefined || value === '') return '\u2014';
+    const n = Number(value);
+    return isFinite(n) ? n.toFixed(2) + '%' : String(value);
+  }
+
+  function scenarioAdjustmentsText(adjustments) {
+    const keys = Object.keys(adjustments || {});
+    if (!keys.length) return '\u2014';
+    return keys.map(k => '#' + k + ' ' + fmtMoney(adjustments[k])).join(', ');
+  }
+
+  function authorName(author) {
+    return author && author.name ? author.name : '\u2014';
+  }
+
+  /* ------------------------------------------------- forecast: runway */
+
+  /**
+   * How long the cash lasts on the projection on screen.
+   *
+   * The panel is read, never computed here: every figure arrived from the
+   * `cash_runway` section. Where the endpoint could not answer — no cash
+   * account to read a position from, no burn to divide by, or no month that
+   * turns negative — the panel says so in words rather than printing a zero or
+   * a date that was never observed.
+   */
+  function forecastRunway(section, maySetThreshold) {
+    if (!section || section.error) {
+      return sectionProblem('Cash runway', section, 'How long the cash lasts could not be estimated.');
+    }
+
+    const d = section.data || {};
+    const status = d.status || 'unknown';
+    const kind = { critical: 'bad', watch: 'pending', healthy: 'ok' }[status] || 'muted';
+    const hasCover = d.months_of_cover !== null && d.months_of_cover !== undefined;
+
+    const tools = maySetThreshold
+      ? `<label class="field field--date" style="min-width:220px"><span class="field__label">Low-cash threshold (${esc(thresholdSource(d.threshold_source))})</span>
+           <input type="text" inputmode="decimal" data-act="runway-threshold" value="${esc(d.threshold || '0')}"></label>
+         <button class="btn btn--quiet btn--sm" data-act="runway-threshold-save">Save threshold</button>`
+      : '';
+
+    const facts = `<div class="facts">
+      <div class="fact"><span class="fact__k">Cash position</span>
+        <strong class="fact__v ${moneyClass(d.opening_cash)}">${esc(fmtMoney(d.opening_cash))}</strong>
+        <small>as at ${esc(fmtDate(d.as_of))}${d.is_estimate ? ' \u00b7 an estimate' : ''}</small></div>
+      <div class="fact"><span class="fact__k">Average monthly ${d.is_burning ? 'burn' : 'movement'}</span>
+        <strong class="fact__v">${esc(fmtMoney(d.average_monthly_movement))}</strong>
+        <small>${d.is_burning ? 'the company is burning cash' : 'the company is not burning cash'}</small></div>
+      <div class="fact"><span class="fact__k">Months of cover</span>
+        <strong class="fact__v">${hasCover ? esc(Number(d.months_of_cover).toFixed(1)) : '\u2014'}</strong>
+        <small>${hasCover ? 'on the average burn' : (d.has_cash_data ? 'nothing to divide by' : 'no cash position to read')}</small></div>
+      <div class="fact"><span class="fact__k">Cash turns negative</span>
+        <strong class="fact__v">${d.negative_month ? esc(d.negative_month)
+          : (d.has_cash_data ? 'Never in the horizon' : 'Cannot be read')}</strong>
+        <small>${d.negative_month ? 'the first month it does' : (d.has_cash_data ? 'no projected month turns negative' : 'no cash accounts set up')}</small></div>
+      <div class="fact"><span class="fact__k">Lowest projected cash</span>
+        <strong class="fact__v ${moneyClass(d.lowest_cash)}">${esc(fmtMoney(d.lowest_cash))}</strong>
+        <small>${esc(d.lowest_cash_month || '\u2014')}</small></div>
+      <div class="fact"><span class="fact__k">Runway status</span>
+        <span class="fact__v">${badge(kind, d.status_label || status)}</span></div>
+    </div>`;
+
+    const months = d.months || [];
+    const table = months.length
+      ? `<div class="table-wrap" style="margin-top:14px"><table class="data">
+          <thead><tr><th>Month</th><th class="num">Projected movement</th><th class="num">Closing cash</th><th>Reading</th></tr></thead>
+          <tbody>${months.map(m => `<tr>
+            <td>${esc(m.period)}</td>
+            <td class="num ${moneyClass(m.movement)}">${esc(fmtMoney(m.movement))}</td>
+            <td class="num ${moneyClass(m.closing_cash)}">${esc(fmtMoney(m.closing_cash))}</td>
+            <td>${m.negative ? badge('bad', 'Below zero') : (m.below_threshold ? badge('pending', 'Below threshold') : badge('ok', 'Above threshold'))}</td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div class="note" style="margin-top:14px">No closing cash is projected: there is no cash position to close from.</div>';
+
+    const assumptions = (d.assumptions || []).length
+      ? `<details class="runway__how"><summary>How this is calculated</summary>
+           <ul>${(d.assumptions || []).map(a => `<li>${esc(a)}</li>`).join('')}</ul></details>`
+      : '';
+
+    return card('Cash runway', 'How long the cash lasts on this projection, and how it was worked out',
+      facts + (d.note ? `<div class="note note--warn" style="margin-top:14px">${esc(d.note)}</div>` : '') + table + assumptions, tools);
+  }
+
+  function thresholdSource(source) {
+    return source === 'company' ? 'company setting' : 'built-in default';
+  }
+
+  /* ---------------------------------------- forecast: historical data */
+
+  /**
+   * The label the projection has to earn the right to print.
+   *
+   * The sample size, the window it covers and the basis are the endpoint's own
+   * — read from the completed periods of the fiscal year — and the limitations
+   * are stated beside them rather than left for a reader to work out.
+   */
+  function forecastHistory(history) {
+    if (!history) return '';
+
+    const periods = history.periods || [];
+    const label = history.label || ('Based on ' + (history.months || 0) + ' months of historical data');
+    const limitations = (history.limitations || []).length
+      ? `<ul class="runway__bounds">${(history.limitations || []).map(l => `<li>${esc(l)}</li>`).join('')}</ul>`
+      : '';
+
+    return card('Historical data', 'What the projection was averaged from, and what it cannot tell you',
+      `<div class="facts">
+        <div class="fact"><span class="fact__k">Sample</span>
+          <strong class="fact__v">${esc(label)}</strong>
+          <small>${history.available ? 'a trailing run-rate is in use' : 'no completed periods to average'}</small></div>
+        <div class="fact"><span class="fact__k">Period covered</span>
+          <strong class="fact__v">${periods.length ? esc(fmtDate(history.from) + ' \u2192 ' + fmtDate(history.to)) : '\u2014'}</strong>
+          <small>${esc(periods.length)} completed period(s)</small></div>
+        <div class="fact"><span class="fact__k">Availability</span>
+          <span class="fact__v">${badge(history.available ? 'ok' : 'muted', history.available ? 'Available' : 'Not available')}</span></div>
+      </div>
+      <p class="runway__basis">${esc(history.basis || '')}</p>
+      ${limitations}`);
+  }
+
+  /* ------------------------------------- forecast: scenario actions */
+
+  async function openScenario(ulid) {
+    const s = (forecastState.scenarios || []).find(x => x.ulid === ulid);
+    if (!s) return;
+
+    const live = s.current_version || {};
+
+    forecastState.saved = {
+      ulid: s.ulid,
+      name: s.name,
+      type: live.type || s.type,
+      version_no: s.current_version_no,
+      revenue_growth: live.revenue_growth === null || live.revenue_growth === undefined ? '' : String(live.revenue_growth),
+      expense_growth: live.expense_growth === null || live.expense_growth === undefined ? '' : String(live.expense_growth),
+      adjustments: live.adjustments || {}
+    };
+
+    // An open saved scenario replaces any ad-hoc run: two sets of assumptions
+    // cannot both be on screen, and the ones drawn beside the figures are the
+    // ones the figures were built from.
+    forecastState.scenario = '';
+    forecastState.revenue_growth = '';
+    forecastState.expense_growth = '';
+    scenarioState.detail = null;
+    go('forecast');
+  }
+
+  function clearSavedScenario() {
+    forecastState.saved = null;
+    scenarioState.detail = null;
+    go('forecast');
+  }
+
+  async function showScenarioHistory(ulid) {
+    if (scenarioState.detail && scenarioState.detail.ulid === ulid) {
+      scenarioState.detail = null;
+      redrawForecast();
+      return;
+    }
+
+    try {
+      const payload = await api('/forecast/scenarios/' + encodeURIComponent(ulid));
+      scenarioState.detail = (payload && payload.data) || null;
+      redrawForecast();
+    } catch (error) {
+      toast('bad', error.message, 'The version history could not be read.');
+    }
+  }
+
+  async function newScenario() {
+    const seed = {
+      name: '',
+      type: 'base',
+      revenue_growth: forecastState.revenue_growth,
+      expense_growth: forecastState.expense_growth,
+      adjustments: {}
+    };
+
+    const form = await scenarioFormModal({
+      title: 'Save these assumptions as a scenario',
+      okLabel: 'Save scenario',
+      seed,
+      requireName: true
+    });
+    if (!form) return;
+
+    try {
+      await api('/forecast/scenarios', {
+        method: 'POST',
+        key: newKey(),
+        body: scenarioRequestBody(form)
+      });
+      toast('ok', 'Scenario saved', 'Its first version was written; saving again adds a version rather than editing one.');
+      go('forecast');
+    } catch (error) {
+      toast('bad', error.message, 'The scenario was not saved.');
+    }
+  }
+
+  async function reviseScenario(ulid) {
+    const s = (forecastState.scenarios || []).find(x => x.ulid === ulid);
+    if (!s) return;
+
+    const live = s.current_version || {};
+    const seed = {
+      name: s.name,
+      type: live.type || s.type,
+      revenue_growth: live.revenue_growth,
+      expense_growth: live.expense_growth,
+      adjustments: live.adjustments || {}
+    };
+
+    const form = await scenarioFormModal({
+      title: 'Save a new version of \u201c' + s.name + '\u201d',
+      okLabel: 'Save new version',
+      seed,
+      requireName: false
+    });
+    if (!form) return;
+
+    try {
+      await api('/forecast/scenarios/' + encodeURIComponent(ulid) + '/versions', {
+        method: 'POST',
+        key: newKey(),
+        body: scenarioRequestBody(form)
+      });
+      toast('ok', 'New version saved', 'The version it was saved from is kept; nothing was edited in place.');
+      go('forecast');
+    } catch (error) {
+      toast('bad', error.message, 'The new version was not saved.');
+    }
+  }
+
+  function restoreScenarioVersion(ulid, versionUlid, versionNo) {
+    confirmModal({
+      title: 'Restore version ' + versionNo + '?',
+      body: '<p>Restoring does not edit the old version. It writes a new version that copies it, so the history keeps both what was saved then and that it was brought back now.</p>' +
+        '<p>The restored assumptions are then recalculated against today\u2019s posted ledger.</p>',
+      okLabel: 'Restore',
+      tone: 'primary'
+    }).then(async confirmed => {
+      if (!confirmed) return;
+
+      try {
+        const payload = await api('/forecast/scenarios/' + encodeURIComponent(ulid) + '/versions/' + encodeURIComponent(versionUlid) + '/restore', {
+          method: 'POST',
+          key: newKey(),
+          body: {}
+        });
+        const version = (payload && payload.data) || {};
+
+        // The live version just moved, so an open scenario is re-pointed at it
+        // rather than left replaying the assumptions it had a moment ago.
+        if (forecastState.saved && forecastState.saved.ulid === ulid) {
+          forecastState.saved = {
+            ulid,
+            name: forecastState.saved.name,
+            type: version.type || forecastState.saved.type,
+            version_no: version.version_no,
+            revenue_growth: String(version.revenue_growth || ''),
+            expense_growth: String(version.expense_growth || ''),
+            adjustments: version.adjustments || {}
+          };
+        }
+
+        toast('ok', 'Version restored', 'A new version now carries those assumptions.');
+        go('forecast');
+      } catch (error) {
+        toast('bad', error.message, 'The version was not restored.');
+      }
+    });
+  }
+
+  function scenarioRequestBody(form) {
+    return {
+      name: form.name || null,
+      type: form.type,
+      revenue_growth: form.revenue_growth === '' ? null : form.revenue_growth,
+      expense_growth: form.expense_growth === '' ? null : form.expense_growth,
+      adjustments: form.adjustments,
+      note: form.note || null
+    };
+  }
+
+  async function runScenarioComparison() {
+    const list = Array.isArray(forecastState.scenarios) ? forecastState.scenarios : [];
+    if (list.length < 2) {
+      toast('info', 'Two scenarios are needed', 'Save a second scenario to hold the two side by side.');
+      return;
+    }
+
+    const query = list.slice(0, 5).map(s => 'scenarios[]=' + encodeURIComponent(s.ulid)).join('&');
+
+    try {
+      const payload = await api('/forecast/scenarios/comparison?' + query);
+      openModal('Saved scenarios side by side', scenarioComparisonBody((payload && payload.data) || {}), 'Close', 'quiet');
+    } catch (error) {
+      toast('bad', error.message, 'The scenarios could not be compared.');
+    }
+  }
+
+  function scenarioComparisonBody(data) {
+    const scenarios = data.scenarios || [];
+
+    const rows = scenarios.map(s => {
+      const live = s.current_version || {};
+      return `<tr${forecastState.saved && forecastState.saved.ulid === s.ulid ? ' style="background:var(--info-bg)"' : ''}>
+        <td>${esc(s.name)} ${badge(scenarioTypeKind(s.type), s.type_label)}</td>
+        <td class="num">${esc(scenarioPercent(live.revenue_growth))}</td>
+        <td class="num">${esc(scenarioPercent(live.expense_growth))}</td>
+        <td class="num">${esc(Object.keys(live.adjustments || {}).length)}</td>
+        <td>v${esc(s.current_version_no)} of ${esc(s.version_count)}</td>
+        <td>${esc(authorName(live.created_by))}</td>
+        <td>${esc(fmtDateTime(s.updated_at))}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="note note--warn">${esc(data.note || '')}</div>
+      <div class="table-wrap" style="margin-top:12px"><table class="data">
+        <thead><tr><th>Scenario</th><th class="num">Revenue growth</th><th class="num">Expense growth</th>
+          <th class="num">Adjustments</th><th>Live version</th><th>Author</th><th>Updated</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  }
+
+  /* ------------------------------------ forecast: scenario form */
+
+  async function scenarioFormModal(options) {
+    const chart = await accounts();
+    const revenue = chart.filter(a => a.account_type === 'revenue');
+    const expense = chart.filter(a => a.account_type === 'expense');
+
+    const promise = openModal(
+      options.title,
+      scenarioFormBody(options.seed || {}, revenue, expense),
+      options.okLabel,
+      'primary'
+    );
+
+    const ok = $('#modal-ok');
+    const nameInput = $('#scenario-name');
+    if (nameInput) nameInput.focus();
+
+    ok.onclick = () => {
+      const read = scenarioReadForm(options);
+      const error = $('[data-error="scenario"]');
+      if (read.error) {
+        if (error) error.textContent = read.error;
+        return;
+      }
+      if (error) error.textContent = '';
+      ok.onclick = null;
+      closeModal(read.value);
+    };
+
+    return promise;
+  }
+
+  function scenarioFormBody(seed, revenueAccounts, expenseAccounts) {
+    const typeOptions = SCENARIO_TYPES.map(t =>
+      `<option value="${esc(t.name)}"${seed.type === t.name ? ' selected' : ''}>${esc(t.label)}</option>`).join('');
+
+    const adjustments = Object.keys(seed.adjustments || {})
+      .map(account => ({ account_id: account, amount: String(seed.adjustments[account]) }));
+    if (!adjustments.length) adjustments.push({ account_id: '', amount: '' });
+
+    return `<label class="field"><span class="field__label">Scenario name</span>
+        <input id="scenario-name" value="${esc(seed.name || '')}" maxlength="120" placeholder="Board case"></label>
+      <label class="field" style="margin-top:12px"><span class="field__label">Type</span>
+        <select id="scenario-type">${typeOptions}</select></label>
+      <div class="toolbar" style="margin-top:12px">
+        <label class="field field--date"><span class="field__label">Revenue growth %</span>
+          <input id="scenario-revenue" inputmode="decimal" value="${esc(seed.revenue_growth || '')}" placeholder="0"></label>
+        <label class="field field--date"><span class="field__label">Expense growth %</span>
+          <input id="scenario-expense" inputmode="decimal" value="${esc(seed.expense_growth || '')}" placeholder="0"></label>
+      </div>
+      <div class="note" style="margin-top:12px">A rate is a plain decimal percentage: 12 is twelve per cent and -5 is minus five. Leave one blank to hold it at zero.</div>
+      <span class="field__label" style="display:block;margin-top:14px">Per-account adjustments</span>
+      <div class="table-wrap" style="margin-top:8px"><table class="data">
+        <thead><tr><th style="min-width:300px">Account (revenue or expense)</th><th class="num" style="min-width:150px">Adjustment</th><th></th></tr></thead>
+        <tbody id="scenario-adjustments">
+          ${adjustments.map((a, index) => scenarioAdjustmentRow(a, index, revenueAccounts, expenseAccounts)).join('')}
+        </tbody>
+      </table></div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn btn--quiet btn--sm" data-act="scenario-add-adjustment">Add an adjustment</button>
+      </div>
+      <label class="field" style="margin-top:12px"><span class="field__label">Note (optional)</span>
+        <textarea id="scenario-note" rows="2" maxlength="500"></textarea></label>
+      <em class="field__error" data-error="scenario"></em>`;
+  }
+
+  function scenarioAdjustmentRow(row, index, revenueAccounts, expenseAccounts) {
+    const options = `<option value="">Choose an account\u2026</option>` +
+      `<optgroup label="Revenue">${accountOptions(revenueAccounts, row.account_id)}</optgroup>` +
+      `<optgroup label="Expense">${accountOptions(expenseAccounts, row.account_id)}</optgroup>`;
+
+    return `<tr data-adjustment-row="${index}">
+      <td><select data-scenario-field="account_id">${options}</select></td>
+      <td class="num"><input data-scenario-field="amount" value="${esc(row.amount)}" inputmode="decimal" placeholder="0.00"
+        style="text-align:right;width:100%;background:transparent;border:1px solid var(--bd);border-radius:8px;padding:6px 8px;color:inherit"></td>
+      <td class="num"><button class="btn btn--quiet btn--sm" data-act="scenario-remove-adjustment" data-index="${index}">Remove</button></td>
+    </tr>`;
+  }
+
+  function scenarioAddAdjustment() {
+    const body = $('#scenario-adjustments');
+    if (!body) return;
+
+    const chart = cache.accounts || [];
+    const index = $$('#scenario-adjustments tr').length;
+    body.insertAdjacentHTML('beforeend', scenarioAdjustmentRow({ account_id: '', amount: '' }, index,
+      chart.filter(a => a.account_type === 'revenue'), chart.filter(a => a.account_type === 'expense')));
+  }
+
+  function scenarioRemoveAdjustment(index) {
+    const row = $('#scenario-adjustments tr[data-adjustment-row="' + index + '"]');
+    if (row) row.remove();
+  }
+
+  function scenarioReadForm(options) {
+    const value = id => (($(id) || {}).value || '').trim();
+    const decimal = /^-?\d+(\.\d{1,4})?$/;
+
+    const name = value('#scenario-name');
+    const type = value('#scenario-type') || 'base';
+    const revenue = value('#scenario-revenue');
+    const expense = value('#scenario-expense');
+    const note = value('#scenario-note');
+
+    if (options.requireName && !name) {
+      return { error: 'A scenario needs a name.' };
+    }
+    if (revenue && !decimal.test(revenue)) {
+      return { error: 'The revenue growth must be a plain decimal, like 12 or -5.5.' };
+    }
+    if (expense && !decimal.test(expense)) {
+      return { error: 'The expense growth must be a plain decimal, like 12 or -5.5.' };
+    }
+
+    const adjustments = [];
+    let badAdjustment = false;
+
+    $$('#scenario-adjustments tr').forEach(row => {
+      const account = ($('[data-scenario-field="account_id"]', row) || {}).value || '';
+      const amount = (($('[data-scenario-field="amount"]', row) || {}).value || '').trim();
+      if (!account && !amount) return;
+      if (!account || !decimal.test(amount)) { badAdjustment = true; return; }
+      adjustments.push({ account_id: Number(account), amount: String(amount) });
+    });
+
+    if (badAdjustment) {
+      return { error: 'Each adjustment needs an account and a plain decimal amount.' };
+    }
+
+    return { value: { name, type, revenue_growth: revenue, expense_growth: expense, adjustments, note } };
+  }
+
+  /* ------------------------------------- forecast: low-cash threshold */
+
+  async function saveLowCashThreshold() {
+    const input = $('[data-act="runway-threshold"]');
+    if (!input) return;
+
+    const value = String(input.value || '').trim();
+
+    if (!/^\d+(\.\d{1,4})?$/.test(value)) {
+      toast('bad', 'A threshold is a non-negative decimal.', 'Try 7500 or 7500.00.');
+      return;
+    }
+
+    const button = $('[data-act="runway-threshold-save"]');
+    if (button) button.disabled = true;
+
+    try {
+      await api('/forecast/settings', {
+        method: 'PUT',
+        key: newKey(),
+        body: { forecast_low_cash_threshold: value }
+      });
+      toast('ok', 'Threshold saved', 'It is a company setting, merged with the others and written to the audit chain.');
+      go('forecast');
+    } catch (error) {
+      toast('bad', error.message, 'The threshold was not saved.');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   /* ----------------------------------------------------- screen: budgets */
@@ -3664,6 +4393,10 @@
         const expense = ($('[data-act="forecast-expense"]') || {}).value || '';
         forecastState.revenue_growth = revenue.trim();
         forecastState.expense_growth = expense.trim();
+        // Typing a rate is an ad-hoc run, so any saved scenario on screen is
+        // let go: the assumptions drawn must be the ones the figures came from.
+        forecastState.saved = null;
+        scenarioState.detail = null;
         go('forecast');
         return;
       }
@@ -3671,10 +4404,27 @@
         forecastState.scenario = '';
         forecastState.revenue_growth = '';
         forecastState.expense_growth = '';
+        forecastState.saved = null;
+        scenarioState.detail = null;
         go('forecast');
         return;
       }
       if (act === 'forecast-export') { startForecastExport(trigger.dataset.format || 'csv'); return; }
+
+      // Saved scenarios. Opening one runs it as a scenario; the rest read and
+      // write the history, and every write carries an idempotency key.
+      if (act === 'forecast-clear-saved') { clearSavedScenario(); return; }
+      if (act === 'scenario-open') { openScenario(trigger.dataset.ulid); return; }
+      if (act === 'scenario-history') { showScenarioHistory(trigger.dataset.ulid); return; }
+      if (act === 'scenario-history-close') { scenarioState.detail = null; redrawForecast(); return; }
+      if (act === 'scenario-new') { newScenario(); return; }
+      if (act === 'scenario-revise') { reviseScenario(trigger.dataset.ulid); return; }
+      if (act === 'scenario-compare') { runScenarioComparison(); return; }
+      if (act === 'scenario-restore') {
+        restoreScenarioVersion(trigger.dataset.ulid, trigger.dataset.version, trigger.dataset.versionNo);
+        return;
+      }
+      if (act === 'runway-threshold-save') { saveLowCashThreshold(); return; }
       if (act === 'open-report') {
         // A KPI and an alert both walk to the report the API named; the report
         // screen runs it on arrival, so the figure can be read where it came from.
@@ -3726,6 +4476,16 @@
         go('dashboard');
         return;
       }
+    });
+
+    // The scenario form's own rows live inside the dialog, which is outside the
+    // view, so its add and remove controls are delegated from the dialog body
+    // rather than from #view.
+    $('#modal-body').addEventListener('click', event => {
+      const trigger = event.target.closest('[data-act]');
+      if (!trigger) return;
+      if (trigger.dataset.act === 'scenario-add-adjustment') { scenarioAddAdjustment(); return; }
+      if (trigger.dataset.act === 'scenario-remove-adjustment') { scenarioRemoveAdjustment(Number(trigger.dataset.index)); return; }
     });
 
     $('#modal-cancel').addEventListener('click', () => { $('#modal-ok').onclick = null; closeModal(false); });

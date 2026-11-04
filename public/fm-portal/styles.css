@@ -635,6 +635,37 @@ table.data td.age--overdue { color: var(--bad); font-weight: 660; }
   border-radius: 999px; padding: 4px 12px;
 }
 
+/* The notice that says a saved scenario is on screen. It sits above the
+   figures because the point it makes is about them: they were rebuilt from
+   today's ledger, not from the day the scenario was saved. */
+.saved-banner { margin-bottom: 14px; }
+.saved-banner > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.saved-banner p { margin: 8px 0 10px; color: var(--mut); font-size: 12.5px; }
+
+/* A saved scenario. The open one is ringed so the reader can see at a glance
+   which stance the figures below belong to. */
+.scenario { padding: 14px; }
+.scenario--open {
+  border-color: color-mix(in srgb, var(--acc) 45%, transparent);
+  box-shadow: var(--ring);
+}
+.scenario__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.scenario__head strong { font-size: 14px; }
+
+.scenario-detail { min-width: 0; }
+
+/* How the runway was worked out, kept behind a disclosure so the reading
+   leads and the method is a click away rather than in the way. */
+.runway__how { margin-top: 14px; }
+.runway__how summary {
+  cursor: pointer; font-size: 12.5px; font-weight: 640; color: var(--acc);
+}
+.runway__how ul, .runway__bounds {
+  margin: 10px 0 0; padding-left: 20px;
+  font-size: 12.5px; color: var(--mut);
+}
+.runway__basis { margin: 12px 0 0; font-size: 12.5px; color: var(--mut); }
+
 /* --------------------------------------------------------------- approvals */
 
 /* Master and detail stand side by side, so a decision is made without losing
