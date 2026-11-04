@@ -49,8 +49,9 @@
   };
 
   // Small caches. The calendar and the chart of accounts change rarely and are
-  // read by three screens each.
-  const cache = { periods: null, accounts: null };
+  // read by three screens each. The budgets screen keeps its own copy of the
+  // chart because it reads it by account type rather than whole.
+  const cache = { periods: null, accounts: null, budgetAccounts: null, costCentres: null };
 
   /* ------------------------------------------------------------- helpers */
 
@@ -260,6 +261,8 @@
     S.user = null;
     cache.periods = null;
     cache.accounts = null;
+    cache.budgetAccounts = null;
+    cache.costCentres = null;
     try {
       sessionStorage.removeItem(KEYS.token);
       sessionStorage.removeItem(KEYS.company);
@@ -479,7 +482,7 @@
     dashboard: { title: 'Dashboard', sub: 'Where the books stand right now', draw: drawDashboard },
     approvals: { title: 'Approvals', sub: 'The queue waiting on a second pair of hands', draw: drawApprovals },
     forecast: { title: 'Forecast', sub: 'The rest of the open year, projected — and labelled as projections', draw: drawForecast },
-    budgets: { title: 'Budgets', sub: 'What the company plans to earn and spend, period by period', draw: drawBudgets },
+    budgets: { title: 'Budget Management', sub: 'Plan, manage, monitor, and control organizational financial budgets.', draw: drawBudgets },
     reports: { title: 'Reports', sub: 'Every statement, ageing report and the ledger behind them', draw: drawReports },
     periods: { title: 'Period close', sub: 'Closing the year, reopening a period, and signing off reconciliations', draw: drawPeriods },
     audit: { title: 'Audit log', sub: 'Who changed what, and what it held before', draw: drawAudit }
@@ -3506,155 +3509,793 @@
 
   /* ----------------------------------------------------- screen: budgets */
 
-  const budgetState = { period: '', name: '', lines: [] };
+  /**
+   * The plan for a fiscal year, as a version that has a life.
+   *
+   * A budget is written as a version of a year's plan and never as a posting:
+   * nothing this screen sends reaches the ledger. Two reads build it — the
+   * history of the year's versions, and the one version being shown — and the
+   * newest version, which is the plan the reports read, is shown by default.
+   * The plan-against-actual card at the foot is a third read, for one period,
+   * and only ever reads the posted ledger.
+   */
+  const budgetState = {
+    year: '',
+    version: '',
+    detail: null,
+    summaries: [],
+    yearMeta: null,
+    bvaPeriod: '',
+    bva: null
+  };
+
+  function budgetYearOf(period) {
+    return period && period.fiscal_year ? period.fiscal_year.ulid : '';
+  }
+
+  // The fiscal years the calendar holds, in the order it holds them.
+  function budgetYears(list) {
+    const seen = {};
+    const years = [];
+
+    (list || []).forEach(p => {
+      const year = p.fiscal_year;
+      if (!year || seen[year.ulid]) return;
+      seen[year.ulid] = true;
+      years.push(year);
+    });
+
+    return years;
+  }
+
+  function budgetAccountIndex(chart) {
+    const index = {};
+    (chart || []).forEach(a => { index[Number(a.id)] = a; });
+    return index;
+  }
+
+  function budgetStatusBadge(status) {
+    return {
+      draft: badge('muted', 'Draft'),
+      pending_approval: badge('pending', 'Pending approval'),
+      approved: badge('approved', 'Approved'),
+      locked: badge('info', 'Locked')
+    }[status] || badge('muted', status || '\u2014');
+  }
 
   async function drawBudgets(container) {
     setStatus('Reading the plan');
     await load(container, async () => {
       const list = await periods();
+
+      if (!list.length) {
+        setStatus('Ready');
+        return card('Budget Management', 'One plan per fiscal year',
+          emptyState('\u25CB', 'No fiscal calendar', 'There are no periods to plan against yet.'));
+      }
+
+      const years = budgetYears(list);
+      const thisPeriod = currentPeriod(list);
+      const fallback = budgetYearOf(thisPeriod)
+        || budgetYearOf(list[list.length - 1])
+        || (years[0] && years[0].ulid)
+        || '';
+
+      budgetState.year = years.some(y => y.ulid === budgetState.year) ? budgetState.year : fallback;
+
+      const yearPeriods = periodsOfYear(list, budgetState.year);
+
+      const payload = await api('/budgets/versions?fiscal_year=' + encodeURIComponent(budgetState.year));
+      budgetState.summaries = (payload && payload.data) || [];
+      budgetState.yearMeta = (payload && payload.fiscal_year) || null;
+
+      // The version on screen: the one asked for if the year still holds it,
+      // otherwise the newest, which is the standing plan.
+      const wanted = budgetState.summaries.some(s => s.ulid === budgetState.version)
+        ? budgetState.version
+        : (budgetState.summaries[0] && budgetState.summaries[0].ulid) || '';
+
+      budgetState.version = wanted;
+      budgetState.detail = null;
+
+      if (wanted) {
+        const one = await api('/budgets/versions/' + encodeURIComponent(wanted));
+        budgetState.detail = (one && one.data) || null;
+      }
+
+      await budgetReadVariance(yearPeriods);
+
       const chart = await accounts();
-      const current = currentPeriod(list);
-      if (!budgetState.period) budgetState.period = current ? current.ulid : (list[0] && list[0].ulid) || '';
-
-      const periodPicker = `
-        <div class="toolbar">
-          <label class="field" style="min-width:240px"><span class="field__label">Fiscal period</span>
-            <select data-act="budget-period">
-              ${list.map(p => `<option value="${esc(p.ulid)}"${budgetState.period === p.ulid ? ' selected' : ''}>` +
-                `${esc(p.name)} \u00b7 ${esc(p.starts_on)} to ${esc(p.ends_on)}</option>`).join('')}
-            </select></label>
-          <button class="btn btn--quiet" data-act="budget-load">Load the plan</button>
-        </div>`;
-
-      if (!budgetState.period) {
-        return card('Budgets', 'One plan per period', periodPicker +
-          emptyState('\u25CB', 'No fiscal calendar', 'There are no periods to plan for yet.'));
-      }
-
-      // The plan for the chosen period, if one has been written.
-      let existing = null;
-      let lines = budgetState.lines;
-      let name = budgetState.name;
-
-      if (!budgetState.loaded) {
-        const payload = await api('/budgets?fiscal_period=' + encodeURIComponent(budgetState.period) + '&per_page=1');
-        existing = payload && payload.data && payload.data[0] ? payload.data[0] : null;
-        if (existing) {
-          name = existing.name || '';
-          lines = (existing.lines || []).map(l => ({ account_id: l.account_id, amount: String(l.amount) }));
-        } else {
-          name = '';
-          lines = [{ account_id: '', amount: '' }];
-        }
-        budgetState.loaded = true;
-        budgetState.name = name;
-        budgetState.lines = lines;
-      } else {
-        const payload = await api('/budgets?fiscal_period=' + encodeURIComponent(budgetState.period) + '&per_page=1');
-        existing = payload && payload.data && payload.data[0] ? payload.data[0] : null;
-      }
-
-      const revenueAccounts = chart.filter(a => a.account_type === 'revenue');
-      const expenseAccounts = chart.filter(a => a.account_type === 'expense');
-
-      const editor = `
-        <div class="note">A budget is a plan and never a posting. Nothing written here reaches the ledger.</div>
-        <div class="toolbar" style="margin-top:12px">
-          <label class="field" style="min-width:260px"><span class="field__label">Plan name</span>
-            <input id="budget-name" value="${esc(budgetState.name)}" maxlength="255" placeholder="Annual plan 2026"></label>
-        </div>
-        <div class="table-wrap" style="margin-top:12px"><table class="data">
-          <thead><tr><th style="min-width:320px">Account (revenue or expense)</th><th class="num" style="min-width:170px">Amount</th><th></th></tr></thead>
-          <tbody id="budget-lines">
-            ${budgetState.lines.map((line, index) => budgetLineRow(line, index, revenueAccounts, expenseAccounts)).join('')}
-          </tbody>
-        </table></div>
-        <div class="toolbar" style="margin-top:12px">
-          <button class="btn btn--quiet" data-act="budget-add-line">Add a line</button>
-          <span class="spacer"></span>
-          <button class="btn btn--primary" data-act="budget-save">
-            ${existing ? 'Replace the plan' : 'Write the plan'}
-          </button>
-        </div>`;
-
-      const existingNotice = existing
-        ? `<div class="note note--ok">A plan for ${esc(existing.fiscal_period ? existing.fiscal_period.name : '')} already exists ` +
-          `(version ${esc(existing.row_version)}). Saving replaces it, and the replacement is written to the audit chain.</div>`
-        : `<div class="note note--warn">No plan has been written for this period. Saving will create one.</div>`;
 
       setStatus('Ready');
-      return card('Budgets', 'Write what a period is expected to earn and spend', periodPicker + existingNotice + editor);
+      return renderBudgets(list, yearPeriods, chart);
     });
   }
 
-  function budgetLineRow(line, index, revenueAccounts, expenseAccounts) {
-    const options = (selected) =>
-      `<option value="">Choose an account\u2026</option>` +
-      `<optgroup label="Revenue">${accountOptions(revenueAccounts, selected)}</optgroup>` +
-      `<optgroup label="Expense">${accountOptions(expenseAccounts, selected)}</optgroup>`;
-    return `<tr data-line="${index}">
-      <td><select data-budget-field="account_id">${options(line.account_id)}</select></td>
-      <td class="num"><input data-budget-field="amount" value="${esc(line.amount)}" inputmode="decimal" placeholder="0.00"
-        style="text-align:right;width:100%;background:transparent;border:1px solid var(--bd);border-radius:8px;padding:6px 8px;color:inherit"></td>
-      <td class="num"><button class="btn btn--quiet btn--sm" data-act="budget-remove-line" data-index="${index}">Remove</button></td>
-    </tr>`;
-  }
+  /**
+   * The plan beside what a period actually did.
+   *
+   * Held as the card's own value — the payload, or the error its read threw —
+   * so a refusal can never take the rest of the screen off the page.
+   */
+  async function budgetReadVariance(yearPeriods) {
+    const list = yearPeriods || [];
+    const thisPeriod = currentPeriod(list);
+    const wanted = list.some(p => p.ulid === budgetState.bvaPeriod)
+      ? budgetState.bvaPeriod
+      : ((thisPeriod && thisPeriod.ulid) || (list[list.length - 1] && list[list.length - 1].ulid) || '');
 
-  function readBudgetLines() {
-    const rows = $$('#budget-lines tr');
-    const lines = [];
-    rows.forEach(row => {
-      const account = $('[data-budget-field="account_id"]', row).value;
-      const amount = $('[data-budget-field="amount"]', row).value.trim();
-      if (!account && !amount) return;
-      lines.push({ account_id: Number(account), amount: String(amount) });
-    });
-    return lines;
-  }
+    budgetState.bvaPeriod = wanted;
+    budgetState.bva = null;
 
-  function budgetAddLine() {
-    const chart = cache.accounts || [];
-    budgetState.lines = readBudgetLines().concat([{ account_id: '', amount: '' }]);
-    const body = $('#budget-lines');
-    if (!body) return;
-    const index = budgetState.lines.length - 1;
-    body.insertAdjacentHTML('beforeend', budgetLineRow(budgetState.lines[index], index,
-      chart.filter(a => a.account_type === 'revenue'), chart.filter(a => a.account_type === 'expense')));
-  }
+    if (!wanted) return;
 
-  function budgetRemoveLine(index) {
-    const row = $(`#budget-lines tr[data-line="${index}"]`);
-    if (row) row.remove();
-  }
-
-  async function budgetSave() {
-    const lines = readBudgetLines();
-    if (!lines.length) { toast('bad', 'A plan needs at least one line.', 'Add an account and an amount.'); return; }
-    const bad = lines.find(l => !l.account_id || !/^-?\d+(\.\d+)?$/.test(l.amount));
-    if (bad) { toast('bad', 'Each line needs an account and a plain decimal amount.', 'Try -5000 or 12500.00.'); return; }
-
-    const button = $('[data-act="budget-save"]');
-    button.disabled = true;
     try {
-      const payload = await api('/budgets', {
-        method: 'PUT',
-        key: newKey(),
-        body: {
-          fiscal_period: budgetState.period,
-          name: $('#budget-name').value.trim() || null,
-          lines
-        }
-      });
-      const data = payload && payload.data;
-      budgetState.loaded = false;
-      budgetState.lines = (data.lines || []).map(l => ({ account_id: l.account_id, amount: String(l.amount) }));
-      budgetState.name = data.name || '';
-      toast('ok', 'The plan is saved', 'Version ' + data.row_version + ' \u00b7 it posts nothing to the ledger.');
+      budgetState.bva = await api('/reports/budget-vs-actual?fiscal_period=' + encodeURIComponent(wanted));
+    } catch (error) {
+      budgetState.bva = error;
+    }
+  }
+
+  function renderBudgets(list, yearPeriods, chart) {
+    return budgetHead(list, yearPeriods) +
+      budgetKpis(budgetState.detail, chart, yearPeriods) +
+      '<div style="margin-top:16px">' + budgetGrid(budgetState.detail, yearPeriods, chart) + '</div>' +
+      '<div style="margin-top:16px">' + budgetLifecycle() + '</div>' +
+      '<div style="margin-top:16px">' + budgetVariance(yearPeriods) + '</div>';
+  }
+
+  /* -------------------------------------------------------- budgets: head */
+
+  function budgetHead(list, yearPeriods) {
+    const year = budgetState.yearMeta || {};
+    const detail = budgetState.detail;
+    const years = budgetYears(list);
+    const kept = budgetState.summaries.length;
+
+    const yearPicker = years.length > 1
+      ? `<label class="field" style="min-width:190px"><span class="field__label">Fiscal year</span>
+           <select data-act="budget-year">${years.map(y =>
+             `<option value="${esc(y.ulid)}"${y.ulid === budgetState.year ? ' selected' : ''}>${esc(y.name)}</option>`).join('')}</select></label>`
+      : '';
+
+    const writeLabel = !detail ? 'Write the year\u2019s plan'
+      : (detail.is_editable ? 'Edit the draft' : 'Write the next version');
+
+    return `<section class="card budget">
+      <div class="card__head">
+        <div>
+          <h3>${esc(year.name || 'The fiscal year')} plan</h3>
+          <p>The plan the company intends to follow. It is a plan and never a posting: writing one posts no journal and the ledger does not know it exists.</p>
+        </div>
+        <div class="spacer"><span class="forecast__flag">PLAN \u2014 NOT POSTED</span></div>
+      </div>
+      <div class="facts">
+        <div class="fact"><span class="fact__k">Fiscal year</span>
+          <strong class="fact__v">${esc(year.name || '\u2014')}</strong>
+          <small>${esc(fmtDate(year.starts_on))} \u2192 ${esc(fmtDate(year.ends_on))}</small></div>
+        <div class="fact"><span class="fact__k">Periods planned over</span>
+          <strong class="fact__v">${esc(yearPeriods.length)}</strong>
+          <small>${esc(budgetRange(yearPeriods))}</small></div>
+        <div class="fact"><span class="fact__k">Standing version</span>
+          <strong class="fact__v">${detail ? 'v' + esc(detail.version_no) : '\u2014'}</strong>
+          <small>${kept ? esc(kept) + ' kept in the history' : 'no plan written yet'}</small></div>
+        <div class="fact"><span class="fact__k">Status</span>
+          <span class="fact__v">${detail ? budgetStatusBadge(detail.status) : badge('muted', 'No plan')}</span></div>
+        <div class="fact"><span class="fact__k">Last written</span>
+          <strong class="fact__v">${esc(detail ? fmtDateTime(detail.updated_at) : '\u2014')}</strong>
+          <small>${detail && detail.created_by_user_id ? 'by member #' + esc(detail.created_by_user_id) : 'a read, not a stored run'}</small></div>
+      </div>
+      <div class="dash-head__tools">
+        ${yearPicker}
+        <button class="btn btn--primary btn--sm" data-act="budget-new">${writeLabel}</button>
+        <button class="btn btn--quiet btn--sm" data-act="budget-refresh">Refresh</button>
+      </div>
+    </section>`;
+  }
+
+  function budgetRange(yearPeriods) {
+    const list = yearPeriods || [];
+    if (!list.length) return 'no periods';
+    const first = list[0];
+    const last = list[list.length - 1];
+    return fmtDate(first.starts_on) + ' \u2192 ' + fmtDate(last.ends_on);
+  }
+
+  /* -------------------------------------------------------- budgets: KPIs */
+
+  /**
+   * What the year's plan adds up to. Read from the version on screen and the
+   * company's own chart, which is what says whether an account is revenue or
+   * expense — the plan itself records only the account.
+   */
+  function budgetTotals(detail, chart) {
+    const index = budgetAccountIndex(chart);
+    const accounts = {};
+    const periods = {};
+    let revenue = 0;
+    let expense = 0;
+
+    ((detail && detail.lines) || []).forEach(line => {
+      const account = index[Number(line.account_id)];
+      const type = account ? account.account_type : '';
+      if (type !== 'revenue' && type !== 'expense') return;
+
+      const amount = Number(line.amount);
+      if (!isFinite(amount) || amount === 0) return;
+
+      if (type === 'revenue') revenue += amount;
+      else expense += amount;
+
+      accounts[Number(line.account_id)] = true;
+      periods[String(line.fiscal_period_id)] = true;
+    });
+
+    const net = revenue - expense;
+
+    return {
+      revenue: revenue,
+      expense: expense,
+      net: net,
+      margin: revenue !== 0 ? (net / revenue) * 100 : null,
+      accounts: Object.keys(accounts).length,
+      months: Object.keys(periods).length
+    };
+  }
+
+  function budgetKpis(detail, chart, yearPeriods) {
+    const t = budgetTotals(detail, chart);
+    const months = (yearPeriods || []).length;
+
+    const tiles = [
+      budgetKpiTile('Planned revenue', fmtMoney(t.revenue), moneyClass(t.revenue), 'Revenue accounts, whole year'),
+      budgetKpiTile('Planned expense', fmtMoney(t.expense), moneyClass(t.expense), 'Expense accounts, whole year'),
+      budgetKpiTile('Planned net', fmtMoney(t.net), moneyClass(t.net), 'Revenue less expense'),
+      budgetKpiTile('Planned margin', t.margin === null ? '\u2014' : t.margin.toFixed(2) + '%', '', 'Of planned revenue'),
+      budgetKpiTile('Accounts planned', String(t.accounts), '', 'Revenue and expense accounts with a figure'),
+      budgetKpiTile('Months planned', months ? t.months + ' of ' + months : String(t.months), '', 'Periods the plan touches')
+    ].join('');
+
+    const body = `<div class="grid grid--kpis">${tiles}</div>` +
+      (detail ? '' : `<div class="note note--warn" style="margin-top:14px">No plan has been written for this fiscal year yet, so every measure reads zero. Write a version to fill them in.</div>`);
+
+    return card('Plan measures', detail
+      ? 'What version v' + esc(detail.version_no) + ' of the year\u2019s plan adds up to'
+      : 'What the year\u2019s plan adds up to', body);
+  }
+
+  function budgetKpiTile(label, value, cls, note) {
+    return `<section class="kpi kpi--static">
+      <span class="kpi__label">${esc(label)}</span>
+      <span class="kpi__value ${cls || ''}">${esc(value)}</span>
+      <span class="metric__note">${esc(note)}</span>
+    </section>`;
+  }
+
+  /* -------------------------------------------------------- budgets: grid */
+
+  function budgetPeriodLabel(period) {
+    const starts = period && period.starts_on ? String(period.starts_on) : '';
+    const date = starts ? new Date(starts + 'T00:00:00') : null;
+    if (date && !isNaN(date.getTime())) return date.toLocaleString('en', { month: 'short' });
+    return (period && period.name) || '\u2014';
+  }
+
+  function budgetTrim(value) {
+    const n = Number(value);
+    if (!isFinite(n)) return String(value);
+    return String(Number(n.toFixed(4)));
+  }
+
+  /**
+   * The year's plan, month by month: one row per account and one column per
+   * period, with a year total on each row and a planned revenue, expense and
+   * net on each column. It is a reading grid — an account the company planned
+   * nothing against is left out rather than drawn as a row of zeroes.
+   */
+  function budgetGrid(detail, yearPeriods, chart) {
+    const periods = (yearPeriods || []).slice()
+      .sort((a, b) => Number(a.period_no) - Number(b.period_no));
+
+    if (!periods.length) {
+      return card('Month by month', '',
+        emptyState('\u25CB', 'No periods in this year', 'The fiscal year holds no periods to plan over.'));
+    }
+
+    const index = budgetAccountIndex(chart);
+    const cell = {};
+    const used = {};
+
+    ((detail && detail.lines) || []).forEach(line => {
+      const account = index[Number(line.account_id)];
+      const type = account ? account.account_type : '';
+      if (type !== 'revenue' && type !== 'expense') return;
+
+      const amount = Number(line.amount);
+      if (!isFinite(amount) || amount === 0) return;
+
+      const key = Number(line.account_id);
+      cell[key] = cell[key] || {};
+      cell[key][Number(line.fiscal_period_id)] = (cell[key][Number(line.fiscal_period_id)] || 0) + amount;
+      used[key] = true;
+    });
+
+    const rowsOf = type => Object.keys(used)
+      .map(Number)
+      .filter(id => index[id] && index[id].account_type === type)
+      .sort((a, b) => String(index[a].code).localeCompare(String(index[b].code)));
+
+    const revenue = rowsOf('revenue');
+    const expense = rowsOf('expense');
+
+    const span = periods.length + 3;
+
+    const accountRow = id => {
+      const account = index[id];
+      const cells = periods.map(p => {
+        const value = (cell[id] || {})[Number(p.id)];
+        return `<td class="num">${value === undefined
+          ? '<span class="cell__sub">\u00b7</span>' : esc(fmtMoney(value))}</td>`;
+      }).join('');
+      const total = periods.reduce((sum, p) => sum + ((cell[id] || {})[Number(p.id)] || 0), 0);
+
+      return `<tr>
+        <td class="budget-grid__code">${esc(account.code)}</td>
+        <td>${esc(account.name)}</td>
+        ${cells}
+        <td class="num budget-grid__total ${moneyClass(total)}">${esc(fmtMoney(total))}</td>
+      </tr>`;
+    };
+
+    const columnTotals = periods.map(p => {
+      const id = Number(p.id);
+      const rev = revenue.reduce((sum, a) => sum + ((cell[a] || {})[id] || 0), 0);
+      const exp = expense.reduce((sum, a) => sum + ((cell[a] || {})[id] || 0), 0);
+      return { rev: rev, exp: exp, net: rev - exp };
+    });
+
+    const year = columnTotals.reduce((s, c) => ({ rev: s.rev + c.rev, exp: s.exp + c.exp }), { rev: 0, exp: 0 });
+
+    const subtitle = detail
+      ? 'Version v' + esc(detail.version_no) + ' \u00b7 ' + esc(detail.status_label || detail.status)
+      : 'The plan the company intends to follow';
+
+    if (!revenue.length && !expense.length) {
+      return card('Month by month', subtitle, emptyState('\u25CB', 'Nothing planned yet',
+        detail
+          ? 'This version carries no amounts against a revenue or expense account.'
+          : 'No plan has been written for this fiscal year yet.'));
+    }
+
+    const header = periods.map(p =>
+      `<th class="num">${esc(budgetPeriodLabel(p))}<span class="cell__sub">${esc(p.name)}</span></th>`).join('');
+
+    const body = `<div class="table-wrap"><table class="data budget-grid">
+        <thead><tr><th>Code</th><th>Account</th>${header}<th class="num">Year</th></tr></thead>
+        <tbody>
+          ${revenue.length ? `<tr class="budget-grid__section"><td colspan="${span}">Revenue</td></tr>` : ''}
+          ${revenue.map(accountRow).join('')}
+          ${expense.length ? `<tr class="budget-grid__section"><td colspan="${span}">Expense</td></tr>` : ''}
+          ${expense.map(accountRow).join('')}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="2">Planned revenue</td>
+            ${columnTotals.map(c => `<td class="num">${esc(fmtMoney(c.rev))}</td>`).join('')}
+            <td class="num budget-grid__total">${esc(fmtMoney(year.rev))}</td></tr>
+          <tr><td colspan="2">Planned expense</td>
+            ${columnTotals.map(c => `<td class="num">${esc(fmtMoney(c.exp))}</td>`).join('')}
+            <td class="num budget-grid__total">${esc(fmtMoney(year.exp))}</td></tr>
+          <tr class="budget-grid__net"><td colspan="2">Planned net</td>
+            ${columnTotals.map(c => `<td class="num ${moneyClass(c.net)}">${esc(fmtMoney(c.net))}</td>`).join('')}
+            <td class="num ${moneyClass(year.rev - year.exp)}">${esc(fmtMoney(year.rev - year.exp))}</td></tr>
+        </tfoot>
+      </table></div>`;
+
+    return card('Month by month', subtitle, body);
+  }
+
+  /* --------------------------------------------------- budgets: lifecycle */
+
+  /**
+   * Where each version of the year's plan stands, and the acts that move it.
+   *
+   * The acts offered are the ones the status allows — a draft is raised, a
+   * plan waiting on a decision is decided, an agreed plan is closed and a
+   * closed one reopened. Whether the caller actually holds the right is the
+   * server's answer, and a refusal is shown as it arrives rather than being
+   * hidden behind a missing button.
+   */
+  function budgetLifecycle() {
+    const summaries = budgetState.summaries || [];
+
+    if (!summaries.length) {
+      return card('Lifecycle', 'Draft, raised, agreed to, closed',
+        emptyState('\u25CB', 'No versions yet', 'Write the year\u2019s first plan to start its life.'));
+    }
+
+    const rows = summaries.map(s => {
+      const open = budgetState.detail && budgetState.detail.ulid === s.ulid;
+      const decision = s.decision_reason || s.reason;
+
+      return `<tr${open ? ' style="background:var(--info-bg)"' : ''}>
+        <td>v${esc(s.version_no)}${open ? ' ' + badge('info', 'On screen') : ''}</td>
+        <td>${budgetStatusBadge(s.status)}</td>
+        <td>${esc(s.name || '\u2014')}</td>
+        <td>${decision ? esc(decision) : '\u2014'}</td>
+        <td>${s.decided_at ? esc(fmtDateTime(s.decided_at)) : '\u2014'}</td>
+        <td>${esc(fmtDateTime(s.updated_at))}</td>
+        <td class="num">${budgetRowActions(s)}</td>
+      </tr>`;
+    }).join('');
+
+    return card('Lifecycle', 'Each version\u2019s state, and the acts that move it',
+      `<div class="note">A plan is drafted, raised for a decision, agreed to and closed. Once a version has been raised its amounts are frozen: a change to an agreed plan is written as the next version, which leaves the one that was agreed to untouched.</div>
+       <div class="table-wrap" style="margin-top:12px"><table class="data">
+        <thead><tr><th>Version</th><th>Status</th><th>Name</th><th>Reason / decision</th><th>Decided</th><th>Written</th><th class="num">Acts</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`);
+  }
+
+  function budgetRowActions(s) {
+    const buttons = [
+      `<button class="btn btn--quiet btn--sm" data-act="budget-open" data-ulid="${esc(s.ulid)}">Open</button>`
+    ];
+
+    if (s.status === 'draft') {
+      buttons.push(`<button class="btn btn--primary btn--sm" data-act="budget-submit" data-ulid="${esc(s.ulid)}">Raise for approval</button>`);
+    }
+    if (s.status === 'pending_approval') {
+      buttons.push(`<button class="btn btn--primary btn--sm" data-act="budget-approve" data-ulid="${esc(s.ulid)}">Approve</button>`);
+      buttons.push(`<button class="btn btn--quiet btn--sm" data-act="budget-reject" data-ulid="${esc(s.ulid)}">Send back</button>`);
+    }
+    if (s.status === 'approved') {
+      buttons.push(`<button class="btn btn--quiet btn--sm" data-act="budget-lock" data-ulid="${esc(s.ulid)}">Close</button>`);
+    }
+    if (s.status === 'locked') {
+      buttons.push(`<button class="btn btn--quiet btn--sm" data-act="budget-unlock" data-ulid="${esc(s.ulid)}">Reopen</button>`);
+    }
+
+    return buttons.join(' ');
+  }
+
+  /* -------------------------------------------- budgets: plan vs actual */
+
+  /**
+   * The plan the company wrote for one period, beside what the ledger posted.
+   *
+   * Every figure is read: the plan column is the live plan the version was
+   * published into, and the actual column is the period's posted ledger, read
+   * through the same profit and loss statement the reports use. The variance
+   * is the actual less the plan, so a positive figure is above plan —
+   * favourable on revenue and unfavourable on expense.
+   */
+  function budgetVariance(yearPeriods) {
+    const periods = (yearPeriods || []).slice()
+      .sort((a, b) => Number(a.period_no) - Number(b.period_no));
+
+    if (!periods.length) {
+      return card('Plan against actual', '', emptyState('\u25CB', 'No periods in this year',
+        'The fiscal year holds no periods to compare over.'));
+    }
+
+    const tools = `<label class="field" style="min-width:230px"><span class="field__label">Fiscal period</span>
+        <select data-act="budget-bva-period">${periods.map(p =>
+          `<option value="${esc(p.ulid)}"${p.ulid === budgetState.bvaPeriod ? ' selected' : ''}>${esc(p.name)} \u00b7 ${esc(p.starts_on)}</option>`).join('')}</select></label>
+      <button class="btn btn--quiet btn--sm" data-act="budget-bva-run">Read it</button>`;
+
+    const title = 'Plan against actual';
+    const subtitle = 'The plan the company wrote for a period, beside what the ledger actually posted';
+
+    const bva = budgetState.bva;
+
+    if (bva instanceof Error) {
+      return card(title, subtitle, `<div class="note note--warn">${esc(bva.message)}</div>`, tools);
+    }
+
+    if (!bva) {
+      return card(title, subtitle,
+        emptyState('\u25CB', 'Nothing read yet', 'Choose a period and read the comparison.'), tools);
+    }
+
+    const revenue = (bva.revenue && bva.revenue.accounts) || [];
+    const expense = (bva.expense && bva.expense.accounts) || [];
+
+    if (!revenue.length && !expense.length) {
+      return card(title, subtitle, emptyState('\u25CB', 'Nothing to compare',
+        'Neither the plan nor the ledger holds a revenue or expense figure for this period.'), tools);
+    }
+
+    const totals = '<div class="grid grid--thirds">' +
+      budgetVarianceTotal('Revenue', bva.revenue) +
+      budgetVarianceTotal('Expense', bva.expense) +
+      budgetVarianceTotal('Net', bva.net) +
+      '</div>';
+
+    const chart = (label, rows) => {
+      if (!rows.length) {
+        return card(label, '', emptyState('\u25CB', 'Nothing in this section',
+          'Neither the plan nor the ledger holds a figure here.'));
+      }
+
+      const measures = [
+        { label: 'Plan', kind: 'bar', values: rows.map(r => Number(r.budget)), color: 1 },
+        { label: 'Actual', kind: 'bar', values: rows.map(r => Number(r.actual)), color: 2 }
+      ];
+
+      return card(label, 'Per account, the plan beside what was posted',
+        chartSvg({ periods: rows.map(r => ({ name: r.code })) }, measures));
+    };
+
+    const rows = revenue.concat(expense).map(r => `<tr>
+      <td class="budget-grid__code">${esc(r.code)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${badge(r.account_type === 'revenue' ? 'info' : 'muted', r.account_type === 'revenue' ? 'Revenue' : 'Expense')}</td>
+      <td class="num">${esc(fmtMoney(r.budget))}</td>
+      <td class="num">${esc(fmtMoney(r.actual))}</td>
+      <td class="num ${moneyClass(r.variance)}">${esc(fmtMoney(r.variance))}</td>
+      <td class="num">${r.variance_percent === null || r.variance_percent === undefined
+        ? '\u2014' : esc(Number(r.variance_percent).toFixed(2) + '%')}</td>
+    </tr>`).join('');
+
+    const body = totals +
+      '<div class="grid grid--halves" style="margin-top:16px">' +
+        chart('Revenue accounts', revenue) + chart('Expense accounts', expense) +
+      '</div>' +
+      `<div class="table-wrap" style="margin-top:16px"><table class="data">
+        <thead><tr><th>Code</th><th>Account</th><th>Section</th><th class="num">Plan</th>
+          <th class="num">Actual</th><th class="num">Variance</th><th class="num">%</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` +
+      (bva.note ? `<div class="note" style="margin-top:14px">${esc(bva.note)}</div>` : '');
+
+    return card(title, subtitle, body, tools);
+  }
+
+  function budgetVarianceTotal(label, totals) {
+    const t = totals || {};
+    const percent = t.variance_percent === null || t.variance_percent === undefined
+      ? '' : ` (${Number(t.variance_percent).toFixed(2)}%)`;
+
+    return `<section class="card budget-bva__total">
+      <span class="kpi__label">${esc(label)}</span>
+      <div class="facts">
+        <div class="fact"><span class="fact__k">Plan</span>
+          <strong class="fact__v">${esc(fmtMoney(t.budget))}</strong></div>
+        <div class="fact"><span class="fact__k">Actual</span>
+          <strong class="fact__v">${esc(fmtMoney(t.actual))}</strong></div>
+        <div class="fact"><span class="fact__k">Variance</span>
+          <strong class="fact__v ${moneyClass(t.variance)}">${esc(fmtMoney(t.variance))}${esc(percent)}</strong></div>
+      </div>
+    </section>`;
+  }
+
+  /* ------------------------------------------------ budgets: the editor */
+
+  /**
+   * Open the plan editor for the year.
+   *
+   * What the editor does is decided by the newest version rather than by the
+   * caller: a draft is edited in place, an agreed plan is superseded by the
+   * next version and has to say why, and a plan that is waiting on a decision
+   * or has been closed refuses a write outright. The refusal is explained here
+   * as well as enforced by the server.
+   */
+  async function budgetOpenEditor() {
+    const latest = budgetState.summaries[0] || null;
+
+    if (latest && (latest.status === 'pending_approval' || latest.status === 'locked')) {
+      toast('bad',
+        latest.status === 'locked' ? 'The plan is closed' : 'The plan is waiting on a decision',
+        latest.status === 'locked'
+          ? 'Reopen the closed version before writing another.'
+          : 'A version that has been raised cannot be changed; it has to be decided first.');
+      return;
+    }
+
+    const list = await periods();
+    const yearPeriods = periodsOfYear(list, budgetState.year).slice()
+      .sort((a, b) => Number(a.period_no) - Number(b.period_no));
+    const chart = await accounts();
+
+    if (!yearPeriods.length) {
+      toast('bad', 'No periods to plan over', 'The fiscal year holds no periods.');
+      return;
+    }
+
+    const plannable = chart
+      .filter(a => a.account_type === 'revenue' || a.account_type === 'expense')
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+
+    if (!plannable.length) {
+      toast('bad', 'No plannable accounts', 'A plan is made of revenue and expense accounts, and the chart holds none.');
+      return;
+    }
+
+    const editing = latest !== null && latest.status === 'draft';
+    const superseding = latest !== null && latest.status === 'approved';
+    const seed = editing ? budgetState.detail : null;
+
+    const form = await budgetPlanModal({
+      title: editing ? 'Edit draft version v' + latest.version_no
+        : (superseding ? 'Write the next version of the plan' : 'Write the year\u2019s plan'),
+      okLabel: editing ? 'Save the draft' : (superseding ? 'Save the new version' : 'Save the plan'),
+      requireReason: superseding,
+      seed: seed,
+      periods: yearPeriods,
+      accounts: plannable
+    });
+
+    if (!form) return;
+
+    const body = {
+      fiscal_year: budgetState.year,
+      name: form.name,
+      reason: form.reason,
+      lines: form.lines
+    };
+
+    if (editing && seed) body.expected_row_version = seed.row_version;
+
+    try {
+      const payload = await api('/budgets/versions', { method: 'PUT', key: newKey(), body: body });
+      const saved = (payload && payload.data) || {};
+      budgetState.version = saved.ulid || '';
+      toast('ok', editing ? 'The draft is saved' : 'The plan is saved',
+        'Version ' + saved.version_no + ' \u00b7 it posts nothing to the ledger.');
       go('budgets');
     } catch (error) {
       toast('bad', error.message, 'The plan was not saved.');
-    } finally {
-      button.disabled = false;
+    }
+  }
+
+  function budgetPlanModal(options) {
+    const promise = openModal(options.title, budgetPlanBody(options), options.okLabel, 'primary');
+
+    const ok = $('#modal-ok');
+    const nameInput = $('#budget-plan-name');
+    if (nameInput) nameInput.focus();
+
+    ok.onclick = () => {
+      const read = budgetReadPlanForm();
+      const error = $('[data-error="budget-plan"]');
+      if (read.error) {
+        if (error) error.textContent = read.error;
+        return;
+      }
+      if (error) error.textContent = '';
+      ok.onclick = null;
+      closeModal(read.value);
+    };
+
+    return promise;
+  }
+
+  function budgetPlanBody(options) {
+    const seed = options.seed || {};
+    const periods = options.periods || [];
+    const accounts = options.accounts || [];
+
+    // A version's lines are one per account, period and cost centre; the grid
+    // has no cost-centre column, so the amounts are summed across them.
+    const amounts = {};
+    (seed.lines || []).forEach(line => {
+      const key = Number(line.account_id) + ':' + Number(line.fiscal_period_id);
+      amounts[key] = (amounts[key] || 0) + Number(line.amount);
+    });
+
+    const header = periods.map(p => `<th class="num">${esc(budgetPeriodLabel(p))}</th>`).join('');
+
+    const rows = accounts.map(a => {
+      const cells = periods.map(p => {
+        const value = amounts[Number(a.id) + ':' + Number(p.id)];
+        return `<td class="num"><input class="budget-input" inputmode="decimal"
+          data-act="budget-cell" data-account="${esc(a.id)}" data-period="${esc(p.ulid)}"
+          value="${value ? esc(budgetTrim(value)) : ''}" placeholder="0"
+          aria-label="${esc(a.code + ' ' + a.name + ', ' + p.name)}"></td>`;
+      }).join('');
+
+      return `<tr><td class="budget-grid__code">${esc(a.code)}</td><td>${esc(a.name)}</td>${cells}</tr>`;
+    }).join('');
+
+    return `<label class="field"><span class="field__label">Plan name</span>
+        <input id="budget-plan-name" value="${esc(seed.name || '')}" maxlength="255" placeholder="Annual plan"></label>
+      ${options.requireReason ? `<label class="field" style="margin-top:12px"><span class="field__label">Why the plan is being changed</span>
+        <textarea id="budget-plan-reason" rows="2" maxlength="500" placeholder="The board revised the revenue target for the year."></textarea></label>` : ''}
+      <div class="note" style="margin-top:12px">Enter an amount in any month; leave a cell blank to plan nothing for it. Amounts are plain decimals, and a contra account is planned as a negative figure.</div>
+      <div class="table-wrap" style="margin-top:10px;max-height:340px;overflow:auto"><table class="data budget-plan">
+        <thead><tr><th>Code</th><th>Account</th>${header}</tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <em class="field__error" data-error="budget-plan"></em>`;
+  }
+
+  function budgetReadPlanForm() {
+    const inputs = $$('#modal-body [data-act="budget-cell"]');
+    const lines = [];
+    let bad = '';
+
+    inputs.forEach(input => {
+      const raw = String(input.value || '').trim();
+      if (raw === '') return;
+
+      if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+        bad = bad || 'Every amount must be a plain decimal \u2014 try 12500 or -500.';
+        return;
+      }
+
+      if (Number(raw) === 0) return;
+
+      lines.push({
+        fiscal_period: input.dataset.period,
+        account_id: Number(input.dataset.account),
+        amount: raw
+      });
+    });
+
+    if (bad) return { error: bad };
+    if (!lines.length) return { error: 'A plan needs at least one amount. Enter a figure in any month.' };
+
+    const reasonInput = $('#budget-plan-reason');
+    const name = (($('#budget-plan-name') || {}).value || '').trim();
+    const reason = reasonInput ? reasonInput.value.trim() : '';
+
+    if (reasonInput && reason.length < 3) {
+      return { error: 'A change to an agreed plan has to say why \u2014 at least three characters.' };
+    }
+
+    return { value: { name: name || null, reason: reason || null, lines: lines } };
+  }
+
+  /* --------------------------------------------- budgets: the acts */
+
+  async function budgetSubmit(ulid) {
+    await budgetMove(ulid, 'submit', 'Plan raised for approval',
+      'It now waits in the approvals queue for a member other than the one who wrote it.');
+  }
+
+  async function budgetApprove(ulid) {
+    await budgetMove(ulid, 'approve', 'Plan approved',
+      'It is now the version the company means to follow.');
+  }
+
+  async function budgetLockVersion(ulid) {
+    await budgetMove(ulid, 'lock', 'Plan closed',
+      'Nothing more may be raised against it until it is reopened.');
+  }
+
+  async function budgetUnlockVersion(ulid) {
+    await budgetMove(ulid, 'unlock', 'Plan reopened',
+      'It returns to Approved, and the next version may be started from it.');
+  }
+
+  async function budgetReject(ulid) {
+    const reason = await promptModal({
+      title: 'Send the plan back',
+      label: 'Why it is not accepted',
+      okLabel: 'Send it back',
+      minLength: 3,
+      hint: 'The plan returns to Draft with this reason, and its author can correct it.'
+    });
+
+    if (!reason) return;
+
+    await budgetMove(ulid, 'reject', 'Plan sent back',
+      'It is a draft again, with the reason kept on the version.', { reason: reason });
+  }
+
+  /**
+   * One move, one idempotency key, one round trip. The key travels with the
+   * request so a double click decides the plan once, and the screen is re-read
+   * afterwards rather than redrawn from what it held before.
+   */
+  async function budgetMove(ulid, action, okText, okDetail, body) {
+    try {
+      await api('/budgets/versions/' + encodeURIComponent(ulid) + '/' + action, {
+        method: 'POST',
+        key: newKey(),
+        body: body || {}
+      });
+      toast('ok', okText, okDetail);
+      go('budgets');
+    } catch (error) {
+      toast('bad', error.message, 'The plan was not moved.');
     }
   }
 
@@ -4292,8 +4933,8 @@
   function promptModal(options) {
     const body =
       `<label class="field"><span class="field__label">${esc(options.label || 'Reason')}</span>
-        <textarea id="modal-reason" rows="4" maxlength="${options.maxLength || 500}"
-          placeholder="Say why, in a sentence somebody else could act on."></textarea></label>
+        <textarea id="modal-reason" rows="${options.rows || 4}" maxlength="${options.maxLength || 500}"
+          placeholder="${esc(options.placeholder || 'Say why, in a sentence somebody else could act on.')}">${esc(options.value || '')}</textarea></label>
        <em class="field__error" data-error="reason"></em>
        <p>${esc(options.hint || '')}</p>`;
     const promise = openModal(options.title, body, options.okLabel, 'primary');
@@ -4301,6 +4942,7 @@
     const ok = $('#modal-ok');
     const textarea = $('#modal-reason');
     textarea.focus();
+    textarea.select();
 
     // A rejection without a reason is refused by the server; refusing it here
     // as well saves a round trip, and the server remains the authority.
@@ -4356,10 +4998,19 @@
       if (act === 'approval-bulk-clear') { approvalState.checked = {}; renderApprovals(); return; }
       if (act === 'run-report') { runReport(REPORT_DEFS.find(d => d.key === reportState.key)); return; }
       if (act === 'export') { startExport(); return; }
-      if (act === 'budget-load' || act === 'budget-period') { budgetState.loaded = false; go('budgets'); return; }
-      if (act === 'budget-save') { budgetSave(); return; }
-      if (act === 'budget-add-line') { budgetAddLine(); return; }
-      if (act === 'budget-remove-line') { budgetRemoveLine(Number(trigger.dataset.index)); return; }
+      if (act === 'budget-refresh') { go('budgets'); return; }
+      if (act === 'budget-new') { budgetOpenEditor(); return; }
+      if (act === 'budget-open') {
+        budgetState.version = trigger.dataset.ulid;
+        go('budgets');
+        return;
+      }
+      if (act === 'budget-submit') { budgetSubmit(trigger.dataset.ulid); return; }
+      if (act === 'budget-approve') { budgetApprove(trigger.dataset.ulid); return; }
+      if (act === 'budget-reject') { budgetReject(trigger.dataset.ulid); return; }
+      if (act === 'budget-lock') { budgetLockVersion(trigger.dataset.ulid); return; }
+      if (act === 'budget-unlock') { budgetUnlockVersion(trigger.dataset.ulid); return; }
+      if (act === 'budget-bva-run') { go('budgets'); return; }
       if (act === 'close-year') { closeYear(trigger.dataset.ulid, trigger.dataset.name); return; }
       if (act === 'reopen') { reopenPeriod(trigger.dataset.ulid, trigger.dataset.name); return; }
       if (act === 'recon-signoff') { signOffReconciliation(trigger.dataset.ulid, trigger.dataset.name); return; }
@@ -4452,11 +5103,18 @@
         go('reports');
         return;
       }
-      if (target.dataset.act === 'budget-period') {
-        budgetState.period = target.value;
-        budgetState.loaded = false;
-        budgetState.lines = [];
-        budgetState.name = '';
+      // A different fiscal year is a different year's plan, so the version on
+      // screen is let go and the newest is read for the year chosen.
+      if (target.dataset.act === 'budget-year') {
+        budgetState.year = target.value;
+        budgetState.version = '';
+        go('budgets');
+        return;
+      }
+      // Reading one period's plan against its actuals leaves the rest of the
+      // screen exactly as it stands: only the comparison is re-read.
+      if (target.dataset.act === 'budget-bva-period') {
+        budgetState.bvaPeriod = target.value;
         go('budgets');
         return;
       }

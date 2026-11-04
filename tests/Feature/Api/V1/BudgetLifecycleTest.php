@@ -8,6 +8,7 @@ use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsAccountingFixtures;
 
@@ -92,7 +93,7 @@ function nxLifeVersionBody(int $fiscalYearId, int $fiscalPeriodId, array $lines)
  * request would then carry a key it never meant to name.
  *
  * @param  array<string, mixed>  $body
- * @return \Illuminate\Testing\TestResponse
+ * @return TestResponse
  */
 function nxLifeDecision(string $method, string $uri, array $body, string $key)
 {
@@ -218,6 +219,67 @@ it('walks a plan from draft to raised to approved to locked and back', function 
     nxLifeDecision('POST', "/api/v1/budgets/versions/{$ulid}/unlock", [], 'life-unlock')
         ->assertOk()
         ->assertJsonPath('data.status', 'approved');
+});
+
+it('supersedes a plan that has been agreed to with the next version, leaving the first alone', function () {
+    $manager = nxLifeMember($this->companyId, AccessMatrix::ROLE_FINANCIAL_MANAGER);
+    $owner = nxLifeMember($this->companyId, AccessMatrix::ROLE_OWNER);
+
+    Sanctum::actingAs($manager);
+
+    $first = $this->putJson('/api/v1/budgets/versions', nxLifeVersionBody($this->fiscalYearId, $this->fiscalPeriodId, [
+        ['account_id' => $this->revenueAccountId, 'amount' => '12000.0000'],
+    ]))->assertCreated()->json('data');
+
+    // The plan is raised and agreed to, so its amounts are frozen where they are.
+    $this->postJson("/api/v1/budgets/versions/{$first['ulid']}/submit")->assertOk();
+
+    Sanctum::actingAs($owner);
+
+    nxLifeDecision('POST', "/api/v1/budgets/versions/{$first['ulid']}/approve", [], 'next-approve')
+        ->assertOk()
+        ->assertJsonPath('data.status', 'approved');
+
+    // A change to an agreed plan is the next version, and it has to say why.
+    Sanctum::actingAs($manager);
+
+    $this->putJson('/api/v1/budgets/versions', nxLifeVersionBody($this->fiscalYearId, $this->fiscalPeriodId, [
+        ['account_id' => $this->revenueAccountId, 'amount' => '15000.0000'],
+    ]))
+        ->assertStatus(409)
+        ->assertJsonPath('error', 'BudgetStateException');
+
+    $second = $this->putJson('/api/v1/budgets/versions', [
+        'fiscal_year' => nxLifeYearUlid($this->fiscalYearId),
+        'name' => 'FY2026 Plan (revised)',
+        'reason' => 'The board revised the revenue target for the year.',
+        'lines' => [[
+            'fiscal_period' => nxLifePeriodUlid($this->fiscalPeriodId),
+            'account_id' => $this->revenueAccountId,
+            'amount' => '15000.0000',
+        ]],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.version_no', 2)
+        ->assertJsonPath('data.status', 'draft')
+        ->json('data');
+
+    // The superseded version is still there, still approved, and still says what
+    // it said: the history is append-only.
+    $this->getJson("/api/v1/budgets/versions/{$first['ulid']}")
+        ->assertOk()
+        ->assertJsonPath('data.version_no', 1)
+        ->assertJsonPath('data.status', 'approved')
+        ->assertJsonPath('data.lines.0.amount', '12000.0000');
+
+    // The live plan the reports read is now the second version, not a blend of
+    // the two.
+    expect(nxLifeLivePlan($this->companyId, $this->fiscalPeriodId))
+        ->toBe([[
+            'account_id' => $this->revenueAccountId,
+            'cost_center_id' => null,
+            'amount' => '15000.0000',
+        ]]);
 });
 
 it('records every move of a plan in the audit chain', function () {

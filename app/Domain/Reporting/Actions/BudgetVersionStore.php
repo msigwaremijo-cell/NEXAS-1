@@ -138,10 +138,19 @@ final class BudgetVersionStore
 
     private function start(int $companyId, int $userId, FiscalYear $year, ?string $name, ?string $reason): BudgetVersion
     {
+        // The next number in this year's history. It is read inside the caller's
+        // transaction, where the newest version of the year is already locked, so
+        // two concurrent writes cannot both claim version N — and the unique index
+        // over (company, year, version_no) refuses the second one if they try.
+        $next = 1 + (int) BudgetVersion::query()
+            ->where('company_id', $companyId)
+            ->where('fiscal_year_id', $year->getKey())
+            ->max('version_no');
+
         $version = new BudgetVersion([
             'company_id' => $companyId,
             'fiscal_year_id' => $year->getKey(),
-            'version_no' => 1,
+            'version_no' => $next,
             'status' => BudgetStatus::Draft,
             'name' => $name ?? $year->name,
             'reason' => $reason,
