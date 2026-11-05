@@ -110,7 +110,10 @@ final class ReverseDebitNote
                 ]);
 
             if ($affected !== 1) {
-                throw ConcurrentModificationException::journal($locked);
+                throw ConcurrentModificationException::row(
+                    sprintf('Bill %s', $locked->bill_no),
+                    (int) $locked->row_version,
+                );
             }
 
             $this->audit->record('debit_note.reversed', $locked, [

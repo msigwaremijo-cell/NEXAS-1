@@ -158,7 +158,10 @@ final class IssueCreditNote
                 ]);
 
             if ($affected !== 1) {
-                throw ConcurrentModificationException::journal($locked);
+                throw ConcurrentModificationException::row(
+                    sprintf('Invoice %s', $locked->invoice_no),
+                    (int) $locked->row_version,
+                );
             }
 
             $issued = Invoice::query()->findOrFail($locked->getKey());

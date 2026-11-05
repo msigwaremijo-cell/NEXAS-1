@@ -168,7 +168,10 @@ final class PostDebitNote
                 ]);
 
             if ($affected !== 1) {
-                throw ConcurrentModificationException::journal($locked);
+                throw ConcurrentModificationException::row(
+                    sprintf('Bill %s', $locked->bill_no),
+                    (int) $locked->row_version,
+                );
             }
 
             $postedNote = Bill::query()->findOrFail($locked->getKey());

@@ -125,7 +125,10 @@ final class PostBill
                 ]);
 
             if ($affected !== 1) {
-                throw ConcurrentModificationException::journal($locked);
+                throw ConcurrentModificationException::row(
+                    sprintf('Bill %s', $locked->bill_no),
+                    (int) $locked->row_version,
+                );
             }
 
             $postedBill = Bill::query()->findOrFail($locked->getKey());
