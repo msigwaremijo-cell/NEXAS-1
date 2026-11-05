@@ -19,7 +19,8 @@ use InvalidArgumentException;
 final class JournalEntryData
 {
     /**
-     * @param  array<int, JournalLineData>  $lines
+     * @param  array<int, mixed>  $lines  Every element is checked to be a
+     *                                    JournalLineData in the constructor.
      */
     public function __construct(
         public readonly int $companyId,

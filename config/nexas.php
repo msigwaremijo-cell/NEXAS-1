@@ -329,4 +329,20 @@ return [
         'low_cash_threshold' => (string) env('NEXAS_FORECAST_LOW_CASH_THRESHOLD', '0'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Local Seeding
+    |--------------------------------------------------------------------------
+    |
+    | The password LocalFinancialManagerSeeder writes for the local-only
+    | Financial Manager account. It is deliberately a secret: read from the
+    | environment and never committed, so .env is ignored and only a commented
+    | placeholder reaches .env.example. It is resolved here rather than in the
+    | seeder so the value is read once at boot and a deployment that caches its
+    | configuration still carries it.
+    |
+    */
+
+    'local_finance_manager_password' => env('NEXAS_FINANCE_MANAGER_PASSWORD'),
+
 ];

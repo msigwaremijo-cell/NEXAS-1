@@ -179,7 +179,7 @@ final class BudgetVarianceQuery
     {
         $planned = [];
 
-        foreach ($budget?->lines ?? [] as $line) {
+        foreach ($budget->lines ?? [] as $line) {
             $id = (int) $line->account_id;
             $planned[$id] = ($planned[$id] ?? Money::zero())
                 ->plus(Money::of((string) $line->amount));

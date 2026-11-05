@@ -599,7 +599,7 @@ final class CashFlowQuery
      */
     private function bucketKey(Account $account): string
     {
-        return $account->cash_flow_category?->value ?? 'unclassified';
+        return $account->cash_flow_category->value ?? 'unclassified';
     }
 
     /**

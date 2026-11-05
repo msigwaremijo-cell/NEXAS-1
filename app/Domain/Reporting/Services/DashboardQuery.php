@@ -396,7 +396,7 @@ final class DashboardQuery
             },
             'higher_is_better' => $higherIsBetter,
             'report' => $report,
-            'sparkline' => array_values($sparkline),
+            'sparkline' => $sparkline,
         ];
     }
 
@@ -439,7 +439,7 @@ final class DashboardQuery
                 'api' => '/api/v1/reports/profit-and-loss',
                 'label' => 'Profit and Loss',
             ],
-            'sparkline' => array_values($sparkline),
+            'sparkline' => $sparkline,
         ];
     }
 
@@ -1091,7 +1091,7 @@ final class DashboardQuery
             'actual_label' => 'Stock on hand',
             'actual' => $total->toDecimal(),
             'difference' => $difference->toDecimal(),
-            'reconciled' => ($valuation['reconciled'] ?? false) === true,
+            'reconciled' => $valuation['reconciled'] === true,
             'basis' => 'The layers are the one place the quantity is recorded; the valuation report '
                 .'compares them with the inventory accounts as at '.$asOf.'.',
         ];

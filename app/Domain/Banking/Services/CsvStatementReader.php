@@ -111,7 +111,7 @@ final class CsvStatementReader
         // which would then not match the name a person reads off the preview.
         $values[0] = preg_replace('/^\xEF\xBB\xBF/', '', $values[0]) ?? $values[0];
 
-        if ($values === [] || $values === ['']) {
+        if ($values === ['']) {
             throw BankStatementException::emptyFile();
         }
 

@@ -230,6 +230,6 @@ final class CreateDebitNote
             ->whereNotIn('status', [BillStatus::Void->value, BillStatus::Reversed->value])
             ->sum('total');
 
-        return $open->minus(Money::of($debited === null ? '0' : (string) $debited));
+        return $open->minus(Money::of((string) $debited));
     }
 }

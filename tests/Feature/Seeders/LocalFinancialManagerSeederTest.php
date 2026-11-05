@@ -31,6 +31,7 @@ function nxSetLocalPasswordEnv(?string $password): void
     if ($password === null) {
         unset($_ENV[$key], $_SERVER[$key]);
         putenv($key);
+        config(['nexas.local_finance_manager_password' => null]);
 
         return;
     }
@@ -38,6 +39,7 @@ function nxSetLocalPasswordEnv(?string $password): void
     $_ENV[$key] = $password;
     $_SERVER[$key] = $password;
     putenv($key.'='.$password);
+    config(['nexas.local_finance_manager_password' => $password]);
 }
 
 it('creates the Financial Manager from the environment password and grants the role', function () {

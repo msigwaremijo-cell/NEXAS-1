@@ -83,11 +83,11 @@ final class LedgerBalanceCalculator
             $opened = $opening->get($accountId);
             $moved = $movement->get($accountId);
 
-            $openingNet = Money::of((string) ($opened?->debit ?? '0'))
-                ->minus(Money::of((string) ($opened?->credit ?? '0')));
+            $openingNet = Money::of((string) ($opened->debit ?? '0'))
+                ->minus(Money::of((string) ($opened->credit ?? '0')));
 
-            $periodDebit = Money::of((string) ($moved?->debit ?? '0'));
-            $periodCredit = Money::of((string) ($moved?->credit ?? '0'));
+            $periodDebit = Money::of((string) ($moved->debit ?? '0'));
+            $periodCredit = Money::of((string) ($moved->credit ?? '0'));
 
             $closingNet = $openingNet->plus($periodDebit)->minus($periodCredit);
 

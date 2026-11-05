@@ -63,7 +63,7 @@ final class SaveBudgetPlan
 
             $plan = $this->canonical($lines);
             $before = $budget === null ? null : $this->snapshot($budget);
-            $requestedName = $name ?? $budget?->name ?? $period->name;
+            $requestedName = $name ?? $budget->name ?? $period->name;
 
             if ($before !== null && $before['name'] === $requestedName && $before['lines'] === $plan) {
                 return $budget->load('lines');

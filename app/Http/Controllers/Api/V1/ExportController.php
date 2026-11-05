@@ -113,7 +113,7 @@ class ExportController extends Controller
 
         $export = Export::create([
             'company_id' => $this->companyId($request),
-            'user_id' => (int) $request->user()?->getKey(),
+            'user_id' => (int) $request->user()->getKey(),
             'type' => $data['type'],
             'format' => $data['format'],
             'status' => ExportStatus::Queued,

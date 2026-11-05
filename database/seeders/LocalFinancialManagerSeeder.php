@@ -38,7 +38,9 @@ class LocalFinancialManagerSeeder extends Seeder
 
     /**
      * Where the local password is read from. Never committed: .env is ignored,
-     * and only a commented placeholder reaches .env.example.
+     * and only a commented placeholder reaches .env.example. The value is
+     * resolved through config so it survives a cached configuration; this name
+     * is kept for the guards' messages.
      */
     private const PASSWORD_ENV = 'NEXAS_FINANCE_MANAGER_PASSWORD';
 
@@ -51,7 +53,7 @@ class LocalFinancialManagerSeeder extends Seeder
             );
         }
 
-        $password = trim((string) env(self::PASSWORD_ENV));
+        $password = trim((string) config('nexas.local_finance_manager_password'));
 
         if ($password === '') {
             throw new RuntimeException(

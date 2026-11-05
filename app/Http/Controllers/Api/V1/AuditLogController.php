@@ -184,7 +184,7 @@ class AuditLogController extends Controller
             'before' => $entry->before,
             'after' => $entry->after,
             'ip_address' => $entry->ip_address,
-            'created_at' => $entry->created_at?->toIso8601String(),
+            'created_at' => $entry->created_at->toIso8601String(),
             'chain_valid' => $valid[(int) $entry->getKey()] ?? null,
         ];
     }

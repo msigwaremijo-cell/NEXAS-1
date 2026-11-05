@@ -251,7 +251,7 @@ class StockMovementController extends Controller
     }
 
     /**
-     * @return array<string, array<int, mixed>>
+     * @return array<int, mixed>
      */
     private function productRule(int $companyId): array
     {
@@ -262,7 +262,7 @@ class StockMovementController extends Controller
     }
 
     /**
-     * @return array<string, array<int, mixed>>
+     * @return array<int, mixed>
      */
     private function warehouseRule(int $companyId): array
     {
@@ -273,7 +273,7 @@ class StockMovementController extends Controller
     }
 
     /**
-     * @return array<string, array<int, mixed>>
+     * @return array<int, mixed>
      */
     private function accountRule(int $companyId): array
     {
@@ -288,7 +288,7 @@ class StockMovementController extends Controller
      * as DECIMAL(19,6) and a float cannot round-trip it. The regex is what
      * separates a quantity from the signed one an adjustment is allowed.
      *
-     * @return array<string, array<int, mixed>>
+     * @return array<int, mixed>
      */
     private function positiveQuantityRule(): array
     {

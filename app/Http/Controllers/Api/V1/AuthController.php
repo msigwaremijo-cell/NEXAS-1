@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Contracts\HasAbilities;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -49,7 +50,7 @@ class AuthController extends Controller
         // Hash::check is still called when the user is missing, so a wrong
         // address and a wrong password take the same time to answer and the
         // endpoint does not become a way to enumerate accounts.
-        if (! Hash::check($data['password'], $user?->password ?? '')) {
+        if (! Hash::check($data['password'], $user->password ?? '')) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
             ]);
@@ -161,7 +162,7 @@ class AuthController extends Controller
         // Hash::check is still called when the user is missing, so a wrong
         // address and a wrong password take the same time to answer and the
         // endpoint does not become a way to enumerate accounts.
-        if (! Hash::check($data['password'], $user?->password ?? '')) {
+        if (! Hash::check($data['password'], $user->password ?? '')) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
             ]);
@@ -223,6 +224,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        /** @var HasAbilities|null $token */
         $token = $request->user()->currentAccessToken();
 
         // A token resolved from a session is a TransientToken with nothing to

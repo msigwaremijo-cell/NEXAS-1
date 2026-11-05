@@ -344,10 +344,6 @@ final class MysqlClient
     {
         $environment = getenv();
 
-        if (! is_array($environment)) {
-            $environment = [];
-        }
-
         $environment['MYSQL_PWD'] = $this->connection()['password'];
 
         return $environment;

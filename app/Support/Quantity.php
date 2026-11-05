@@ -31,8 +31,6 @@ final class Quantity
     /**
      * Normalise to the stored scale. Floats are refused for the same reason
      * Money refuses them: the value may already be wrong before it arrives.
-     *
-     * @param  string|int  $value
      */
     public static function of(mixed $value): string
     {

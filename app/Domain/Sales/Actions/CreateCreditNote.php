@@ -220,6 +220,6 @@ final class CreateCreditNote
             ->where('invoices.status', '!=', InvoiceStatus::Void->value)
             ->sum('invoice_lines.quantity');
 
-        return Quantity::of($credited === null ? '0' : (string) $credited);
+        return Quantity::of((string) $credited);
     }
 }
