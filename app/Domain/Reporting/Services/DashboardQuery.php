@@ -720,7 +720,7 @@ final class DashboardQuery
             'items' => $rows->map(fn (Invoice $invoice): array => [
                 'ulid' => $invoice->ulid,
                 'reference' => $invoice->invoice_no,
-                'due_date' => $invoice->due_date?->toDateString(),
+                'due_date' => $invoice->due_date->toDateString(),
                 'outstanding' => $this->money($invoice->total)->minus($this->money($invoice->amount_paid))->toDecimal(),
             ])->all(),
             'route' => '/financial-manager/reports?report=receivables_ageing',
@@ -758,7 +758,7 @@ final class DashboardQuery
             'items' => $rows->map(fn (Bill $bill): array => [
                 'ulid' => $bill->ulid,
                 'reference' => $bill->bill_no,
-                'due_date' => $bill->due_date?->toDateString(),
+                'due_date' => $bill->due_date->toDateString(),
                 'outstanding' => $this->money($bill->total)->minus($this->money($bill->amount_paid))->toDecimal(),
             ])->all(),
             'route' => '/financial-manager/reports?report=payables_ageing',

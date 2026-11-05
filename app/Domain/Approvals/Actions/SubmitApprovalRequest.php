@@ -139,7 +139,7 @@ final class SubmitApprovalRequest
             ApprovalDocumentType::Budget => $document instanceof BudgetVersion
                 ? sprintf(
                     '%s · version %d',
-                    (string) ($document->fiscalYear?->name ?? 'Plan'),
+                    (string) $document->fiscalYear->name,
                     (int) $document->version_no,
                 )
                 : null,

@@ -161,8 +161,6 @@ final class BulkDecideApprovalRequests
      * Deterministic from the batch key and the ULID, so a retried batch derives
      * the same key for the same document and replays that decision instead of
      * deciding it again. Kept inside the `key` column's own width.
-     *
-     * @param  array<string, array<string, mixed>>  $lines
      */
     private function itemKey(string $bulkKey, string $ulid): string
     {

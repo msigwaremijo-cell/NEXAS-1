@@ -169,8 +169,8 @@ class CreditNoteController extends Controller
                 ? null
                 : (int) $creditNote->credit_note_for_invoice_id,
             'status' => $creditNote->status->value,
-            'invoice_date' => $creditNote->invoice_date?->toDateString(),
-            'due_date' => $creditNote->due_date?->toDateString(),
+            'invoice_date' => $creditNote->invoice_date->toDateString(),
+            'due_date' => $creditNote->due_date->toDateString(),
             'currency_code' => $creditNote->currency_code,
             'exchange_rate' => $creditNote->exchange_rate,
             'reference' => $creditNote->reference,

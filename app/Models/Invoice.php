@@ -68,36 +68,57 @@ class Invoice extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Customer, $this>
+     */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * @return BelongsTo<Currency, $this>
+     */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
+    /**
+     * @return HasMany<InvoiceLine, $this>
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(InvoiceLine::class)->orderBy('line_no');
     }
 
+    /**
+     * @return BelongsTo<Journal, $this>
+     */
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);
     }
 
+    /**
+     * @return HasMany<PaymentAllocation, $this>
+     */
     public function allocations(): HasMany
     {
         return $this->hasMany(PaymentAllocation::class, 'document_id')

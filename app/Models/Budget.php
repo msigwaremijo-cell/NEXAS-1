@@ -47,11 +47,17 @@ class Budget extends Model
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalPeriod, $this>
+     */
     public function fiscalPeriod(): BelongsTo
     {
         return $this->belongsTo(FiscalPeriod::class);
     }
 
+    /**
+     * @return HasMany<BudgetLine, $this>
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(BudgetLine::class)->orderBy('account_id');

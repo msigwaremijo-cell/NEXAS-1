@@ -64,16 +64,25 @@ class BudgetVersionLine extends Model
         return $this->belongsTo(BudgetVersion::class, 'budget_version_id');
     }
 
+    /**
+     * @return BelongsTo<FiscalPeriod, $this>
+     */
     public function fiscalPeriod(): BelongsTo
     {
         return $this->belongsTo(FiscalPeriod::class);
     }
 
+    /**
+     * @return BelongsTo<Account, $this>
+     */
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
     }
 
+    /**
+     * @return BelongsTo<CostCenter, $this>
+     */
     public function costCenter(): BelongsTo
     {
         return $this->belongsTo(CostCenter::class);

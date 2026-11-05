@@ -9,3 +9,10 @@ parameters:
         - routes
 
     level: 5
+
+    # Larastan reads a model's casts from the body of its `casts()` method. Its
+    # default (false) uses the method's declared return type instead, which is
+    # `array<string, string>` here, so no casts resolve, every enum and date
+    # attribute degrades to `string`, and relations widen to `Model`. Parsing
+    # the method body restores the real attribute types.
+    parseModelCastsMethod: true

@@ -80,6 +80,8 @@ final class LedgerQuery
      *
      * Exposed rather than private so the test suite can hand the exact SQL to
      * EXPLAIN and prove which index MySQL actually chooses for it.
+     *
+     * @return Builder<JournalLine>
      */
     public function ledgerLineQuery(int $companyId, int $accountId, ?string $from, ?string $to): Builder
     {
@@ -93,6 +95,8 @@ final class LedgerQuery
      *
      * Exposed for the same reason as ledgerLineQuery: this is the scan the
      * trial balance is built from.
+     *
+     * @return Builder<JournalLine>
      */
     public function trialBalanceQuery(int $companyId, ?string $from, ?string $to): Builder
     {
@@ -296,6 +300,7 @@ final class LedgerQuery
      * wrong, and the two would drift the first time a status is added.
      *
      * @param  array<int, int>  $accountIds
+     * @return Builder<JournalLine>
      */
     public function postedLinesFor(
         int $companyId,
@@ -467,6 +472,8 @@ final class LedgerQuery
      * No ordering: aggregate and count queries are built from this too, and an
      * ORDER BY on a column that is not in an aggregate's select list is
      * rejected outright by ONLY_FULL_GROUP_BY.
+     *
+     * @return Builder<JournalLine>
      */
     private function postedLines(
         int $companyId,

@@ -18,7 +18,7 @@ final class FiscalYearStateException extends AccountingException
         return new self(sprintf(
             'Fiscal year %s is %s, so it cannot be closed. Only an open year can be closed.',
             $year->name,
-            $year->status?->value ?? 'unknown'
+            $year->status->value
         ));
     }
 

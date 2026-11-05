@@ -69,6 +69,9 @@ class BudgetVersion extends Model
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalYear, $this>
+     */
     public function fiscalYear(): BelongsTo
     {
         return $this->belongsTo(FiscalYear::class);
@@ -97,6 +100,8 @@ class BudgetVersion extends Model
     /**
      * The plan itself, in account and period order so the twelve-column grid
      * reads it without sorting again.
+     *
+     * @return HasMany<BudgetVersionLine, $this>
      */
     public function lines(): HasMany
     {

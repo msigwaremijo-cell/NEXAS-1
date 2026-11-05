@@ -29,6 +29,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * is worth and so each posts; a transfer between two of the company's own
  * warehouses changes the total in the inventory account by nothing, so it
  * posts nothing and leaves this column null.
+ *
+ * `status` and `reverses_movement_id` arrive by raw ALTER in a later migration,
+ * so they are declared here rather than read back from the schema.
+ *
+ * @property StockMovementStatus $status
+ * @property int|null $reverses_movement_id
  */
 #[Fillable([
     'ulid',
@@ -67,16 +73,25 @@ class StockMovement extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * @return BelongsTo<Warehouse, $this>
+     */
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
@@ -88,6 +103,8 @@ class StockMovement extends Model
      * Null on everything that is not a purchase: an issue, a count, a transfer
      * and a non-purchase receipt such as opening stock belong to nobody, and a
      * bill may only clear the receipts of its own supplier.
+     *
+     * @return BelongsTo<Supplier, $this>
      */
     public function supplier(): BelongsTo
     {
@@ -108,6 +125,9 @@ class StockMovement extends Model
             ->sum('quantity');
     }
 
+    /**
+     * @return BelongsTo<Journal, $this>
+     */
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);
@@ -115,12 +135,17 @@ class StockMovement extends Model
 
     /**
      * The movement this one undoes, when this is a reversal.
+     *
+     * @return BelongsTo<self, $this>
      */
     public function reverses(): BelongsTo
     {
         return $this->belongsTo(self::class, 'reverses_movement_id');
     }
 
+    /**
+     * @return HasOne<self, $this>
+     */
     public function reversal(): HasOne
     {
         return $this->hasOne(self::class, 'reverses_movement_id');
@@ -128,6 +153,8 @@ class StockMovement extends Model
 
     /**
      * Which layers funded this movement, when it took stock out.
+     *
+     * @return HasMany<StockLayerConsumption, $this>
      */
     public function consumptions(): HasMany
     {

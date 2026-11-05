@@ -43,7 +43,7 @@ final class ForecastUnavailableException extends AccountingException
             'Fiscal year %s is %s, so there is no open year to forecast from. '
             .'Only an open year is projected.',
             $year->name,
-            $year->status?->value ?? 'unknown'
+            $year->status->value
         ));
     }
 }

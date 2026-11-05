@@ -60,31 +60,49 @@ class JournalLine extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Journal, $this>
+     */
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);
     }
 
+    /**
+     * @return BelongsTo<Account, $this>
+     */
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
     }
 
+    /**
+     * @return BelongsTo<Currency, $this>
+     */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
+    /**
+     * @return BelongsTo<TaxCode, $this>
+     */
     public function taxCode(): BelongsTo
     {
         return $this->belongsTo(TaxCode::class);
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

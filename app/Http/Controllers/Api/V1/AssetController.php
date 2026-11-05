@@ -644,7 +644,7 @@ class AssetController extends Controller
             'journal_no' => $journal->journal_no,
             'journal_type' => $journal->journal_type->value,
             'status' => $journal->status->value,
-            'posting_date' => $journal->posting_date?->toDateString(),
+            'posting_date' => $journal->posting_date->toDateString(),
             'reference' => $journal->reference,
             'memo' => $journal->memo,
             'total_debit' => (string) $journal->total_debit,

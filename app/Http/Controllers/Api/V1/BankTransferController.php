@@ -91,7 +91,7 @@ class BankTransferController extends Controller
             'journal_no' => $journal->journal_no,
             'journal_type' => $journal->journal_type->value,
             'status' => $journal->status->value,
-            'posting_date' => $journal->posting_date?->toDateString(),
+            'posting_date' => $journal->posting_date->toDateString(),
             'currency_code' => $journal->currency_code,
             'from_bank_account_id' => $fromBankAccountId,
             'to_bank_account_id' => $toBankAccountId,

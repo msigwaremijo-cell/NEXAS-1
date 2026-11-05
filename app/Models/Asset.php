@@ -70,11 +70,17 @@ class Asset extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<AssetCategory, $this>
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(AssetCategory::class, 'asset_category_id');
@@ -82,6 +88,8 @@ class Asset extends Model
 
     /**
      * The journal a disposal wrote, once one has.
+     *
+     * @return BelongsTo<Journal, $this>
      */
     public function disposalJournal(): BelongsTo
     {

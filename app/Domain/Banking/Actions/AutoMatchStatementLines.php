@@ -100,7 +100,7 @@ final class AutoMatchStatementLines
             $matched[] = [
                 'statement_line_id' => (int) $line->getKey(),
                 'statement_line_ulid' => $line->ulid,
-                'value_date' => $line->value_date?->toDateString(),
+                'value_date' => $line->value_date->toDateString(),
                 'amount' => $proposal['amount'],
                 'journal_line_id' => $proposal['journal_line_id'],
                 'score' => $proposal['score'],
@@ -126,7 +126,7 @@ final class AutoMatchStatementLines
         return [
             'statement_line_id' => (int) $line->getKey(),
             'statement_line_ulid' => $line->ulid,
-            'value_date' => $line->value_date?->toDateString(),
+            'value_date' => $line->value_date->toDateString(),
             'amount' => $this->movement($line),
             'reason' => $reason,
             'detail' => $detail,

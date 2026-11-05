@@ -53,7 +53,10 @@ final class ApproveBill
                 ]);
 
             if ($affected !== 1) {
-                throw ConcurrentModificationException::journal($locked);
+                throw ConcurrentModificationException::row(
+                    sprintf('Bill %s', $locked->bill_no),
+                    (int) $locked->row_version
+                );
             }
 
             $approved = Bill::query()->findOrFail($locked->getKey());

@@ -184,7 +184,7 @@ final class ForecastQuery
                     'period_no' => (int) $period->period_no,
                     'starts_on' => $period->starts_on->toDateString(),
                     'ends_on' => $period->ends_on->toDateString(),
-                    'status' => $period->status?->value,
+                    'status' => $period->status->value,
                 ],
                 // False for a period that has already happened: it is reported,
                 // because a year is read as a whole, but nothing is projected
@@ -208,7 +208,7 @@ final class ForecastQuery
                 'name' => $year->name,
                 'starts_on' => $year->starts_on->toDateString(),
                 'ends_on' => $year->ends_on->toDateString(),
-                'status' => $year->status?->value,
+                'status' => $year->status->value,
             ],
             'current_period' => [
                 'ulid' => $current->ulid,

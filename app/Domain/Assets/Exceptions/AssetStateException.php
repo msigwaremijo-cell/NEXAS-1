@@ -29,7 +29,7 @@ final class AssetStateException extends AssetsException
             .'depreciation charge.',
             $asset->code,
             $asset->name,
-            $asset->status?->value ?? 'unknown'
+            $asset->status->value
         ));
     }
 
@@ -64,7 +64,7 @@ final class AssetStateException extends AssetsException
             'Asset %s is %s and cannot move back to %s. Status moves draft -> in service -> '
             .'disposed, and a move is undone by reversing the journal it wrote.',
             $asset->code,
-            $asset->status?->value ?? 'unknown',
+            $asset->status->value,
             $to->value
         ));
     }
@@ -81,7 +81,7 @@ final class AssetStateException extends AssetsException
             .'they were charged through.',
             $asset->code,
             $asset->name,
-            $asset->status?->value ?? 'unknown'
+            $asset->status->value
         ));
     }
 
@@ -97,7 +97,7 @@ final class AssetStateException extends AssetsException
             .'cost and accumulated depreciation in the books to take out.',
             $asset->code,
             $asset->name,
-            $asset->status?->value ?? 'unknown'
+            $asset->status->value
         ));
     }
 
@@ -127,7 +127,7 @@ final class AssetStateException extends AssetsException
             'Asset %s (%s) is %s, so there is no disposal to reverse.',
             $asset->code,
             $asset->name,
-            $asset->status?->value ?? 'unknown'
+            $asset->status->value
         ));
     }
 

@@ -190,7 +190,7 @@ final class AgeingQuery
 
         foreach ($rows as $row) {
             $partyId = (int) $row->getAttribute($partyColumn);
-            $documents += (int) $row->document_count;
+            $documents += (int) $row->getAttribute('document_count');
 
             $bucket = [];
 
@@ -200,7 +200,7 @@ final class AgeingQuery
                 $totals[$key] = Money::of($totals[$key])->plus($amount)->toDecimal();
             }
 
-            $bucket['total'] = $this->money($row->total_outstanding)->toDecimal();
+            $bucket['total'] = $this->money($row->getAttribute('total_outstanding'))->toDecimal();
 
             $presented[] = [
                 'party_id' => $partyId,

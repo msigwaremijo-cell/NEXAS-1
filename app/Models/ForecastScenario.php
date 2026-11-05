@@ -57,6 +57,9 @@ class ForecastScenario extends Model
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
@@ -65,6 +68,8 @@ class ForecastScenario extends Model
     /**
      * Every saved state, newest first. The history is the point, so it is kept
      * whole and never pruned.
+     *
+     * @return HasMany<ForecastScenarioVersion, $this>
      */
     public function versions(): HasMany
     {
@@ -79,6 +84,8 @@ class ForecastScenario extends Model
      * versions are appended and never deleted, and `current_version_no` only
      * ever advances to a version that was just written. The pointer is kept on
      * the row so the live version is recorded rather than inferred.
+     *
+     * @return HasOne<ForecastScenarioVersion, $this>
      */
     public function currentVersion(): HasOne
     {

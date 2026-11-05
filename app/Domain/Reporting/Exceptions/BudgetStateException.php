@@ -119,6 +119,6 @@ final class BudgetStateException extends AccountingException
 
     private static function year(BudgetVersion $version): string
     {
-        return (string) ($version->fiscalYear?->name ?? 'this fiscal year');
+        return (string) $version->fiscalYear->name;
     }
 }

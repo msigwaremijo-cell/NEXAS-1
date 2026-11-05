@@ -75,7 +75,7 @@ final class ApprovalDetailQuery
      */
     private function summary(ApprovalRequest $request, array $impact, ?int $viewerId): array
     {
-        $status = $request->status instanceof ApprovalStatus ? $request->status : null;
+        $status = $request->status;
         $created = $request->created_at === null ? null : CarbonImmutable::parse((string) $request->created_at);
         $ageDays = $created === null ? null : max(0, (int) $created->diffInDays(CarbonImmutable::now()));
 
@@ -90,7 +90,7 @@ final class ApprovalDetailQuery
             'document_reference' => $request->document_reference,
             'document_ulid' => (string) $request->document_ulid,
             'status' => $request->status->value,
-            'status_label' => $status?->label() ?? (string) $request->status->value,
+            'status_label' => $status->label(),
             'amount' => $impact['amount'],
             'currency_code' => $impact['currency_code'],
             'preparer_id' => $preparerId,
@@ -104,10 +104,9 @@ final class ApprovalDetailQuery
             'created_at' => $created?->toIso8601String(),
             // Whether this reader may decide it now. The server decides again
             // when the decision is made; this is only what the screen shows.
-            'is_pending' => $status !== null && $status->isPending(),
+            'is_pending' => $status->isPending(),
             'raised_by_reader' => $viewerId !== null && $preparerId === $viewerId,
             'can_decide' => $viewerId !== null
-                && $status !== null
                 && $status->isPending()
                 && $preparerId !== $viewerId,
         ];
@@ -169,7 +168,7 @@ final class ApprovalDetailQuery
                 ['label' => 'Journal number', 'value' => (string) ($journal->journal_no ?? '')],
                 ['label' => 'Type', 'value' => $journal->journal_type->label()],
                 ['label' => 'Status', 'value' => $journal->status->label()],
-                ['label' => 'Posting date', 'value' => $journal->posting_date?->toDateString() ?? ''],
+                ['label' => 'Posting date', 'value' => $journal->posting_date->toDateString()],
                 ['label' => 'Reference', 'value' => (string) ($journal->reference ?? '')],
                 ['label' => 'Memo', 'value' => (string) ($journal->memo ?? '')],
                 ['label' => 'Currency', 'value' => (string) $journal->currency_code],
@@ -205,8 +204,8 @@ final class ApprovalDetailQuery
                 ['label' => 'Document', 'value' => (string) $bill->document_type],
                 ['label' => 'Supplier', 'value' => (string) ($supplier ?? '')],
                 ['label' => 'Status', 'value' => $bill->status->label()],
-                ['label' => 'Bill date', 'value' => $bill->bill_date?->toDateString() ?? ''],
-                ['label' => 'Due date', 'value' => $bill->due_date?->toDateString() ?? ''],
+                ['label' => 'Bill date', 'value' => $bill->bill_date->toDateString()],
+                ['label' => 'Due date', 'value' => $bill->due_date->toDateString()],
                 ['label' => 'Subtotal', 'value' => (string) $bill->subtotal],
                 ['label' => 'Tax', 'value' => (string) $bill->tax_total],
                 ['label' => 'Total', 'value' => (string) $bill->total],
@@ -233,7 +232,7 @@ final class ApprovalDetailQuery
                 ['label' => 'Direction', 'value' => $payment->direction->label()],
                 ['label' => 'Party', 'value' => (string) ($party ?? '')],
                 ['label' => 'Method', 'value' => $payment->method->label()],
-                ['label' => 'Payment date', 'value' => $payment->payment_date?->toDateString() ?? ''],
+                ['label' => 'Payment date', 'value' => $payment->payment_date->toDateString()],
                 ['label' => 'Bank account', 'value' => (string) ($bank ?? '')],
                 ['label' => 'Reference', 'value' => (string) ($payment->reference ?? '')],
                 ['label' => 'Amount', 'value' => (string) $payment->amount],

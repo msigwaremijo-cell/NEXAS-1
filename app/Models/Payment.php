@@ -87,6 +87,9 @@ class Payment extends Model
         return $this->belongsTo(Journal::class);
     }
 
+    /**
+     * @return HasMany<PaymentAllocation, $this>
+     */
     public function allocations(): HasMany
     {
         return $this->hasMany(PaymentAllocation::class);

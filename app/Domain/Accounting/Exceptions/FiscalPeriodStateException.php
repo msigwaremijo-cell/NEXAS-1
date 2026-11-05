@@ -19,7 +19,7 @@ final class FiscalPeriodStateException extends AccountingException
         return new self(sprintf(
             'Fiscal period %s is %s, so it cannot be reopened. Only a closed period can be reopened.',
             $period->name,
-            $period->status?->value ?? 'unknown'
+            $period->status->value
         ));
     }
 

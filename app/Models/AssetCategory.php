@@ -54,6 +54,9 @@ class AssetCategory extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
@@ -61,6 +64,8 @@ class AssetCategory extends Model
 
     /**
      * The account the asset's cost is carried in.
+     *
+     * @return BelongsTo<Account, $this>
      */
     public function assetAccount(): BelongsTo
     {
@@ -70,12 +75,17 @@ class AssetCategory extends Model
     /**
      * The contra-asset the credit side of a depreciation charge lands on: an
      * asset account with a credit normal balance.
+     *
+     * @return BelongsTo<Account, $this>
      */
     public function accumulatedDepreciationAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'accumulated_depreciation_account_id');
     }
 
+    /**
+     * @return BelongsTo<Account, $this>
+     */
     public function depreciationExpenseAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'depreciation_expense_account_id');
@@ -83,12 +93,17 @@ class AssetCategory extends Model
 
     /**
      * Where a gain or loss on disposal is booked.
+     *
+     * @return BelongsTo<Account, $this>
      */
     public function disposalAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'disposal_account_id');
     }
 
+    /**
+     * @return HasMany<Asset, $this>
+     */
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class);

@@ -68,41 +68,65 @@ class Bill extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Supplier, $this>
+     */
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * @return BelongsTo<Currency, $this>
+     */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
+    /**
+     * @return HasMany<BillLine, $this>
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(BillLine::class)->orderBy('line_no');
     }
 
+    /**
+     * @return BelongsTo<Journal, $this>
+     */
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 
+    /**
+     * @return HasMany<PaymentAllocation, $this>
+     */
     public function allocations(): HasMany
     {
         return $this->hasMany(PaymentAllocation::class, 'document_id')

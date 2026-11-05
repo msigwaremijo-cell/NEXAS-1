@@ -103,8 +103,8 @@ class FiscalPeriodController extends Controller
             'ulid' => $period->ulid,
             'name' => $period->name,
             'period_no' => (int) $period->period_no,
-            'starts_on' => $period->starts_on?->toDateString(),
-            'ends_on' => $period->ends_on?->toDateString(),
+            'starts_on' => $period->starts_on->toDateString(),
+            'ends_on' => $period->ends_on->toDateString(),
             'status' => $period->status->value,
             // Closed and its year not locked: the state in which the Owner
             // could reopen it. A locked year is reported as not reopenable

@@ -309,7 +309,7 @@ class StockMovementController extends Controller
             'warehouse_id' => (int) $movement->warehouse_id,
             'warehouse_code' => $movement->warehouse?->code,
             'movement_type' => $movement->movement_type->value,
-            'movement_date' => $movement->movement_date?->toDateString(),
+            'movement_date' => $movement->movement_date->toDateString(),
             'status' => $movement->status->value,
             'quantity' => $movement->quantity,
             'unit_cost' => $movement->unit_cost,

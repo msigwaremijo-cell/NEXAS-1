@@ -61,11 +61,17 @@ class BankAccount extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
@@ -75,17 +81,25 @@ class BankAccount extends Model
      * The ledger account this account's money physically sits in. Every receipt,
      * payment and transfer that names this bank account is a journal line
      * against this account, and nothing else.
+     *
+     * @return BelongsTo<Account, $this>
      */
     public function ledgerAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'account_id');
     }
 
+    /**
+     * @return BelongsTo<Currency, $this>
+     */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
+    /**
+     * @return HasMany<Payment, $this>
+     */
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
@@ -95,6 +109,8 @@ class BankAccount extends Model
      * The movements a statement file claimed for this account. They are the
      * bank's word, not the company's: nothing is in the books until one of them
      * is matched to a journal line.
+     *
+     * @return HasMany<BankStatementLine, $this>
      */
     public function statementLines(): HasMany
     {

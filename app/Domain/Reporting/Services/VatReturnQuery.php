@@ -5,6 +5,7 @@ namespace App\Domain\Reporting\Services;
 use App\Domain\Accounting\Enums\TaxType;
 use App\Models\Account;
 use App\Models\Company;
+use App\Models\JournalLine;
 use App\Models\TaxCode;
 use App\Support\Money;
 use Illuminate\Support\Collection;
@@ -228,7 +229,7 @@ final class VatReturnQuery
      * too, and its bounds land on the relying index columns.
      *
      * @param  array<int, int>  $accountIds
-     * @return Collection<int, object>
+     * @return Collection<int, JournalLine>
      */
     private function movements(int $companyId, array $accountIds, ?string $from, ?string $to): Collection
     {

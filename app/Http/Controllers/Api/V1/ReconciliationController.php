@@ -257,7 +257,7 @@ class ReconciliationController extends Controller
             'id' => (int) $line->getKey(),
             'ulid' => $line->ulid,
             'bank_account_id' => (int) $line->bank_account_id,
-            'value_date' => $line->value_date?->toDateString(),
+            'value_date' => $line->value_date->toDateString(),
             'description' => $line->description,
             'reference' => $line->reference,
             // The bank's own sides, not the books': debit is money that left the

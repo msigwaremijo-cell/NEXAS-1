@@ -51,21 +51,33 @@ class TaxCode extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return HasMany<TaxRate, $this>
+     */
     public function rates(): HasMany
     {
         return $this->hasMany(TaxRate::class)->orderBy('effective_from');
     }
 
+    /**
+     * @return BelongsTo<Account, $this>
+     */
     public function outputAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'output_account_id');
     }
 
+    /**
+     * @return BelongsTo<Account, $this>
+     */
     public function inputAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'input_account_id');

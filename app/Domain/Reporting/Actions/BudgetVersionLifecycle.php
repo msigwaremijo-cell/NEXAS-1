@@ -5,6 +5,7 @@ namespace App\Domain\Reporting\Actions;
 use App\Domain\Accounting\Exceptions\ConcurrentModificationException;
 use App\Domain\Accounting\Exceptions\IdempotencyConflictException;
 use App\Domain\Accounting\Services\AuditTrail;
+use App\Domain\Approvals\Actions\DecideApprovalRequest;
 use App\Domain\Approvals\Enums\ApprovalDocumentType;
 use App\Domain\Approvals\Enums\ApprovalStatus;
 use App\Domain\Reporting\Enums\BudgetStatus;
@@ -29,7 +30,7 @@ use Illuminate\Support\Facades\DB;
  * Raising a plan puts it in the queue every other document waits in — the
  * `approval_requests` row is the same row a journal or a supplier bill gets, so
  * the approver sees one line rather than a second inbox. The decision itself is
- * made by {@see \App\Domain\Approvals\Actions\DecideApprovalRequest}, which is
+ * made by {@see DecideApprovalRequest}, which is
  * where the no-self-approval rule and the finality of a decision live; this
  * class is told the outcome and moves the plan to match it.
  *
@@ -319,7 +320,7 @@ final class BudgetVersionLifecycle
 
         return sprintf(
             '%s · version %d',
-            (string) ($version->fiscalYear?->name ?? 'Plan'),
+            (string) $version->fiscalYear->name,
             (int) $version->version_no,
         );
     }
@@ -425,6 +426,6 @@ final class BudgetVersionLifecycle
     {
         $version->loadMissing('fiscalYear');
 
-        return (string) ($version->fiscalYear?->name ?? 'this fiscal year');
+        return (string) $version->fiscalYear->name;
     }
 }

@@ -41,21 +41,33 @@ class AssetDepreciationLine extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<Asset, $this>
+     */
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalPeriod, $this>
+     */
     public function fiscalPeriod(): BelongsTo
     {
         return $this->belongsTo(FiscalPeriod::class);
     }
 
+    /**
+     * @return BelongsTo<Journal, $this>
+     */
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);

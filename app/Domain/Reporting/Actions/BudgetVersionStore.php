@@ -325,6 +325,6 @@ final class BudgetVersionStore
     {
         $version->loadMissing('fiscalYear');
 
-        return (string) ($version->fiscalYear?->name ?? 'this fiscal year');
+        return (string) $version->fiscalYear->name;
     }
 }

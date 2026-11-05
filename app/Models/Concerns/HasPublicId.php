@@ -18,8 +18,8 @@ trait HasPublicId
     protected static function bootHasPublicId(): void
     {
         static::creating(function (Model $model): void {
-            if (blank($model->ulid)) {
-                $model->ulid = (string) Str::ulid();
+            if (blank($model->getAttribute('ulid'))) {
+                $model->setAttribute('ulid', (string) Str::ulid());
             }
         });
     }

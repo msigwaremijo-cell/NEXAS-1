@@ -15,7 +15,7 @@ final class JournalStateException extends AccountingException
         return new self(sprintf(
             'Journal %s is %s, not a draft, so it cannot be posted.',
             $journal->journal_no,
-            $journal->status?->value ?? 'unknown'
+            $journal->status->value
         ));
     }
 
@@ -24,7 +24,7 @@ final class JournalStateException extends AccountingException
         return new self(sprintf(
             'Journal %s is %s, so it cannot be reversed. Only a posted journal can be reversed.',
             $journal->journal_no,
-            $journal->status?->value ?? 'unknown'
+            $journal->status->value
         ));
     }
 

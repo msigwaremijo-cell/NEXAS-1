@@ -119,7 +119,7 @@ final class LedgerVerification
                             $period,
                             $accountId,
                             $bucket,
-                            $cached === null ? null : (string) $cached,
+                            (string) $cached,
                             $expected[$bucket],
                         );
                     }

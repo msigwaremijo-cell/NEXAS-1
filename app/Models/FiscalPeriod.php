@@ -46,26 +46,41 @@ class FiscalPeriod extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalYear, $this>
+     */
     public function fiscalYear(): BelongsTo
     {
         return $this->belongsTo(FiscalYear::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function closedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by_user_id');
     }
 
+    /**
+     * @return HasMany<Journal, $this>
+     */
     public function journals(): HasMany
     {
         return $this->hasMany(Journal::class);
     }
 
+    /**
+     * @return HasMany<LedgerBalance, $this>
+     */
     public function ledgerBalances(): HasMany
     {
         return $this->hasMany(LedgerBalance::class);

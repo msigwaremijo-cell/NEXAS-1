@@ -69,26 +69,41 @@ class Journal extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalYear, $this>
+     */
     public function fiscalYear(): BelongsTo
     {
         return $this->belongsTo(FiscalYear::class);
     }
 
+    /**
+     * @return BelongsTo<FiscalPeriod, $this>
+     */
     public function fiscalPeriod(): BelongsTo
     {
         return $this->belongsTo(FiscalPeriod::class);
     }
 
+    /**
+     * @return HasMany<JournalLine, $this>
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(JournalLine::class)->orderBy('line_no');
     }
 
+    /**
+     * @return BelongsTo<Currency, $this>
+     */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
@@ -96,6 +111,8 @@ class Journal extends Model
 
     /**
      * The journal this one reverses.
+     *
+     * @return BelongsTo<self, $this>
      */
     public function reverses(): BelongsTo
     {
@@ -104,17 +121,25 @@ class Journal extends Model
 
     /**
      * The journal that reversed this one.
+     *
+     * @return BelongsTo<self, $this>
      */
     public function reversedBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'reversed_by_journal_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function postedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by_user_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');

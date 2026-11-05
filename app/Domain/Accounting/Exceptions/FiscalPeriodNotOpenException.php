@@ -25,7 +25,7 @@ final class FiscalPeriodNotOpenException extends AccountingException
         return new self(sprintf(
             'Fiscal period %s is %s, so it cannot accept postings.',
             $period->name,
-            $period->status?->value ?? 'unknown'
+            $period->status->value
         ));
     }
 

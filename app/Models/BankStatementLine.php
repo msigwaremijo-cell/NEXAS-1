@@ -29,6 +29,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * description, and a unique index over it plus the account and company is what
  * makes an already-imported movement a fact MySQL knows rather than a check PHP
  * hopes wins the race.
+ *
+ * @property string|null $ignored_reason
  */
 #[Fillable([
     'ulid',
@@ -65,11 +67,17 @@ class BankStatementLine extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Company, $this>
+     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
     }
 
+    /**
+     * @return BelongsTo<BankAccount, $this>
+     */
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
@@ -79,6 +87,8 @@ class BankStatementLine extends Model
      * The ties this line has to the books. More than one means a split match:
      * a single movement on the statement covered by more than one ledger entry,
      * or a single ledger entry covered by more than one statement line.
+     *
+     * @return HasMany<Reconciliation, $this>
      */
     public function reconciliations(): HasMany
     {

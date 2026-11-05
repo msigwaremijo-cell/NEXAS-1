@@ -224,7 +224,7 @@ class PaymentController extends Controller
             'bank_account_id' => $payment->bank_account_id === null
                 ? null
                 : (int) $payment->bank_account_id,
-            'payment_date' => $payment->payment_date?->toDateString(),
+            'payment_date' => $payment->payment_date->toDateString(),
             'currency_code' => $payment->currency_code,
             'exchange_rate' => $payment->exchange_rate,
             'amount' => $payment->amount,

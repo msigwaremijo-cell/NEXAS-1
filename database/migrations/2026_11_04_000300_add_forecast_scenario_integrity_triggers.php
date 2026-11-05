@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * @var array<int, array{0: string, 1: string, 2: string}>
+     * @var array<int, array{0: string, 1: string, 2: string, 3: string}>
      */
     private array $triggers = [
         ['forecast_scenario_versions', 'trg_forecast_scenario_versions_before_insert', 'BEFORE INSERT', <<<'SQL'

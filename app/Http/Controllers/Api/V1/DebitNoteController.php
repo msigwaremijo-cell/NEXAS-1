@@ -206,8 +206,8 @@ class DebitNoteController extends Controller
                 ? null
                 : (int) $debitNote->debit_note_for_bill_id,
             'status' => $debitNote->status->value,
-            'bill_date' => $debitNote->bill_date?->toDateString(),
-            'due_date' => $debitNote->due_date?->toDateString(),
+            'bill_date' => $debitNote->bill_date->toDateString(),
+            'due_date' => $debitNote->due_date->toDateString(),
             'currency_code' => $debitNote->currency_code,
             'exchange_rate' => $debitNote->exchange_rate,
             'reference' => $debitNote->reference,

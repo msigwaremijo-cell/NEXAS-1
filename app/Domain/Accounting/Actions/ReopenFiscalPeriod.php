@@ -104,8 +104,8 @@ final class ReopenFiscalPeriod
                 'fiscal_period_ulid' => $locked->ulid,
                 'name' => $locked->name,
                 'period_no' => (int) $locked->period_no,
-                'starts_on' => $locked->starts_on?->toDateString(),
-                'ends_on' => $locked->ends_on?->toDateString(),
+                'starts_on' => $locked->starts_on->toDateString(),
+                'ends_on' => $locked->ends_on->toDateString(),
                 'status' => $locked->status->value,
                 'reason' => $reason,
                 'fiscal_year' => [
