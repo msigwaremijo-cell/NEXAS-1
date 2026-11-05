@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * @var array<int, array{0: string, 1: string, 2: string}>
+     * @var array<int, array{0: string, 1: string, 2: string, 3: string}>
      */
     private array $triggers = [
         ['stock_movements', 'trg_stock_movements_before_update', 'BEFORE UPDATE', <<<'SQL'
