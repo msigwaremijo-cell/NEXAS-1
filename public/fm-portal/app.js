@@ -42,6 +42,10 @@
     companyId: null,
     user: null,
     screen: 'dashboard',
+    // The report the Reports section is showing, or '' when it is showing the
+    // hub. It is part of the address — /financial-manager/reports/<report> — so
+    // that a reload, a bookmark or a shared link lands on the report itself.
+    report: '',
     idleTimer: null,
     idleWarn: null,
     countdown: null,
@@ -259,10 +263,16 @@
     S.token = null;
     S.companyId = null;
     S.user = null;
+    S.report = '';
     cache.periods = null;
     cache.accounts = null;
     cache.budgetAccounts = null;
     cache.costCentres = null;
+    // What this browser remembered for the person signing out — their starred
+    // reports, what they opened here and the filters they left behind — goes
+    // with the session, so a shared machine does not carry one person's
+    // reading habits into the next.
+    reportStoreClear();
     try {
       sessionStorage.removeItem(KEYS.token);
       sessionStorage.removeItem(KEYS.company);
@@ -286,9 +296,12 @@
     $('#who-role').textContent = (user.roles && user.roles.join(', ')) || 'Financial Manager';
     $('#who-avatar').textContent = (user.name || 'FM').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     $('#foot-company').textContent = S.companyId ? 'Company #' + S.companyId : '';
-    // The address the member arrived on decides the screen, so a bookmark to
-    // /financial-manager/dashboard opens the dashboard after signing in.
-    go(screenFromLocation(), { replace: true });
+    // The address the member arrived on decides the screen — and, when it names
+    // a report, the report — so a bookmark to /financial-manager/dashboard
+    // opens the dashboard and a link to /financial-manager/reports/trial-balance
+    // opens that report after signing in.
+    const route = routeFromLocation();
+    go(route.screen, { replace: true, report: route.report });
   }
 
   function sessionExpired() {
@@ -492,29 +505,68 @@
    * The portal navigates by URL rather than by hidden state, so each section
    * has an address: the dashboard is /financial-manager/dashboard, and a
    * reload, a bookmark or a click in the sidebar lands on the section it names.
-   * The page reads its own path — the server only decides which paths are real.
+   * A report goes one step deeper — /financial-manager/reports/<report> — so a
+   * reload or a shared link lands on the report itself rather than on the hub.
+   * The page reads its own path; the server only decides which paths are real.
    */
-  function screenFromLocation() {
+  function routeFromLocation() {
+    const nested = /^\/financial-manager\/reports\/([a-z][a-z-]*)\/?$/.exec(window.location.pathname);
+    if (nested) {
+      const key = nested[1];
+      // A name the catalogue does not carry is the hub, not a broken report.
+      const known = REPORT_DEFS.some(d => d.key === key && !d.deferred);
+      return { screen: 'reports', report: known ? key : '' };
+    }
     const match = /^\/financial-manager\/([a-z-]+)\/?$/.exec(window.location.pathname);
     const name = match ? match[1] : '';
-    return SCREENS[name] ? name : 'dashboard';
+    return { screen: SCREENS[name] ? name : 'dashboard', report: '' };
   }
 
   function syncUrl(screen, opts) {
-    const path = '/financial-manager/' + screen;
+    const report = (opts && opts.report) || '';
+    const path = report
+      ? '/financial-manager/reports/' + report
+      : '/financial-manager/' + screen;
     if (window.location.pathname === path) return;
     const method = (opts && opts.replace) ? 'replaceState' : 'pushState';
-    try { window.history[method]({ screen: screen }, '', path); } catch (e) { /* history is a courtesy */ }
+    try { window.history[method]({ screen: screen, report: report }, '', path); } catch (e) { /* history is a courtesy */ }
+  }
+
+  /**
+   * The breadcrumb names where the reader is: the section, and, when a report
+   * is open, the report under it. The extra segment is added and taken away
+   * here, so leaving a report leaves no trace of it in the trail.
+   */
+  function renderCrumbs(def) {
+    const nav = $('#crumbs');
+    const crumb = $('#crumb-current');
+    if (!nav || !crumb) return;
+    $$('.crumbs__mid', nav).forEach(node => node.remove());
+
+    if (def) {
+      const mid = document.createElement('span');
+      mid.className = 'crumbs__mid';
+      mid.innerHTML = '<a href="/financial-manager/reports">Reports</a>' +
+        '<span class="crumbs__sep" aria-hidden="true">&sol;</span>';
+      nav.insertBefore(mid, crumb);
+      crumb.textContent = def.label;
+    } else {
+      crumb.textContent = SCREENS[S.screen] ? SCREENS[S.screen].title : 'Dashboard';
+    }
   }
 
   function go(name, opts) {
     const screen = SCREENS[name] ? name : 'dashboard';
+    const report = (opts && opts.report) || '';
     S.screen = screen;
+    S.report = report;
     $$('.nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.screen === screen));
-    $('#screen-title').textContent = SCREENS[screen].title;
-    $('#screen-sub').textContent = SCREENS[screen].sub;
-    const crumb = $('#crumb-current');
-    if (crumb) crumb.textContent = SCREENS[screen].title;
+
+    const def = report ? REPORT_DEFS.find(d => d.key === report) : null;
+    $('#screen-title').textContent = def ? def.label : SCREENS[screen].title;
+    $('#screen-sub').textContent = def ? def.description : SCREENS[screen].sub;
+    renderCrumbs(def);
+
     syncUrl(screen, opts);
     document.body.classList.remove('drawer-open');
     closeDrawer();
@@ -543,10 +595,12 @@
     $('#signout').addEventListener('click', () => signOut({}));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
     // The back and forward buttons move between the sections the sidebar
-    // visited, because each section is an address rather than a hidden state.
+    // visited — and into and out of a report — because each is an address
+    // rather than a hidden state.
     window.addEventListener('popstate', () => {
       if (!S.token) return;
-      go(screenFromLocation(), { replace: true });
+      const route = routeFromLocation();
+      go(route.screen, { replace: true, report: route.report });
     });
   }
 
@@ -4301,35 +4355,463 @@
 
   /* ----------------------------------------------------- screen: reports */
 
-  const REPORT_DEFS = [
-    { key: 'profit-and-loss', label: 'Profit and loss', params: ['from', 'to', 'compare'], export: 'profit_and_loss' },
-    { key: 'balance-sheet', label: 'Balance sheet', params: ['as_of', 'compare'], export: 'balance_sheet' },
-    { key: 'cash-flow', label: 'Cash flow (direct)', params: ['from', 'to'] },
-    { key: 'cash-flow-indirect', label: 'Cash flow (indirect)', params: ['from', 'to'] },
-    { key: 'trial-balance', label: 'Trial balance', params: ['from', 'to', 'compare'], export: 'trial_balance' },
-    { key: 'general-ledger', label: 'General ledger', params: ['account_id', 'from', 'to'] },
-    { key: 'receivables-ageing', label: 'Receivables ageing', params: ['as_of'] },
-    { key: 'payables-ageing', label: 'Payables ageing', params: ['as_of'] },
-    { key: 'budget-vs-actual', label: 'Budget versus actual', params: ['fiscal_period', 'compare'] },
-    { key: 'cash-position', label: 'Cash position', params: ['as_of'] },
-    { key: 'stock-valuation', label: 'Stock valuation', params: ['as_of'] }
+  // The catalogue the hub is built from. Every key is both the path the API
+  // serves (/api/v1/reports/<key>) and the last segment of the report's own
+  // address (/financial-manager/reports/<key>), so a card, a link and an
+  // endpoint are three views of one name. `params` is what the report needs
+  // asked of it; `export` is the type the export registry knows it by.
+  const REPORT_CATEGORIES = [
+    { key: 'statements', label: 'Financial statements', note: 'The statements a set of books is judged by' },
+    { key: 'ledgers', label: 'Ledgers and analysis', note: 'The detail a statement is summarised from' },
+    { key: 'operational', label: 'Operational and management', note: 'Stock, plans, cash and reconciliations' }
   ];
 
-  const reportState = { key: 'profit-and-loss', params: {}, html: '' };
+  const REPORT_DEFS = [
+    { key: 'profit-and-loss', label: 'Profit and loss', category: 'statements', glyph: '\u25A4',
+      description: 'Revenue and expenses over a period, and the net result they leave.',
+      params: ['from', 'to', 'compare'], export: 'profit_and_loss' },
+    { key: 'balance-sheet', label: 'Balance sheet', category: 'statements', glyph: '\u2696',
+      description: 'What the company owns, what it owes, and what it is worth at a date.',
+      params: ['as_of', 'compare'], export: 'balance_sheet' },
+    { key: 'cash-flow', label: 'Cash flow (direct)', category: 'statements', glyph: '\u21C4',
+      description: 'Money in and money out, read from the cash accounts themselves.',
+      params: ['from', 'to'] },
+    { key: 'cash-flow-indirect', label: 'Cash flow (indirect)', category: 'statements', glyph: '\u21C6',
+      description: 'The same movement, walked back from profit to the change in cash.',
+      params: ['from', 'to'] },
+    { key: 'trial-balance', label: 'Trial balance', category: 'statements', glyph: '\u2261',
+      description: 'Every account with its debits and credits, and proof the two sides agree.',
+      params: ['from', 'to', 'compare'], export: 'trial_balance' },
 
+    { key: 'general-ledger', label: 'General ledger', category: 'ledgers', glyph: '\u25A6',
+      description: 'Every posted line to one account, with its running balance.',
+      params: ['account_id', 'from', 'to'] },
+    { key: 'receivables-ageing', label: 'Receivables ageing', category: 'ledgers', glyph: '\u23F3',
+      description: 'Who owes what, bucketed by how late each balance is.',
+      params: ['as_of'] },
+    { key: 'payables-ageing', label: 'Payables ageing', category: 'ledgers', glyph: '\u23F3',
+      description: 'What is owed to whom, bucketed by how late each balance is.',
+      params: ['as_of'] },
+
+    { key: 'stock-valuation', label: 'Stock valuation', category: 'operational', glyph: '\u25C8',
+      description: 'What the stock on hand is worth, priced from the stock layers.',
+      params: ['as_of'] },
+    { key: 'budget-vs-actual', label: 'Budget versus actual', category: 'operational', glyph: '\u25D1',
+      description: 'The plan the company wrote beside the ledger it actually posted.',
+      params: ['fiscal_period', 'compare'] },
+    { key: 'cash-position', label: 'Cash position', category: 'operational', glyph: '\u25C9',
+      description: 'Every cash and bank account, and what it holds, as at a date.',
+      params: ['as_of'] },
+    // Named and described, but without a viewer: the reconciliation summary is
+    // scheduled for the gate that reads the existing reconciliation records.
+    // It carries no button and no figures, because a card that opens nothing
+    // would be a promise the module does not yet keep.
+    { key: 'bank-reconciliation', label: 'Bank reconciliation summary', category: 'operational', glyph: '\u21D4',
+      description: 'Bank statements matched to the ledger, reconciled against unreconciled.',
+      deferred: true }
+  ];
+
+  const reportDef = key => REPORT_DEFS.find(d => d.key === key) || null;
+  const categoryLabel = key => (REPORT_CATEGORIES.find(c => c.key === key) || {}).label || '';
+
+  /* ------------------------------------------ reports: what this browser
+     remembers
+
+     Starred reports, what was opened here and the filters left behind are kept
+     per company AND per person, so a change of company or of the person at the
+     keyboard does not carry one reader's habits into another's. Only names and
+     filter values are kept — never a token, never a figure. Every read is
+     defensive: a missing, half-written or hand-edited entry reads as no entry
+     rather than as an error. */
+
+  const REPORT_STORE_PREFIX = 'nexas.fm.reports.';
+
+  function reportStoreId() {
+    const userId = S.user && S.user.id;
+    if (!S.companyId || !userId) return null;
+    return REPORT_STORE_PREFIX + S.companyId + '.' + userId;
+  }
+
+  function blankStore() {
+    return { favourites: [], recent: [], presets: {} };
+  }
+
+  function reportStoreRead() {
+    const id = reportStoreId();
+    if (!id) return blankStore();
+
+    let raw = null;
+    try { raw = localStorage.getItem(id); } catch (e) { return blankStore(); }
+    if (!raw) return blankStore();
+
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch (e) { return blankStore(); }
+    if (!parsed || typeof parsed !== 'object') return blankStore();
+
+    const favourites = Array.isArray(parsed.favourites)
+      ? parsed.favourites.filter(k => typeof k === 'string' && reportDef(k))
+      : [];
+
+    const recent = Array.isArray(parsed.recent)
+      ? parsed.recent.filter(r => r && typeof r.key === 'string' && reportDef(r.key) && !reportDef(r.key).deferred)
+      : [];
+
+    const presets = {};
+    if (parsed.presets && typeof parsed.presets === 'object') {
+      Object.keys(parsed.presets).forEach(k => {
+        const def = reportDef(k);
+        const value = parsed.presets[k];
+        if (def && !def.deferred && value && typeof value === 'object') presets[k] = value;
+      });
+    }
+
+    return { favourites: favourites, recent: recent, presets: presets };
+  }
+
+  function reportStoreWrite(store) {
+    const id = reportStoreId();
+    if (!id) return;
+    try { localStorage.setItem(id, JSON.stringify(store)); } catch (e) { /* storage is a convenience, not a promise */ }
+  }
+
+  function reportStoreClear() {
+    try {
+      const doomed = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.indexOf(REPORT_STORE_PREFIX) === 0) doomed.push(key);
+      }
+      doomed.forEach(key => localStorage.removeItem(key));
+    } catch (e) { /* ignore */ }
+  }
+
+  const reportIsFavourite = (store, key) => store.favourites.indexOf(key) >= 0;
+
+  function reportLastOpened(store, key) {
+    const entry = store.recent.find(r => r.key === key);
+    return entry ? entry.at : '';
+  }
+
+  function reportToggleFavourite(key) {
+    const store = reportStoreRead();
+    store.favourites = reportIsFavourite(store, key)
+      ? store.favourites.filter(k => k !== key)
+      : [key].concat(store.favourites);
+    reportStoreWrite(store);
+  }
+
+  // Opening a report is what records it. The list is most-recent-first and
+  // bounded, because it is a convenience and not a history.
+  function reportMarkOpened(key) {
+    const store = reportStoreRead();
+    store.recent = [{ key: key, at: new Date().toISOString() }]
+      .concat(store.recent.filter(r => r.key !== key))
+      .slice(0, 8);
+    reportStoreWrite(store);
+  }
+
+  function reportSaveFilters(key, params) {
+    const store = reportStoreRead();
+    store.presets[key] = Object.assign({}, params);
+    reportStoreWrite(store);
+  }
+
+  function reportReadFilters(key) {
+    return reportStoreRead().presets[key] || null;
+  }
+
+  function reportForgetFilters(key) {
+    const store = reportStoreRead();
+    delete store.presets[key];
+    reportStoreWrite(store);
+  }
+
+  // What the hub is filtered by. It lives outside the DOM so a redraw — a
+  // star, a category — does not lose the word that was typed in the search box.
+  const hubState = { query: '', category: 'all', favouritesOnly: false };
+
+  // The open report: which one, the filters it was asked with, and the html it
+  // last answered with.
+  const reportState = { key: '', params: {}, html: '' };
+
+  /**
+   * The Reports section is two screens behind one address. With no report named
+   * it is the hub; with one named it is that report, and the renderer below is
+   * the one the section has always used.
+   */
   async function drawReports(container) {
-    const def = REPORT_DEFS.find(d => d.key === reportState.key) || REPORT_DEFS[0];
+    const def = S.report ? reportDef(S.report) : null;
+    if (def && !def.deferred) return drawReportViewer(container, def);
+    drawReportHub(container);
+  }
+
+  /* ---------------------------------------------------------- reports: hub */
+
+  /**
+   * Opening a report gives it its own address, so a reload, a bookmark or a
+   * shared link lands on the report rather than on the hub. A name the hub does
+   * not carry — a report the API named before the catalogue knew it, say —
+   * lands on the hub rather than on a link that does nothing.
+   */
+  function openReport(key) {
+    const def = reportDef(key);
+    if (!def || def.deferred) { go('reports'); return; }
+    if (reportState.key !== key) { reportState.params = {}; reportState.html = ''; }
+    go('reports', { report: key });
+  }
+
+  function drawReportHub(container) {
+    // The hub is where a report is chosen from, so whatever was read last is
+    // let go: returning to a report re-reads the ledger rather than showing a
+    // figure that may since have moved.
+    reportState.key = '';
+    reportState.params = {};
+    reportState.html = '';
+    container.innerHTML = hubHead() + '<div id="report-hub">' + hubBody() + '</div>';
+    filterHub();
+  }
+
+  function hubHead() {
+    const cats = [{ key: 'all', label: 'All' }].concat(REPORT_CATEGORIES);
+    const segs = cats.map(c =>
+      `<button class="seg__btn${hubState.category === c.key ? ' is-active' : ''}" data-act="hub-category"
+        data-category="${esc(c.key)}" aria-pressed="${hubState.category === c.key ? 'true' : 'false'}">${esc(c.label)}</button>`
+    ).join('');
+
+    return `<section class="card report-hub__head">
+      <div class="card__head">
+        <div><h3>Reports</h3><p>Every statement, ageing report and the ledger behind them</p></div>
+        <div class="spacer">
+          <label class="field report-hub__search">
+            <span class="field__label">Search reports</span>
+            <input type="search" data-act="hub-search" value="${esc(hubState.query)}"
+              placeholder="Search by name or description" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      </div>
+      <div class="toolbar report-hub__filters">
+        <div class="seg" role="group" aria-label="Report category">${segs}</div>
+        <button class="btn btn--quiet btn--sm${hubState.favouritesOnly ? ' is-active' : ''}" data-act="hub-favourites"
+          aria-pressed="${hubState.favouritesOnly ? 'true' : 'false'}">
+          <span aria-hidden="true">\u2605</span> Favourites only</button>
+      </div>
+    </section>`;
+  }
+
+  function hubBody() {
+    const store = reportStoreRead();
+    const favourites = store.favourites.filter(k => { const d = reportDef(k); return d && !d.deferred; });
+    const recent = store.recent.slice(0, 6);
+    const presetKeys = Object.keys(store.presets).filter(k => { const d = reportDef(k); return d && !d.deferred; });
+
+    const blocks = [];
+
+    if (favourites.length) {
+      blocks.push(hubSection('favourites', 'Favourites', 'The reports you starred',
+        favourites.map(k => reportCard(reportDef(k), store)).join('')));
+    }
+    if (recent.length) {
+      blocks.push(hubSection('recent', 'Opened here recently', 'This browser only, most recent first',
+        recent.map(r => reportRecentRow(reportDef(r.key), store, r.at)).join('')));
+    }
+    if (presetKeys.length) {
+      blocks.push(hubSection('saved', 'Saved filters', 'The filters you left each report with',
+        presetKeys.map(k => reportSavedRow(reportDef(k), store.presets[k], store)).join('')));
+    }
+
+    REPORT_CATEGORIES.forEach(cat => {
+      blocks.push(hubSection(cat.key, cat.label, cat.note,
+        REPORT_DEFS.filter(d => d.category === cat.key).map(d => reportCard(d, store)).join('')));
+    });
+
+    blocks.push(`<div id="hub-empty" hidden>${emptyState('\u2315', 'No reports match',
+      'Nothing matched that search. Try another word, or clear the filter.')}</div>`);
+
+    return blocks.join('');
+  }
+
+  function hubSection(kind, title, note, inner) {
+    return `<section class="report-section" data-hub-section="${esc(kind)}">
+      <div class="report-section__head"><h4>${esc(title)}</h4><p>${esc(note)}</p></div>
+      <div class="report-cards">${inner}</div>
+    </section>`;
+  }
+
+  // What a card is searched by: its name, its description and its category.
+  const searchText = def => (def.label + ' ' + def.description + ' ' + categoryLabel(def.category)).toLowerCase();
+
+  function reportCard(def, store) {
+    const fav = reportIsFavourite(store, def.key);
+    const last = reportLastOpened(store, def.key);
+    const saved = Boolean(store.presets[def.key]);
+
+    const action = def.deferred
+      ? `<button class="btn btn--quiet btn--sm" disabled
+           title="The reconciliation summary is scheduled for Gate 2">Coming in Gate 2</button>`
+      : `<button class="btn btn--primary btn--sm" data-act="open-report" data-report="${esc(def.key)}">Open report</button>`;
+
+    return `<article class="report-card${def.deferred ? ' is-deferred' : ''}"
+      data-hub-card="${esc(def.key)}" data-hub-cat="${esc(def.category)}"
+      data-hub-fav="${fav ? '1' : '0'}" data-hub-text="${esc(searchText(def))}">
+      <div class="report-card__head">
+        <span class="report-card__glyph" aria-hidden="true">${def.glyph}</span>
+        <button class="report-card__star${fav ? ' is-on' : ''}" data-act="hub-fav" data-key="${esc(def.key)}"
+          aria-pressed="${fav ? 'true' : 'false'}"
+          aria-label="${fav ? 'Remove from favourites' : 'Add to favourites'}: ${esc(def.label)}">${fav ? '\u2605' : '\u2606'}</button>
+      </div>
+      <h4 class="report-card__title">${esc(def.label)}</h4>
+      <p class="report-card__desc">${esc(def.description)}</p>
+      <div class="report-card__meta">
+        <span class="badge ${def.deferred ? 'badge--pending' : 'badge--muted'}">${esc(def.deferred ? 'Gate 2' : categoryLabel(def.category))}</span>
+        <span class="report-card__last">${last ? 'Last opened here \u00b7 ' + esc(fmtDateTime(last)) : 'Not opened here yet'}</span>
+      </div>
+      <div class="report-card__foot">
+        ${action}
+        ${saved ? `<button class="btn btn--quiet btn--sm" data-act="hub-forget" data-key="${esc(def.key)}">Forget filters</button>` : ''}
+      </div>
+    </article>`;
+  }
+
+  function reportRecentRow(def, store, at) {
+    if (!def) return '';
+    return `<article class="report-card is-compact" data-hub-card="${esc(def.key)}"
+      data-hub-cat="${esc(def.category)}" data-hub-fav="${reportIsFavourite(store, def.key) ? '1' : '0'}"
+      data-hub-text="${esc(searchText(def))}">
+      <div class="report-card__row">
+        <span class="report-card__glyph" aria-hidden="true">${def.glyph}</span>
+        <div class="report-card__rowmain">
+          <strong>${esc(def.label)}</strong>
+          <small>Last opened here \u00b7 ${esc(fmtDateTime(at))}</small>
+        </div>
+        <button class="btn btn--quiet btn--sm" data-act="open-report" data-report="${esc(def.key)}">Open</button>
+      </div>
+    </article>`;
+  }
+
+  function reportSavedRow(def, params, store) {
+    if (!def) return '';
+    return `<article class="report-card is-compact" data-hub-card="${esc(def.key)}"
+      data-hub-cat="${esc(def.category)}" data-hub-fav="${reportIsFavourite(store, def.key) ? '1' : '0'}"
+      data-hub-text="${esc(searchText(def))}">
+      <div class="report-card__row">
+        <span class="report-card__glyph" aria-hidden="true">${def.glyph}</span>
+        <div class="report-card__rowmain">
+          <strong>${esc(def.label)}</strong>
+          <small>${filterSummary(params)}</small>
+        </div>
+        <button class="btn btn--quiet btn--sm" data-act="open-report" data-report="${esc(def.key)}">Resume</button>
+        <button class="btn btn--quiet btn--sm" data-act="hub-forget" data-key="${esc(def.key)}">Forget</button>
+      </div>
+    </article>`;
+  }
+
+  function filterSummary(params) {
+    const names = { from: 'From', to: 'To', as_of: 'As at', account_id: 'Account', fiscal_period: 'Period', compare: 'Comparison' };
+    const parts = [];
+    Object.keys(params || {}).forEach(k => {
+      const value = params[k];
+      if (value === undefined || value === null || value === '' || value === false) return;
+      const shown = value === true ? 'on' : String(value);
+      parts.push((names[k] || k) + ' ' + shown);
+    });
+    return parts.length ? esc(parts.join(' \u00b7 ')) : 'No filters saved';
+  }
+
+  /**
+   * The three filters — a search word, a category and a favourites-only view —
+   * narrow the same set of cards. A card carries what it can be narrowed by in
+   * its own data attributes, so filtering never re-reads anything.
+   */
+  function filterHub() {
+    const hub = $('#report-hub');
+    if (!hub) return;
+
+    const query = hubState.query.trim().toLowerCase();
+    const favouriteHunting = hubState.favouritesOnly;
+    const category = hubState.category;
+
+    // The standing sections only speak for the whole catalogue, so a search or
+    // a chosen category steps over them rather than leaving them contradicting
+    // the cards beside them.
+    const standing = !query && category === 'all';
+    const modes = {
+      favourites: standing,
+      recent: standing && !favouriteHunting,
+      saved: standing && !favouriteHunting
+    };
+    REPORT_CATEGORIES.forEach(c => { modes[c.key] = !favouriteHunting && (category === 'all' || category === c.key); });
+
+    let visible = 0;
+
+    $$('[data-hub-section]', hub).forEach(section => {
+      const on = modes[section.dataset.hubSection] !== false;
+      section.hidden = !on;
+
+      $$('[data-hub-card]', section).forEach(card => {
+        let show = on;
+        if (show && query && card.dataset.hubText.indexOf(query) === -1) show = false;
+        if (show && favouriteHunting && card.dataset.hubFav !== '1') show = false;
+        card.hidden = !show;
+        if (show) visible++;
+      });
+    });
+
+    const empty = $('#hub-empty');
+    if (empty) empty.hidden = visible > 0;
+  }
+
+  // Starring a report, choosing a category or switching the favourites view
+  // redraws the hub from the store. The search box is left alone, so a word
+  // half-typed is never thrown away.
+  function redrawHub() {
+    if (S.screen !== 'reports' || S.report) return;
+    const head = $('.report-hub__head');
+    const hub = $('#report-hub');
+    if (!head || !hub) return;
+    head.outerHTML = hubHead();
+    hub.innerHTML = hubBody();
+    filterHub();
+  }
+
+  /* ------------------------------------------------------- reports: viewer */
+
+  /**
+   * One report, drawn through the renderer the section has always used. Its
+   * address names it, the breadcrumb and the page title follow, and its filters
+   * are the ones the reader left it with last time.
+   */
+  async function drawReportViewer(container, def) {
+    if (reportState.key !== def.key) { reportState.params = {}; reportState.html = ''; }
     reportState.key = def.key;
 
+    // Only the fields this report actually asks about are restored, so a saved
+    // filter for another report can never leak into this one.
+    const saved = reportReadFilters(def.key);
+    if (saved) {
+      Object.keys(saved).forEach(k => {
+        if (def.params.indexOf(k) >= 0) reportState.params[k] = saved[k];
+      });
+    }
+
+    setStatus('Reading ' + def.label.toLowerCase());
     const toolbar = await buildReportToolbar(def);
-    const output = reportState.html || emptyState('\u25CB', 'Nothing read yet', 'Choose a report and run it.');
+    const output = reportState.html || emptyState('\u25CB', 'Nothing read yet', 'Run the report to read it.');
 
     container.innerHTML =
-      card('Reports', 'Every figure is the ledger read a second way; nothing is computed here', toolbar) +
+      reportViewerBar(def) +
+      card(def.label, def.description, toolbar) +
       `<div id="report-output" style="margin-top:16px">${output}</div>`;
 
     wireReportToolbar(def);
     if (!reportState.html) runReport(def);
+  }
+
+  function reportViewerBar(def) {
+    return `<div class="report-viewer__bar">
+      <button class="btn btn--quiet btn--sm" data-act="report-back">\u2190 All reports</button>
+      <span class="badge badge--muted">${esc(categoryLabel(def.category))}</span>
+      <span class="report-viewer__addr" aria-hidden="true">/financial-manager/reports/${esc(def.key)}</span>
+    </div>`;
   }
 
   async function buildReportToolbar(def) {
@@ -4339,13 +4821,20 @@
     def.params.forEach(p => { if (reportState.params[p] === undefined) reportState.params[p] = base[p]; });
 
     // A sensible first pick so the toolbar is never empty of a required value.
-    if (def.params.indexOf('fiscal_period') >= 0 && !reportState.params.fiscal_period) {
-      const current = currentPeriod(list);
-      reportState.params.fiscal_period = current ? current.ulid : (list[0] && list[0].ulid) || '';
+    // A period or an account remembered from an earlier visit may since have
+    // been closed or removed, so a value the list no longer carries falls back
+    // to a real one rather than being sent and refused.
+    if (def.params.indexOf('fiscal_period') >= 0) {
+      const known = list.some(p => p.ulid === reportState.params.fiscal_period);
+      if (!known) {
+        const current = currentPeriod(list);
+        reportState.params.fiscal_period = current ? current.ulid : (list[0] && list[0].ulid) || '';
+      }
     }
-    if (def.params.indexOf('account_id') >= 0 && !reportState.params.account_id) {
+    if (def.params.indexOf('account_id') >= 0) {
       const postable = chart.filter(a => a.is_postable);
-      reportState.params.account_id = (postable[0] || chart[0] || {}).id || '';
+      const known = postable.some(a => Number(a.id) === Number(reportState.params.account_id));
+      if (!known) reportState.params.account_id = (postable[0] || chart[0] || {}).id || '';
     }
 
     const fields = [];
@@ -4386,7 +4875,7 @@
     return `<div class="toolbar">
       <label class="field" style="min-width:220px"><span class="field__label">Report</span>
         <select data-act="report-select">
-          ${REPORT_DEFS.map(d => `<option value="${d.key}"${d.key === def.key ? ' selected' : ''}>${esc(d.label)}</option>`).join('')}
+          ${REPORT_DEFS.filter(d => !d.deferred).map(d => `<option value="${d.key}"${d.key === def.key ? ' selected' : ''}>${esc(d.label)}</option>`).join('')}
         </select></label>
       ${fields.join('')}
       <button class="btn btn--primary" data-act="run-report">Run</button>
@@ -4423,9 +4912,15 @@
       const payload = await api('/reports/' + def.key + '?' + reportQuery(def));
       reportState.html = renderReport(def.key, payload);
       out.innerHTML = reportState.html;
+      // The report answered, so this is what "last opened here" means, and
+      // these are the filters worth finding again the next time it is opened.
+      reportMarkOpened(def.key);
+      reportSaveFilters(def.key, reportState.params);
+      setStatus('Ready');
     } catch (error) {
       reportState.html = errorState(error);
       out.innerHTML = reportState.html;
+      setStatus('Ready');
     }
   }
 
@@ -4996,8 +5491,27 @@
       }
       if (act === 'approval-bulk-approve') { bulkApproveRequest(); return; }
       if (act === 'approval-bulk-clear') { approvalState.checked = {}; renderApprovals(); return; }
-      if (act === 'run-report') { runReport(REPORT_DEFS.find(d => d.key === reportState.key)); return; }
+      if (act === 'run-report') { runReport(reportDef(reportState.key)); return; }
       if (act === 'export') { startExport(); return; }
+
+      // The reports hub. Starring and filtering redraw from what the browser
+      // holds, so none of them costs a round trip; opening a report is what
+      // gives the report its own address.
+      if (act === 'report-back') { go('reports'); return; }
+      if (act === 'hub-category') {
+        hubState.category = trigger.dataset.category || 'all';
+        hubState.favouritesOnly = false;
+        redrawHub();
+        return;
+      }
+      if (act === 'hub-favourites') {
+        hubState.favouritesOnly = !hubState.favouritesOnly;
+        if (hubState.favouritesOnly) hubState.category = 'all';
+        redrawHub();
+        return;
+      }
+      if (act === 'hub-fav') { reportToggleFavourite(trigger.dataset.key); redrawHub(); return; }
+      if (act === 'hub-forget') { reportForgetFilters(trigger.dataset.key); redrawHub(); return; }
       if (act === 'budget-refresh') { go('budgets'); return; }
       if (act === 'budget-new') { budgetOpenEditor(); return; }
       if (act === 'budget-open') {
@@ -5077,13 +5591,10 @@
       }
       if (act === 'runway-threshold-save') { saveLowCashThreshold(); return; }
       if (act === 'open-report') {
-        // A KPI and an alert both walk to the report the API named; the report
-        // screen runs it on arrival, so the figure can be read where it came from.
-        const key = trigger.dataset.report;
-        if (key && REPORT_DEFS.some(d => d.key === key)) reportState.key = key;
-        reportState.params = {};
-        reportState.html = '';
-        go('reports');
+        // A hub card, a KPI and an alert all walk to the report the API named.
+        // The report is given its own address, so where the reader lands is a
+        // place they can reload, bookmark or share.
+        openReport(trigger.dataset.report);
         return;
       }
     });
@@ -5097,10 +5608,9 @@
         return;
       }
       if (target.dataset.act === 'report-select') {
-        reportState.key = target.value;
-        reportState.params = {};
-        reportState.html = '';
-        go('reports');
+        // Switching report from inside the viewer is the same move as opening
+        // one from the hub: it gets its own address.
+        openReport(target.value);
         return;
       }
       // A different fiscal year is a different year's plan, so the version on
@@ -5133,6 +5643,15 @@
         dashState.filter = 'custom';
         go('dashboard');
         return;
+      }
+    });
+
+    // The hub's search filters the cards in place as it is typed, so the word
+    // being typed is never interrupted by a redraw.
+    $('#view').addEventListener('input', event => {
+      if (event.target.dataset.act === 'hub-search') {
+        hubState.query = event.target.value;
+        filterHub();
       }
     });
 

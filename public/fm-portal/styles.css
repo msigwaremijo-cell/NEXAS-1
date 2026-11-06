@@ -866,6 +866,90 @@ table.data .approval-check input { cursor: pointer; }
 .budget-bva__total { margin: 0; padding: 14px; }
 .budget-bva__total .facts { margin-top: 10px; gap: 10px 22px; }
 
+/* ------------------------------------------------------- reports: the hub */
+
+/* The hub's head carries the search box and the two filters, so the catalogue
+   below can be narrowed without leaving the page. */
+.report-hub__head .card__head { align-items: flex-end; }
+.report-hub__search { min-width: 260px; }
+.report-hub__filters { margin-top: 4px; }
+
+/* One category of the catalogue, or one standing list — favourites, recents,
+   saved filters — set out the same way. */
+.report-section { margin-top: 16px; }
+.report-section__head { margin-bottom: 10px; }
+.report-section__head h4 {
+  margin: 0; font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--mut); font-weight: 700;
+}
+.report-section__head p { margin: 2px 0 0; font-size: 12.5px; color: var(--mut); }
+
+.report-cards {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+
+/* A report card. It reads like every other surface in the portal — same
+   radius, same border, same hover tint — because it is one of them. */
+.report-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--bd); border-radius: var(--radius);
+  background: var(--surf);
+  box-shadow: var(--shadow-sm);
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+.report-card:hover {
+  border-color: var(--bd-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+.report-card.is-deferred { opacity: .72; }
+.report-card.is-deferred:hover { transform: none; }
+
+.report-card__head { display: flex; align-items: center; justify-content: space-between; }
+.report-card__glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--info-bg); color: var(--acc);
+  font-size: 17px; line-height: 1;
+}
+.report-card__star {
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 18px; line-height: 1; color: var(--mut);
+  padding: 6px; border-radius: 8px;
+}
+.report-card__star:hover { color: var(--acc); background: var(--info-bg); }
+.report-card__star.is-on { color: var(--warn); }
+.report-card__star:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.report-card__title { margin: 0; font-size: 15px; }
+.report-card__desc { margin: 0; font-size: 13px; color: var(--mut); line-height: 1.45; }
+.report-card__meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: auto; padding-top: 4px;
+}
+.report-card__last { font-size: 11.5px; color: var(--mut); }
+.report-card__foot { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* The compact shape: a recent or saved-filters row rather than a full card. */
+.report-card.is-compact { gap: 0; }
+.report-card__row { display: flex; align-items: center; gap: 12px; }
+.report-card__rowmain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.report-card__rowmain strong { font-size: 14px; }
+.report-card__rowmain small { font-size: 11.5px; color: var(--mut); overflow-wrap: anywhere; }
+
+/* ----------------------------------------------------- reports: the viewer */
+
+.report-viewer__bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.report-viewer__addr {
+  margin-left: auto; font-size: 11.5px; color: var(--mut);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* ------------------------------------------------------------ responsive */
 
 @media (max-width: 1080px) {
@@ -906,4 +990,10 @@ table.data .approval-check input { cursor: pointer; }
   .dash-head__tools .seg { flex: 1 1 100%; }
   .dash-head__tools .seg__btn { flex: 1; }
   .kpi__value { font-size: 20px; }
+
+  /* The hub head stacks: the search box takes the row, the filters wrap below. */
+  .report-hub__head .card__head { align-items: stretch; flex-direction: column; }
+  .report-hub__search { min-width: 0; width: 100%; }
+  .report-cards { grid-template-columns: 1fr; }
+  .report-viewer__addr { display: none; }
 }

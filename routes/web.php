@@ -47,7 +47,41 @@ $portal = function (?string $screen = null) {
     ]);
 };
 
+/*
+ * A report's own address.
+ *
+ * The reports screen opens a report at /financial-manager/reports/<report>, so
+ * that a reload, a bookmark or a shared link lands on the report named in the
+ * path rather than back at the hub. The shell reads its own path to decide
+ * which report to draw; the server only decides which report names are real, so
+ * a name that is not one of the portal's reports is a 404 rather than a second
+ * copy of the shell. This list and the portal's own report catalogue are the
+ * two halves of one rule and must be kept together.
+ */
+$report = function (string $report) use ($portal) {
+    $reports = [
+        'profit-and-loss',
+        'balance-sheet',
+        'cash-flow',
+        'cash-flow-indirect',
+        'trial-balance',
+        'general-ledger',
+        'receivables-ageing',
+        'payables-ageing',
+        'stock-valuation',
+        'budget-vs-actual',
+        'cash-position',
+    ];
+
+    abort_unless(in_array($report, $reports, true), 404);
+
+    return $portal('reports');
+};
+
 Route::get('/financial-manager', $portal)->name('financial-manager');
 Route::get('/financial-manager/{screen}', $portal)
     ->where('screen', '[a-z][a-z-]*')
     ->name('financial-manager.screen');
+Route::get('/financial-manager/reports/{report}', $report)
+    ->where('report', '[a-z][a-z-]*')
+    ->name('financial-manager.report');
