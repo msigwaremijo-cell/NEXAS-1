@@ -966,6 +966,17 @@ table.data .approval-check input { cursor: pointer; }
 .tie__when { font-size: 11.5px; color: var(--mut); }
 .tie__wrap { flex: 1 1 100%; margin-top: 10px; overflow-x: auto; }
 
+/* A figure that is also a doorway: the account name on a statement opens the
+   ledger the figure was read from. Styled as a link rather than a button so a
+   statement still reads as a statement, with the underline arriving on hover
+   and on keyboard focus so it is reachable without a pointer. */
+.drill {
+  padding: 0; border: 0; background: none; font: inherit; color: var(--acc);
+  cursor: pointer; text-align: left; text-decoration: none;
+}
+.drill:hover, .drill:focus-visible { text-decoration: underline; }
+.drill:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 3px; }
+
 .report-viewer__bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin-bottom: 12px;

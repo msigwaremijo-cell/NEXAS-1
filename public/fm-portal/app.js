@@ -4532,7 +4532,7 @@
 
   // The open report: which one, the filters it was asked with, and the html it
   // last answered with.
-  const reportState = { key: '', params: {}, html: '' };
+  const reportState = { key: '', params: {}, html: '', seeded: false };
 
   /**
    * The Reports section is two screens behind one address. With no report named
@@ -4553,10 +4553,18 @@
    * not carry — a report the API named before the catalogue knew it, say —
    * lands on the hub rather than on a link that does nothing.
    */
-  function openReport(key) {
+  function openReport(key, opts) {
     const def = reportDef(key);
     if (!def || def.deferred) { go('reports'); return; }
-    if (reportState.key !== key) { reportState.params = {}; reportState.html = ''; }
+    const incoming = (opts && opts.params) || null;
+    if (reportState.key !== key || incoming) {
+      reportState.params = incoming ? Object.assign({}, incoming) : {};
+      reportState.html = '';
+      // A drill-down arrives carrying the window it was opened from. That
+      // window is the report's subject rather than a leftover to be cleared
+      // when the report changes, so it is flagged and the viewer keeps it.
+      reportState.seeded = Boolean(incoming);
+    }
     go('reports', { report: key });
   }
 
@@ -4781,15 +4789,21 @@
    * are the ones the reader left it with last time.
    */
   async function drawReportViewer(container, def) {
-    if (reportState.key !== def.key) { reportState.params = {}; reportState.html = ''; }
+    // A drill-down arrives with the window it was opened from already in hand;
+    // that window is the report's subject, so it is not cleared the way a
+    // leftover from another report would be.
+    if (reportState.key !== def.key && !reportState.seeded) { reportState.params = {}; reportState.html = ''; }
     reportState.key = def.key;
+    reportState.seeded = false;
 
     // Only the fields this report actually asks about are restored, so a saved
-    // filter for another report can never leak into this one.
+    // filter for another report can never leak into this one. A value already
+    // in hand is left alone: what the reader clicked through from outranks what
+    // they last left here.
     const saved = reportReadFilters(def.key);
     if (saved) {
       Object.keys(saved).forEach(k => {
-        if (def.params.indexOf(k) >= 0) reportState.params[k] = saved[k];
+        if (def.params.indexOf(k) >= 0 && reportState.params[k] === undefined) reportState.params[k] = saved[k];
       });
     }
 
@@ -4943,11 +4957,31 @@
       `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>`;
   }
 
-  function accountRowsTable(block, label, totalLabel) {
+  /**
+   * An account name that opens that account's ledger over the window the
+   * figure came from. The window travels with the click, so the ledger that
+   * opens is the same span as the row it was clicked from; without it the
+   * drill would quietly show a different period from the figure above it.
+   * A row with no account behind it, or a statement with no window, stays
+   * plain text rather than a link that would open the wrong books.
+   */
+  function accountDrill(row, window) {
+    const name = esc(row.name);
+    const from = (window && window.from) || '';
+    const to = (window && window.to) || '';
+
+    if (row.account_id === undefined || row.account_id === null || (!from && !to)) return name;
+
+    return `<button class="drill" data-act="drill-account" data-account-id="${esc(row.account_id)}"` +
+      ` data-from="${esc(from)}" data-to="${esc(to)}"` +
+      ` title="Open this account's general ledger for the same period">${name}</button>`;
+  }
+
+  function accountRowsTable(block, label, totalLabel, window) {
     const rows = (block && block.accounts) || [];
     return rowsTable(label, [
       { label: 'Code', render: r => esc(r.code) },
-      { label: 'Account', render: r => esc(r.name) },
+      { label: 'Account', render: r => accountDrill(r, window) },
       { label: 'Amount', num: true, render: r => fmtMoney(r.amount) }
     ], rows, {
       0: '', 1: totalLabel, 2: fmtMoney(block && block.total)
@@ -5144,9 +5178,10 @@
 
   function renderReport(key, report) {
     if (key === 'profit-and-loss') {
+      const window = { from: report.from, to: report.to };
       return card('Profit and loss', `${esc(report.from || 'beginning')} to ${esc(report.to || 'now')}`,
-        accountRowsTable(report.revenue, 'Revenue', 'Total revenue') + '<div style="height:14px"></div>' +
-        accountRowsTable(report.expense, 'Expense', 'Total expense') +
+        accountRowsTable(report.revenue, 'Revenue', 'Total revenue', window) + '<div style="height:14px"></div>' +
+        accountRowsTable(report.expense, 'Expense', 'Total expense', window) +
         `<div class="note ${Number(report.net_profit) < 0 ? 'note--bad' : 'note--ok'}" style="margin-top:12px">
           <strong>Net profit:</strong> ${fmtMoney(report.net_profit)} ${esc(CURRENCY)}</div>` + comparisonNote(report));
     }
@@ -5170,7 +5205,7 @@
       return card('Trial balance', (meta.from || 'beginning') + ' to ' + (meta.to || 'now'),
         rowsTable('Accounts', [
           { label: 'Code', render: r => esc(r.code) },
-          { label: 'Account', render: r => esc(r.name) },
+          { label: 'Account', render: r => accountDrill(r, { from: meta.from, to: meta.to }) },
           { label: 'Type', render: r => esc(r.account_type) },
           { label: 'Debit', num: true, render: r => fmtMoney(r.debit) },
           { label: 'Credit', num: true, render: r => fmtMoney(r.credit) },
@@ -5785,6 +5820,19 @@
         // The report is given its own address, so where the reader lands is a
         // place they can reload, bookmark or share.
         openReport(trigger.dataset.report);
+        return;
+      }
+      if (act === 'drill-account') {
+        // A figure on a statement is a doorway: the row names an account and
+        // the report names a window, and together they point at one ledger.
+        // Both travel with the click, so the ledger opens on the same period
+        // the row was read over rather than on whatever was last used.
+        const accountId = Number(trigger.dataset.accountId);
+        if (!accountId) return;
+        const params = { account_id: accountId };
+        if (trigger.dataset.from) params.from = trigger.dataset.from;
+        if (trigger.dataset.to) params.to = trigger.dataset.to;
+        openReport('general-ledger', { params: params });
         return;
       }
     });
