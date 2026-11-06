@@ -56,8 +56,9 @@ final class ReverseDebitNote
         ?string $postingDate = null,
         ?string $memo = null,
         ?int $userId = null,
+        ?int $expectedRowVersion = null,
     ): Bill {
-        return DB::transaction(function () use ($debitNote, $postingDate, $memo, $userId): Bill {
+        return DB::transaction(function () use ($debitNote, $postingDate, $memo, $userId, $expectedRowVersion): Bill {
             $locked = Bill::query()
                 ->whereKey($debitNote->getKey())
                 ->lockForUpdate()
@@ -100,19 +101,24 @@ final class ReverseDebitNote
                 $userId,
             );
 
+            // The version the caller believes the row is at. Named only by a
+            // test, which uses it to stand in for a second writer that moved
+            // the row between the read and the write.
+            $expected = $expectedRowVersion ?? $locked->row_version;
+
             $affected = Bill::query()
                 ->whereKey($locked->getKey())
-                ->where('row_version', $locked->row_version)
+                ->where('row_version', $expected)
                 ->update([
                     'status' => BillStatus::Reversed->value,
-                    'row_version' => $locked->row_version + 1,
+                    'row_version' => $expected + 1,
                     'updated_at' => now(),
                 ]);
 
             if ($affected !== 1) {
                 throw ConcurrentModificationException::row(
                     sprintf('Bill %s', $locked->bill_no),
-                    (int) $locked->row_version,
+                    $expected,
                 );
             }
 

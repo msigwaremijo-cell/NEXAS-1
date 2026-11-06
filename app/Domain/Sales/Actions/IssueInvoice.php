@@ -65,8 +65,9 @@ final class IssueInvoice
         Invoice $invoice,
         ?int $userId = null,
         ?string $idempotencyKey = null,
+        ?int $expectedRowVersion = null,
     ): Invoice {
-        return DB::transaction(function () use ($invoice, $userId, $idempotencyKey): Invoice {
+        return DB::transaction(function () use ($invoice, $userId, $idempotencyKey, $expectedRowVersion): Invoice {
             $locked = Invoice::query()
                 ->whereKey($invoice->getKey())
                 ->lockForUpdate()
@@ -118,21 +119,26 @@ final class IssueInvoice
             // negatives — is refused as a whole rather than half-posted.
             $this->issueGoods($locked, $lines, $companyId, $userId);
 
+            // The version the caller believes the row is at. Named only by a
+            // test, which uses it to stand in for a second writer that moved
+            // the row between the read and the write.
+            $expected = $expectedRowVersion ?? $locked->row_version;
+
             $affected = Invoice::query()
                 ->whereKey($locked->getKey())
-                ->where('row_version', $locked->row_version)
+                ->where('row_version', $expected)
                 ->update([
                     'status' => InvoiceStatus::Issued->value,
                     'journal_id' => $posted->getKey(),
                     'issued_at' => now(),
-                    'row_version' => $locked->row_version + 1,
+                    'row_version' => $expected + 1,
                     'updated_at' => now(),
                 ]);
 
             if ($affected !== 1) {
                 throw ConcurrentModificationException::row(
                     sprintf('Invoice %s', $locked->invoice_no),
-                    (int) $locked->row_version,
+                    $expected,
                 );
             }
 

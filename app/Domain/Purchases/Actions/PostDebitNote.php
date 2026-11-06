@@ -90,8 +90,9 @@ final class PostDebitNote
         Bill $debitNote,
         ?int $userId = null,
         ?string $idempotencyKey = null,
+        ?int $expectedRowVersion = null,
     ): Bill {
-        return DB::transaction(function () use ($debitNote, $userId, $idempotencyKey): Bill {
+        return DB::transaction(function () use ($debitNote, $userId, $idempotencyKey, $expectedRowVersion): Bill {
             $locked = Bill::query()
                 ->whereKey($debitNote->getKey())
                 ->lockForUpdate()
@@ -153,9 +154,14 @@ final class PostDebitNote
             // ledger corrected and the shelf unchanged.
             $this->applyReturns($locked, $returns, $companyId, $userId);
 
+            // The version the caller believes the row is at. Named only by a
+            // test, which uses it to stand in for a second writer that moved
+            // the row between the read and the write.
+            $expected = $expectedRowVersion ?? $locked->row_version;
+
             $affected = Bill::query()
                 ->whereKey($locked->getKey())
-                ->where('row_version', $locked->row_version)
+                ->where('row_version', $expected)
                 ->update([
                     // There is no approval gate on a debit note, so the state it
                     // reaches when it hits the ledger is the one that marks it
@@ -163,14 +169,14 @@ final class PostDebitNote
                     // a payment or a later note settles it.
                     'status' => BillStatus::Approved->value,
                     'journal_id' => $posted->getKey(),
-                    'row_version' => $locked->row_version + 1,
+                    'row_version' => $expected + 1,
                     'updated_at' => now(),
                 ]);
 
             if ($affected !== 1) {
                 throw ConcurrentModificationException::row(
                     sprintf('Bill %s', $locked->bill_no),
-                    (int) $locked->row_version,
+                    $expected,
                 );
             }
 
