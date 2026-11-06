@@ -941,6 +941,31 @@ table.data .approval-check input { cursor: pointer; }
 
 /* ----------------------------------------------------- reports: the viewer */
 
+/* The tie-out. One panel, four faces: reading, and the three answers the check
+   can give. The colour is the point — green only once balances were read back
+   and agreed, grey when nothing was compared, red with the difference when the
+   two disagree. */
+.tie {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--bd); border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surf);
+}
+.tie--verified { border-left-color: var(--ok); }
+.tie--unchecked, .tie--reading { border-left-color: var(--bd-strong); }
+.tie--mismatch { border-left-color: var(--bad); }
+.tie--unread { border-left-color: var(--warn); }
+
+.tie__label {
+  font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--mut); font-weight: 700;
+}
+.tie__text { flex: 1 1 260px; margin: 0; font-size: 12.5px; color: var(--mut); line-height: 1.5; }
+.tie__text strong { color: var(--tx); }
+.tie__when { font-size: 11.5px; color: var(--mut); }
+.tie__wrap { flex: 1 1 100%; margin-top: 10px; overflow-x: auto; }
+
 .report-viewer__bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin-bottom: 12px;

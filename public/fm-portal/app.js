@@ -4800,10 +4800,13 @@
     container.innerHTML =
       reportViewerBar(def) +
       card(def.label, def.description, toolbar) +
+      `<div id="report-tie" style="margin-top:16px"></div>` +
       `<div id="report-output" style="margin-top:16px">${output}</div>`;
 
     wireReportToolbar(def);
-    if (!reportState.html) runReport(def);
+    // The tie-out stands beside the figures rather than inside them: it is a
+    // claim about the company's ledger, read again whenever the report is.
+    if (reportState.html) runTieOut(); else runReport(def);
   }
 
   function reportViewerBar(def) {
@@ -4907,6 +4910,10 @@
   async function runReport(def) {
     const out = $('#report-output');
     if (!out) return;
+
+    // Reading the report and reading whether it ties to the ledger are two
+    // questions about the same moment, so both are asked now.
+    runTieOut();
     out.innerHTML = skeleton(6);
     try {
       const payload = await api('/reports/' + def.key + '?' + reportQuery(def));
@@ -4950,6 +4957,189 @@
   function comparisonNote(report) {
     if (!report || !report.comparison || !report.variance) return '';
     return `<div class="note" style="margin-top:12px">A prior-period column was asked for and is included in the payload below.</div>`;
+  }
+
+  /* --------------------------------------------------- reports: the tie-out */
+
+  /**
+   * The three answers the ledger tie-out can give.
+   *
+   * The middle one is the trap. The endpoint answers `consistent: true` when
+   * nothing contradicted the ledger — and nothing contradicts it when there is
+   * nothing to compare, because no period has been snapshotted yet. A check
+   * that compared nothing is not a pass, so the number of cached balances read
+   * back is asked first, and a run that compared nothing is reported as not
+   * checked whatever `consistent` says.
+   */
+  function tieOutState(verification) {
+    const readBack = Number((verification && verification.snapshots_checked) || 0);
+
+    if (!(readBack > 0)) return 'not-checked';
+
+    return verification.consistent === true ? 'verified' : 'mismatch';
+  }
+
+  /**
+   * Money read as an integer at the ledger's own scale, so the difference
+   * between two four-decimal figures is exact rather than a floating-point
+   * near miss. Only the difference is computed this way; the figures
+   * themselves are shown as the ledger gave them.
+   */
+  function moneyUnits(value) {
+    const text = String(value === null || value === undefined ? '0' : value).trim();
+    const match = /^(-?)(\d*)(?:\.(\d*))?$/.exec(text);
+
+    if (!match) return null;
+
+    const scale = 10000;
+    const fraction = (match[3] || '').padEnd(4, '0').slice(0, 4);
+    const units = (Number(match[2] || '0') * scale) + Number(fraction);
+
+    return (match[1] === '-' ? -1 : 1) * units;
+  }
+
+  function moneyFromUnits(units) {
+    const scale = 10000;
+    const abs = Math.abs(units);
+
+    return (units < 0 ? '-' : '') + Math.floor(abs / scale) + '.' + String(abs % scale).padStart(4, '0');
+  }
+
+  /**
+   * What the check found, in money: the ledger's figure less the cached one,
+   * totalled over the divergences that are money. `missing_from_ledger` says a
+   * cached row has no ledger behind it at all, which is a presence problem
+   * rather than a difference, so it is counted but not added.
+   */
+  function tieOutDifference(divergences) {
+    let units = 0;
+    let counted = 0;
+
+    (divergences || []).forEach(d => {
+      if (d.check === 'missing_from_ledger') return;
+
+      const ledger = moneyUnits(d.ledger);
+      const cached = moneyUnits(d.snapshot);
+
+      if (ledger === null || cached === null) return;
+
+      units += ledger - cached;
+      counted++;
+    });
+
+    return counted ? { difference: moneyFromUnits(units), counted: counted } : null;
+  }
+
+  const TIE_OUT_CHECKS = {
+    opening_debit: 'Opening debit',
+    opening_credit: 'Opening credit',
+    period_debit: 'Period debit',
+    period_credit: 'Period credit',
+    closing_debit: 'Closing debit',
+    closing_credit: 'Closing credit',
+    closing_net: 'Closing balance, read from the ledger',
+    missing_from_ledger: 'No ledger behind the cached row'
+  };
+
+  /**
+   * The badge, and the sentence that keeps it honest. It is grey when nothing
+   * was checked, red and itemised when the two disagree, and green only when
+   * balances were actually read back and agreed.
+   */
+  function tieOutPanel(verification, failure) {
+    const readAt = esc(fmtDateTime(new Date().toISOString()));
+
+    if (failure) {
+      return `<div class="tie tie--unread" data-tie-state="unread">
+        <span class="tie__label">Ties to ledger</span>
+        ${badge('muted', 'Could not be read')}
+        <p class="tie__text">The check did not answer, so nothing is claimed here about the ledger
+          and its cached balances.</p>
+      </div>`;
+    }
+
+    const state = tieOutState(verification);
+    const divergences = verification.divergences || [];
+
+    if (state === 'not-checked') {
+      return `<div class="tie tie--unchecked" data-tie-state="not-checked">
+        <span class="tie__label">Ties to ledger</span>
+        ${badge('muted', 'Not checked')}
+        <p class="tie__text">Nothing checked yet: the check reads the ledger's cached balances back
+          and compares them with the ledger itself, and this company has none cached, so there was
+          nothing to compare. This is not a pass.</p>
+        <span class="tie__when">Read ${readAt}</span>
+      </div>`;
+    }
+
+    if (state === 'verified') {
+      const rows = number.format(Number(verification.snapshots_checked || 0));
+      const periods = number.format(Number(verification.periods_checked || 0));
+
+      return `<div class="tie tie--verified" data-tie-state="verified">
+        <span class="tie__label">Ties to ledger</span>
+        ${badge('ok', 'Verified')}
+        <p class="tie__text">${rows} cached balance${rows === '1' ? '' : 's'} across ${periods}
+          fiscal period${periods === '1' ? '' : 's'} were read back and every one agrees with the
+          posted ledger.</p>
+        <span class="tie__when">Read ${readAt}</span>
+      </div>`;
+    }
+
+    const difference = tieOutDifference(divergences);
+    const shown = divergences.slice(0, 12);
+
+    return `<div class="tie tie--mismatch" data-tie-state="mismatch">
+      <span class="tie__label">Ties to ledger</span>
+      ${badge('bad', 'Mismatch')}
+      <p class="tie__text">The cached balances and the posted ledger disagree on
+        ${number.format(divergences.length)} figure${divergences.length === 1 ? '' : 's'}${difference
+          ? `, a net difference of <strong>${esc(fmtMoney(difference.difference))}</strong> ${esc(CURRENCY)}` : ''}.
+        The report below is read from the posted ledger; the cached figure is the wrong one, and
+        rebuilding the snapshot is what repairs it.</p>
+      <span class="tie__when">Read ${readAt}</span>
+      <div class="tie__wrap"><table class="data">
+        <thead><tr><th>Fiscal period</th><th>Account</th><th>Figure</th>
+          <th class="num">Cached</th><th class="num">Ledger</th><th class="num">Difference</th></tr></thead>
+        <tbody>${shown.map(d => {
+          const presence = d.check === 'missing_from_ledger';
+          const ledger = moneyUnits(d.ledger);
+          const cached = moneyUnits(d.snapshot);
+          const diff = !presence && ledger !== null && cached !== null ? moneyFromUnits(ledger - cached) : '';
+
+          return `<tr><td>${esc(d.period || '')}</td><td>#${esc(d.account_id)}</td>
+            <td>${esc(TIE_OUT_CHECKS[d.check] || d.check)}</td>
+            <td class="num">${presence ? '\u2014' : fmtMoney(d.snapshot)}</td>
+            <td class="num">${presence ? '\u2014' : fmtMoney(d.ledger)}</td>
+            <td class="num ${diff ? moneyClass(diff) : ''}">${diff ? fmtMoney(diff) : '\u2014'}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      ${divergences.length > shown.length
+        ? `<p class="tie__text">Showing the first ${shown.length} of ${number.format(divergences.length)}.</p>`
+        : ''}
+    </div>`;
+  }
+
+  /**
+   * The tie-out is a claim about the company's ledger and its cached balances
+   * as a whole rather than about one report's rows, so it is read from the
+   * endpoint the nightly check uses and shown beside the report rather than
+   * inside it. It is read whenever the report is drawn or run, so the claim and
+   * the figures beside it are as fresh as each other.
+   */
+  async function runTieOut() {
+    const slot = $('#report-tie');
+    if (!slot) return;
+
+    slot.innerHTML = `<div class="tie tie--reading"><span class="tie__label">Ties to ledger</span>` +
+      `${badge('muted', 'Checking\u2026')}</div>`;
+
+    try {
+      slot.innerHTML = tieOutPanel(await api('/reports/ledger-verification'), null);
+    } catch (error) {
+      if (error && error.status === 401) return;
+      slot.innerHTML = tieOutPanel(null, error);
+    }
   }
 
   function renderReport(key, report) {
